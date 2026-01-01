@@ -1,0 +1,5 @@
+{
+  "name": "SST Metrics Pro",
+  "description": "A comprehensive Health, Safety, and Environment (HSE) dashboard for tracking incidents, managing exposure hours, and calculating OSHA/ISO KPIs (TRIR, DART, LTIR). Features AI-assisted incident classification.",
+  "requestFramePermissions": []
+}
