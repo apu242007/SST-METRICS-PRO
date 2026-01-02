@@ -1,14 +1,13 @@
-
 import React, { useMemo, useState } from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  LineChart, Line, ComposedChart, ScatterChart, Scatter, ZAxis, Cell
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
+  Line, ComposedChart
 } from 'recharts';
-import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, ParetoData } from '../types';
+import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType } from '../types';
 import { calculateKPIs, generateParetoData } from '../utils/calculations';
-import { getMissingExposureKeys, getMissingKmKeys, getMissingExposureImpact, groupMissingKeysBySite } from '../utils/importHelpers';
+import { getMissingExposureImpact, getMissingKmKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, ShieldAlert, Target, Trophy, Info, Zap, BarChart2, Leaf, Siren, Scale, PersonStanding } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, Zap, BarChart2, Leaf, Siren, Scale, PersonStanding } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 import { BodyMap } from './BodyMap';
 
@@ -292,17 +291,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* 4. CHART ROW: RISK & TREND */}
-      <div id="dashboard-charts-container" className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-2 rounded-xl">
+      <div id="dashboard-charts-container" className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-2 rounded-xl min-w-0">
           
           {/* Risk Index Trend - FIXED CONTAINER */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-w-0 flex flex-col">
                <h3 className="font-bold text-gray-800 mb-4 flex items-center">
                    <Zap className="w-4 h-4 mr-2 text-orange-500" /> Evolución Índice de Riesgo
                </h3>
-               {/* Fixed Height Wrapper with w-full */}
-               <div className="h-64 w-full relative">
-                   {/* minWidth={0} and debounce={200} prevents Recharts from calculating negative/zero width during grid layout initialization */}
-                   <ResponsiveContainer width="99%" height="100%" minWidth={0} debounce={200}>
+               {/* Fixed Height Wrapper with w-full, overflow-hidden and explicit minWidth to prevent Recharts grid issues */}
+               <div className="h-64 w-full min-w-0 overflow-hidden">
+                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
                        <ComposedChart data={trendData}>
                            <CartesianGrid strokeDasharray="3 3" vertical={false}/>
                            <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false}/>
@@ -328,10 +326,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                        <button onClick={() => setParetoView('location')} className={`px-2 py-1 rounded ${paretoView==='location'?'bg-blue-100 text-blue-700':'bg-gray-100'}`}>Por Ubicación</button>
                    </div>
                </div>
-               {/* Fixed Height Wrapper with w-full */}
-               <div className="h-64 w-full relative">
-                   {/* minWidth={0} and debounce={200} prevents Recharts from calculating negative/zero width during grid layout initialization */}
-                   <ResponsiveContainer width="99%" height="100%" minWidth={0} debounce={200}>
+               {/* Fixed Height Wrapper with w-full, overflow-hidden and explicit minWidth to prevent Recharts grid issues */}
+               <div className="h-64 w-full min-w-0 overflow-hidden">
+                   <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={200}>
                        <ComposedChart data={paretoData} onClick={(d) => d && d.activePayload && onDrillDown && onDrillDown({ type: d.activePayload[0].payload.name })}>
                            <CartesianGrid strokeDasharray="3 3" vertical={false}/>
                            <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={40}/>
@@ -347,10 +344,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* 5. BODY MAP & HEATMAP MATRIX ROW */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 min-w-0">
           
           {/* BODY MAP (1/3 Width) */}
-          <div className="xl:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="xl:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 p-4 min-w-0">
               <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
                  <h3 className="font-bold text-gray-800 flex items-center text-sm">
                      <PersonStanding className="w-5 h-5 mr-2 text-blue-500" /> Mapa de Lesiones
@@ -368,7 +365,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* HEATMAP MATRIX (2/3 Width) */}
-          <div className="xl:col-span-2 h-[400px]">
+          <div className="xl:col-span-2 h-[400px] min-w-0">
               <HeatmapMatrix incidents={incidents} />
           </div>
       </div>
