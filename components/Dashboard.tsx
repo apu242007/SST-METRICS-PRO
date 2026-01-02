@@ -8,8 +8,9 @@ import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, Pa
 import { calculateKPIs, generateParetoData } from '../utils/calculations';
 import { getMissingExposureKeys, getMissingKmKeys, getMissingExposureImpact, groupMissingKeysBySite } from '../utils/importHelpers';
 import { TARGET_SCENARIOS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, ShieldAlert, Target, Trophy, Info, Zap, BarChart2 } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, ShieldAlert, Target, Trophy, Info, Zap, BarChart2, Leaf, Siren, Scale, PersonStanding } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
+import { BodyMap } from './BodyMap';
 
 interface DashboardProps {
   incidents: Incident[];
@@ -21,14 +22,24 @@ interface DashboardProps {
 }
 
 // Helper Card Component
-const KPICard = ({ title, value, target, subtext, icon: Icon, colorClass, borderClass, onClick, tooltip, footer, blocked }: any) => {
+const KPICard = ({ title, value, target, subtext, icon: Icon, colorClass, borderClass, onClick, tooltip, footer, blocked, reverseLogic }: any) => {
   const isNull = value === null || value === undefined || blocked;
   
   let statusColor = "text-gray-400";
   if (!isNull && target !== undefined) {
-      if (value <= target) statusColor = "text-green-700 bg-green-100 px-1.5 py-0.5 rounded";
-      else if (value <= target * 1.2) statusColor = "text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded";
+      // Standard: Lower is better. Reverse: Higher is better (e.g. HIPO Ratio sometimes, but here we want High HIPO reporting, so > target is good)
+      const isGood = reverseLogic ? value >= target : value <= target;
+      const isWarning = reverseLogic ? value >= target * 0.8 && value < target : value <= target * 1.2 && value > target;
+      
+      if (isGood) statusColor = "text-green-700 bg-green-100 px-1.5 py-0.5 rounded";
+      else if (isWarning) statusColor = "text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded";
       else statusColor = "text-red-700 bg-red-100 px-1.5 py-0.5 rounded";
+  }
+
+  // String target handling (e.g. "Bajo")
+  if (typeof target === 'string' && typeof value === 'string') {
+       if (value === target) statusColor = "text-green-700 bg-green-100 px-1.5 py-0.5 rounded";
+       else statusColor = "text-red-700 bg-red-100 px-1.5 py-0.5 rounded";
   }
   
   return (
@@ -46,7 +57,7 @@ const KPICard = ({ title, value, target, subtext, icon: Icon, colorClass, border
             {isNull ? (
                 <span className="text-3xl font-bold text-gray-300 select-none" title={blocked ? "Tasa bloqueada: Faltan horas hombre" : "Falta denominador"}>&mdash;</span>
             ) : (
-                <h3 className="text-3xl font-bold text-gray-900">{value}</h3>
+                <h3 className="text-3xl font-bold text-gray-900 truncate">{value}</h3>
             )}
             {!isNull && target !== undefined && (
                 <div className="ml-3">
@@ -69,7 +80,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     incidents, exposureHours, exposureKm, settings, 
     onNavigateToExposure, onDrillDown 
 }) => {
-  const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Realista');
+  const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
   const [paretoView, setParetoView] = useState<'location' | 'type'>('type');
   
   const targets = TARGET_SCENARIOS[selectedScenario];
@@ -130,15 +141,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
            <div className="flex items-center space-x-4">
                 <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1.5">
                     <span className="text-xs font-bold text-gray-500 mx-2 uppercase flex items-center">
-                        <Trophy className="w-4 h-4 mr-1 text-yellow-500" /> Escenario:
+                        <Trophy className="w-4 h-4 mr-1 text-yellow-500" /> Objetivos:
                     </span>
                     <select 
                         value={selectedScenario} 
                         onChange={(e) => setSelectedScenario(e.target.value as TargetScenarioType)}
                         className="text-sm border-none bg-transparent font-bold text-gray-800 focus:ring-0 cursor-pointer"
                     >
-                        <option value="Realista">Realista (Base)</option>
-                        <option value="Desafiante">Desafiante (-40%)</option>
+                        <option value="Metas 2026">Metas 2026 (Oficial)</option>
+                        <option value="Realista">Realista (Benchmark)</option>
+                        <option value="Desafiante">Desafiante (-20%)</option>
                         <option value="Excelencia">Excelencia (World Class)</option>
                     </select>
                 </div>
@@ -183,65 +195,114 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
       )}
 
-      {/* 2. KPI CARDS (FORECAST & TARGETS) */}
+      {/* 2. KPI CARDS - PRIMARY ROW */}
+      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 pb-2">Indicadores de Desempeño Principal</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard 
-              title="TRIR (Proyección Anual)" 
+              title="TRIR (Total Recordable)" 
               value={metrics.trir} 
               target={targets.trir}
               icon={Activity}
               colorClass="bg-blue-100 text-blue-600"
               borderClass="border-blue-400"
-              subtext={`Forecast: ${metrics.forecast_trir ?? '-'} (Tendencia)`}
-              footer={`Restan: ${metrics.remaining_trir_events} eventos permitidos`}
+              subtext={`Meta 2026: ≤ ${TARGET_SCENARIOS['Metas 2026'].trir}`}
+              footer={`Forecast: ${metrics.forecast_trir ?? '-'}`}
               tooltip="Total Recordable Incident Rate. Proyección lineal basada en YTD."
-              onClick={() => onDrillDown && onDrillDown({ category: 'Recordable' })}
               blocked={isRatesBlocked}
           />
           <KPICard 
-              title="LTIR (Proyección Anual)" 
+              title="LTIR (Lost Time)" 
               value={metrics.ltir} 
               target={targets.ltir}
               icon={TrendingDown}
               colorClass="bg-red-100 text-red-600"
               borderClass="border-red-400"
-              subtext={`Forecast: ${metrics.forecast_lti_count} casos totales`}
-              footer={`Restan: ${metrics.remaining_lti_events} LTI permitidos`}
-              onClick={() => onDrillDown && onDrillDown({ category: 'LTI' })}
+              subtext={`Meta 2026: ≤ ${TARGET_SCENARIOS['Metas 2026'].ltir}`}
+              footer={`LTI Cases: ${metrics.totalLTI}`}
               blocked={isRatesBlocked}
           />
            <KPICard 
-              title="Riesgo Ponderado" 
-              value={metrics.risk_index_total} 
-              target={undefined} // No specific target usually
+              title="Indice Frecuencia (IF)" 
+              value={metrics.frequencyRate} 
+              target={targets.if} 
               icon={Zap}
               colorClass="bg-orange-100 text-orange-600"
               borderClass="border-orange-400"
-              subtext="Suma de pesos por potencialidad"
-              tooltip="Alta=5, Media=3, Baja=1. Indicador líder de exposición al riesgo."
+              subtext={`Meta 2026: ≤ ${TARGET_SCENARIOS['Metas 2026'].if}`}
+              footer="Base 1.000.000 HH"
+              blocked={isRatesBlocked}
           />
           <KPICard 
-              title="Días Perdidos (IG)" 
-              value={metrics.totalDaysLost} 
-              target={targets.ig} // Target in days usually
+              title="Incidentes Totales" 
+              value={metrics.totalIncidents} 
+              target={undefined}
               icon={Clock}
-              colorClass="bg-green-100 text-green-600"
-              borderClass="border-green-400"
-              subtext={`Severidad: ${metrics.severityRate ?? '-'}`}
-              blocked={isRatesBlocked}
+              colorClass="bg-gray-100 text-gray-600"
+              borderClass="border-gray-400"
+              subtext={selectedScenario === 'Metas 2026' ? `Obj: Reducción ${targets.total_incidents_reduction}%` : 'Volumen total'}
+              blocked={false}
           />
       </div>
 
-      {/* 3. CHART ROW: RISK & TREND */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 3. KPI CARDS - SECONDARY ROW (Specifics) */}
+      <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 pb-2 pt-2">Indicadores Específicos y Ambientales</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard 
+              title="Tasa Incidencia (%)" 
+              value={metrics.incidenceRatePct !== null ? `${metrics.incidenceRatePct}%` : null} 
+              target={`${targets.incidence_rate_pct}%`}
+              icon={Users}
+              colorClass="bg-indigo-100 text-indigo-600"
+              borderClass="border-indigo-400"
+              subtext="Total Incidentes / Fuerza Laboral"
+              blocked={isRatesBlocked}
+          />
+          <KPICard 
+              title="HIPO Rate" 
+              value={metrics.hipoRate} 
+              target={targets.hipo_rate_min}
+              icon={Siren}
+              colorClass="bg-yellow-100 text-yellow-600"
+              borderClass="border-yellow-400"
+              subtext={`${metrics.hipoCount} eventos de Alto Potencial`}
+              footer="Target: ≥ 1 cada 5 (0.2)"
+              reverseLogic={true}
+              blocked={false}
+          />
+           <KPICard 
+              title="Ambientales (May/Men)" 
+              value={`${metrics.envIncidentsMajor} / ${metrics.envIncidentsMinor}`} 
+              target={undefined}
+              icon={Leaf}
+              colorClass="bg-green-100 text-green-600"
+              borderClass="border-green-400"
+              subtext={`Meta: 0 Mayores, ≤ ${targets.env_minor} Menores`}
+              blocked={false}
+          />
+          <KPICard 
+              title="Índice Probabilidad" 
+              value={metrics.probabilityIndexLabel} 
+              target={targets.probability_index_target}
+              icon={Scale}
+              colorClass="bg-purple-100 text-purple-600"
+              borderClass="border-purple-400"
+              subtext="Nivel promedio ponderado"
+              blocked={false}
+          />
+      </div>
+
+      {/* 4. CHART ROW: RISK & TREND */}
+      <div id="dashboard-charts-container" className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-2 rounded-xl">
           
-          {/* Risk Index Trend */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          {/* Risk Index Trend - FIXED CONTAINER */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-w-0 flex flex-col">
                <h3 className="font-bold text-gray-800 mb-4 flex items-center">
                    <Zap className="w-4 h-4 mr-2 text-orange-500" /> Evolución Índice de Riesgo
                </h3>
-               <div className="h-64">
-                   <ResponsiveContainer width="100%" height="100%">
+               {/* Fixed Height Wrapper with w-full */}
+               <div className="h-64 w-full relative">
+                   {/* minWidth={0} and debounce={200} prevents Recharts from calculating negative/zero width during grid layout initialization */}
+                   <ResponsiveContainer width="99%" height="100%" minWidth={0} debounce={200}>
                        <ComposedChart data={trendData}>
                            <CartesianGrid strokeDasharray="3 3" vertical={false}/>
                            <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false}/>
@@ -256,8 +317,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                </div>
           </div>
 
-          {/* Pareto Chart */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          {/* Pareto Chart - FIXED CONTAINER */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-w-0 flex flex-col">
                <div className="flex justify-between items-center mb-4">
                    <h3 className="font-bold text-gray-800 flex items-center">
                        <BarChart2 className="w-4 h-4 mr-2 text-blue-500" /> Pareto 80/20
@@ -267,8 +328,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                        <button onClick={() => setParetoView('location')} className={`px-2 py-1 rounded ${paretoView==='location'?'bg-blue-100 text-blue-700':'bg-gray-100'}`}>Por Ubicación</button>
                    </div>
                </div>
-               <div className="h-64">
-                   <ResponsiveContainer width="100%" height="100%">
+               {/* Fixed Height Wrapper with w-full */}
+               <div className="h-64 w-full relative">
+                   {/* minWidth={0} and debounce={200} prevents Recharts from calculating negative/zero width during grid layout initialization */}
+                   <ResponsiveContainer width="99%" height="100%" minWidth={0} debounce={200}>
                        <ComposedChart data={paretoData} onClick={(d) => d && d.activePayload && onDrillDown && onDrillDown({ type: d.activePayload[0].payload.name })}>
                            <CartesianGrid strokeDasharray="3 3" vertical={false}/>
                            <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={40}/>
@@ -283,12 +346,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
       </div>
 
-      {/* 4. ADVANCED HEATMAP (Full Width) */}
-      <div className="h-[600px]">
-          <HeatmapMatrix incidents={incidents} />
+      {/* 5. BODY MAP & HEATMAP MATRIX ROW */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          
+          {/* BODY MAP (1/3 Width) */}
+          <div className="xl:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                 <h3 className="font-bold text-gray-800 flex items-center text-sm">
+                     <PersonStanding className="w-5 h-5 mr-2 text-blue-500" /> Mapa de Lesiones
+                 </h3>
+                 <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">Acumulado</span>
+              </div>
+              <div className="h-[300px] flex items-center justify-center">
+                  <BodyMap incidents={incidents} mode="heatmap" />
+              </div>
+              <div className="mt-2 flex justify-center space-x-2 text-[9px] text-gray-400">
+                  <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-blue-200 mr-1"></span> Baja Frec.</span>
+                  <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-yellow-400 mr-1"></span> Media</span>
+                  <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-red-500 mr-1"></span> Alta Frec.</span>
+              </div>
+          </div>
+
+          {/* HEATMAP MATRIX (2/3 Width) */}
+          <div className="xl:col-span-2 h-[400px]">
+              <HeatmapMatrix incidents={incidents} />
+          </div>
       </div>
 
-      {/* 5. TRANSIT MODULE */}
+      {/* 6. TRANSIT MODULE */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
           <div className="flex items-center mb-6">
               <Truck className="w-6 h-6 mr-3 text-purple-600" />
@@ -301,13 +386,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* IFAT */}
               <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-purple-500">
-                  <h4 className="text-xs font-bold text-purple-600 uppercase mb-2">IFAT (Laboral)</h4>
+                  <h4 className="text-xs font-bold text-purple-600 uppercase mb-2">IFAT Rate (Laboral)</h4>
                   <div className="flex items-baseline">
-                      <span className="text-3xl font-bold text-slate-900">{metrics.ifat ?? '—'}</span>
+                      <span className="text-3xl font-bold text-slate-900">{metrics.ifatRate ?? '—'}</span>
                       <span className="ml-2 text-xs text-slate-500">/ 1M KM</span>
                   </div>
                   <div className="mt-2 text-xs text-slate-400">
-                      Target: {targets.ifat_km} • {metrics.cnt_transit_laboral} eventos
+                      Target 2026: ≤ {TARGET_SCENARIOS['Metas 2026'].ifat_km} • {metrics.cnt_transit_laboral} eventos
                   </div>
                   {missingKmKeys.length > 0 && metrics.cnt_transit_laboral > 0 && (
                       <div className="mt-2 bg-orange-100 text-orange-800 text-[10px] px-2 py-1 rounded">

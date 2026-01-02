@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Incident } from '../types';
-import { Download, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Eye, Settings, AlertCircle, Zap } from 'lucide-react';
+import { Download, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Eye, Settings, AlertCircle, Zap, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { parseStrictDate } from '../utils/importHelpers';
 import { IncidentDetailView } from './IncidentDetailView';
@@ -120,7 +120,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                 in_itinere: i.is_in_itinere ? 'Sí' : 'No',
                 days_away: i.days_away,
                 days_away_sugerido: suggestedDays,
-                needs_review: !i.is_verified ? 'SÍ' : 'No',
+                needs_review: !i.is_verified ? 'SIN LÓGICA AUTO' : 'Auto-Confirmado',
                 _sys_id: i.incident_id
              };
           }
@@ -147,7 +147,8 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                Tipo: i.type,
                Fecha: i.fecha_evento,
                'Tránsito Laboral': i.is_transit_laboral ? 'SI' : 'NO',
-               'In Itinere': i.is_in_itinere ? 'SI' : 'NO'
+               'In Itinere': i.is_in_itinere ? 'SI' : 'NO',
+               'Confirmado Automático': i.is_verified ? 'SI' : 'NO'
            };
       });
       const wb = XLSX.utils.book_new();
@@ -239,10 +240,16 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {visibleRows.map((row: any, i) => (
-                            <tr key={i} className={`hover:bg-blue-50 transition-colors ${row.needs_review === 'SÍ' ? 'bg-orange-50' : ''}`}>
+                            <tr key={i} className={`hover:bg-blue-50 transition-colors ${row.needs_review !== 'Auto-Confirmado' && mode === 'normalized' ? 'bg-orange-50' : ''}`}>
                                 {visibleColumns.map(col => (
                                     <td key={col} className="px-4 py-2 text-gray-700 border-r border-gray-100 last:border-0 max-w-xs truncate" title={String(row[col])}>
-                                        {row[col]}
+                                        {col === 'needs_review' ? (
+                                             row.needs_review !== 'Auto-Confirmado' ? (
+                                                <span className="text-orange-600 font-bold flex items-center"><AlertCircle className="w-3 h-3 mr-1"/> {row.needs_review}</span>
+                                             ) : (
+                                                <span className="text-green-600 font-bold flex items-center"><CheckCircle2 className="w-3 h-3 mr-1"/> Auto</span>
+                                             )
+                                        ) : row[col]}
                                     </td>
                                 ))}
                                 <td className="px-4 py-2 text-right sticky right-0 bg-white border-l border-gray-100">
@@ -252,12 +259,12 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                                             if(original) setSelectedIncident(original);
                                         }}
                                         className={`inline-flex items-center px-2 py-1 rounded border text-[10px] font-medium transition-colors ${
-                                            mode === 'normalized' && row.needs_review === 'SÍ'
+                                            mode === 'normalized' && row.needs_review !== 'Auto-Confirmado'
                                             ? 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200'
                                             : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                                         }`}
                                     >
-                                        {mode === 'normalized' && row.needs_review === 'SÍ' ? (
+                                        {mode === 'normalized' && row.needs_review !== 'Auto-Confirmado' ? (
                                             <><AlertCircle className="w-3 h-3 mr-1"/> Revisar</>
                                         ) : (
                                             <><Eye className="w-3 h-3 mr-1"/> Ver</>

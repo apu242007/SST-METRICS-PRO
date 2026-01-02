@@ -5,17 +5,18 @@ import { DataExplorer } from './components/DataExplorer';
 import { PendingTasks } from './components/PendingTasks';
 import { ExposureManager } from './components/ExposureManager';
 import { IncidentDetailView } from './components/IncidentDetailView';
-import { AutomationHub } from './components/AutomationHub';
+import { AutomationHub } from './components/AutomationHub'; 
 import { LabControls } from './components/LabControls';
 import { CalendarView } from './components/CalendarView';
+import { PDFExportCenter } from './components/PDFExportCenter';
 import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, SharePointConfig, SyncLog, ScheduledReport } from './types';
-import { generateDetailedKPIReport } from './utils/calculations';
+import { calculateKPIs } from './utils/calculations';
 import { loadState, saveState, clearState, upsertIncidents, updateIncidentManual } from './services/storage';
-import { parseIncidentsExcel, getMissingExposureKeys } from './utils/importHelpers';
-import { mockCheckForUpdates } from './services/sharepointService';
-import { LayoutDashboard, FileText, Layers, Zap, Filter, Upload, Download, X, Search, ChevronRight, RefreshCcw, FileSpreadsheet, PenTool, Workflow, CalendarDays } from 'lucide-react';
+import { parseIncidentsExcel, getMissingExposureKeys, getMissingExposureImpact, generateAutoExposureRecords } from './utils/importHelpers';
+// REMOVED: checkServerStatus, fetchLocalFile imports
+import { LayoutDashboard, FileText, Layers, Zap, Filter, Upload, Download, X, Search, ChevronRight, RefreshCcw, FileSpreadsheet, PenTool, Workflow, CalendarDays, HardDrive } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { MONTHS } from './constants';
+import { TARGET_SCENARIOS } from './constants';
 
 const App: React.FC = () => {
   // --- 1. GLOBAL STATE ---
@@ -25,23 +26,22 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>({ base_if: 1000000, base_trir: 200000, days_cap: 180 });
   const [rules, setRules] = useState<MappingRule[]>([]);
   
-  // Automation State
+  // Automation State (Legacy fields kept for compatibility, but sync logic removed)
   const [sharePointConfig, setSharePointConfig] = useState<SharePointConfig>({ isEnabled: false, tenantId: '', siteUrl: '', libraryName: '', incidentFileName: '', reportFolderPath: '', lastSyncDate: null, lastFileHash: null });
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>([]);
 
-  const [fileMeta, setFileMeta] = useState<{name: string, date: string} | null>(null);
+  const [lastAppSync, setLastAppSync] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // UI Loading state for file upload
 
-  // --- SANDBOX STATE (Prompt O) ---
+  // --- SANDBOX STATE ---
   const [isSandboxMode, setIsSandboxMode] = useState(false);
-  // We use refs to hold production data while in sandbox to avoid double render passes or complex effect chains
   const productionSnapshot = useRef<{ incidents: Incident[], exposure: ExposureHour[] } | null>(null);
 
   // --- 2. UX STATE ---
-  const [activeTab, setActiveTab] = useState<'raw' | 'normalized' | 'kpis' | 'pending' | 'automation' | 'calendar'>('raw');
+  const [activeTab, setActiveTab] = useState<'raw' | 'normalized' | 'kpis' | 'pending' | 'automation' | 'calendar'>('automation'); // Default to Source
   
-  // Global Filters
   const [filters, setFilters] = useState({
     site: 'All',
     year: 'All',
@@ -52,11 +52,9 @@ const App: React.FC = () => {
     category: 'All' as 'All' | 'LTI' | 'Recordable' | 'Transit'
   });
 
-  const [modalMode, setModalMode] = useState<'exposure_hh' | 'exposure_km' | 'review_incident' | null>(null);
+  const [modalMode, setModalMode] = useState<'exposure_hh' | 'exposure_km' | 'review_incident' | 'pdf_export' | null>(null);
   const [focusSite, setFocusSite] = useState<string | undefined>(undefined);
-
   const [reviewIncidentId, setReviewIncidentId] = useState<string | null>(null);
-  const [importData, setImportData] = useState<{incidents: Incident[], rules: MappingRule[], report: {errors: string[], warnings: string[]}, fileName: string} | null>(null);
 
   // --- 3. INITIALIZATION & STORAGE ---
   useEffect(() => {
@@ -66,49 +64,81 @@ const App: React.FC = () => {
     setExposureKm(data.exposure_km);
     setSettings(data.settings);
     setRules(data.rules);
+    if (data.sharepoint_config?.lastSyncDate) setLastAppSync(data.sharepoint_config.lastSyncDate);
     
-    // Load Automation
-    if (data.sharepoint_config) setSharePointConfig(data.sharepoint_config);
-    if (data.sync_logs) setSyncLogs(data.sync_logs);
-    if (data.scheduled_reports) setScheduledReports(data.scheduled_reports);
-    
-    if(data.incidents.length > 0) {
-        const latest = data.incidents.reduce((max, i) => i.updated_at > max ? i.updated_at : max, '');
-        const dateStr = latest ? new Date(latest).toLocaleString('es-ES') : new Date().toLocaleString('es-ES');
-        setFileMeta({ name: 'basedatosincidentes.xlsx (Caché Local)', date: dateStr });
-        setActiveTab(data.incidents.length > 0 ? 'kpis' : 'raw');
-    }
     setIsLoaded(true);
   }, []);
 
-  // PERSISTENCE LOGIC
   useEffect(() => {
-    // Only save to localStorage if NOT in Sandbox Mode
     if (isLoaded && !isSandboxMode) {
       saveState({ 
           incidents, exposure_hours: exposureHours, exposure_km: exposureKm, settings, rules, load_history: [],
-          sharepoint_config: sharePointConfig, sync_logs: syncLogs, scheduled_reports: scheduledReports
+          sharepoint_config: { ...sharePointConfig, lastSyncDate: lastAppSync }, 
+          sync_logs: syncLogs, scheduled_reports: scheduledReports
       });
     }
-  }, [incidents, exposureHours, exposureKm, settings, rules, isLoaded, sharePointConfig, syncLogs, scheduledReports, isSandboxMode]);
+  }, [incidents, exposureHours, exposureKm, settings, rules, isLoaded, sharePointConfig, syncLogs, scheduledReports, isSandboxMode, lastAppSync]);
+
+  // --- 4. MANUAL UPLOAD HANDLER (Replaces Auto-Sync) ---
+  const handleFileUpload = async (file: File) => {
+      if (isSandboxMode) {
+          alert("No se pueden cargar archivos en modo Laboratorio.");
+          return;
+      }
+      setIsProcessing(true);
+
+      try {
+          // 1. Read File
+          const arrayBuffer = await file.arrayBuffer();
+          
+          // 2. Parse & Validate (Client Side)
+          // This function inside importHelpers handles structure validation and row parsing
+          const { incidents: newRecords, rules: newRules } = parseIncidentsExcel(arrayBuffer, rules);
+          
+          // 3. Smart Merge (Preserve Manual Edits)
+          const result = upsertIncidents(incidents, newRecords);
+          
+          // 4. Update State (Incidents & Rules)
+          setIncidents(result.incidents);
+          setRules(newRules);
+          
+          // 5. AUTOMATIC HH ASSIGNMENT (Transparent Logic)
+          // Immediately check for missing exposure data and auto-fill if possible
+          // This ensures that when the user goes to the dashboard, data is already there.
+          const updatedExposure = generateAutoExposureRecords(result.incidents, exposureHours);
+          setExposureHours(updatedExposure);
+
+          setLastAppSync(new Date().toISOString());
+
+          // 6. UX Feedback
+          // If this is the first load, move to dashboard
+          if (incidents.length === 0 && result.incidents.length > 0) {
+              setTimeout(() => setActiveTab('kpis'), 1500);
+          }
+          
+      } catch (error: any) {
+          console.error("Upload Error:", error);
+          throw new Error(error.message || "Error al procesar el archivo Excel.");
+      } finally {
+          setIsProcessing(false);
+      }
+  };
 
   // --- SANDBOX HANDLERS ---
   const handleEnterSandbox = () => {
       productionSnapshot.current = { incidents: [...incidents], exposure: [...exposureHours] };
       setIsSandboxMode(true);
-      // We don't change the UI state, user just sees a banner now and edits are volatile
   };
 
   const handleCommitSandbox = () => {
-      if(confirm("¿Aplicar cambios del Laboratorio a Producción? Esto sobrescribirá la base de datos local.")) {
+      if(confirm("¿Aplicar cambios del Laboratorio a Producción?")) {
           setIsSandboxMode(false);
           productionSnapshot.current = null;
-          // State is already updated in React, useEffect will trigger saveState now that isSandboxMode is false
       }
   };
 
   const handleDiscardSandbox = () => {
-      if(confirm("¿Descartar cambios y volver a Producción?")) {
+      if(confirm("¿Descartar cambios?")) {
           if (productionSnapshot.current) {
               setIncidents(productionSnapshot.current.incidents);
               setExposureHours(productionSnapshot.current.exposure);
@@ -118,41 +148,11 @@ const App: React.FC = () => {
       }
   };
 
-  // --- AUTO SYNC (Prompt L) ---
-  useEffect(() => {
-      if (isLoaded && sharePointConfig.isEnabled && !isSandboxMode) {
-          const runAutoSync = async () => {
-              try {
-                  const check = await mockCheckForUpdates(sharePointConfig);
-                  if (check.hasUpdates) {
-                       const newLog: SyncLog = {
-                           id: Date.now().toString(),
-                           date: new Date().toISOString(),
-                           status: 'SUCCESS',
-                           message: 'Actualización incremental detectada y descargada (Simulación).',
-                           recordsProcessed: 0
-                       };
-                       setSyncLogs(prev => [...prev, newLog]);
-                       setSharePointConfig(prev => ({ ...prev, lastSyncDate: new Date().toISOString(), lastFileHash: check.newHash || '' }));
-                  }
-              } catch (e) {
-                  console.error("Auto-sync failed", e);
-              }
-          };
-          runAutoSync();
-      }
-  }, [isLoaded, sharePointConfig.isEnabled, isSandboxMode]); 
-
-  // --- 4. DATA PROCESSING (FILTERING) ---
-  
+  // --- DATA PROCESSING ---
   const uniqueValues = useMemo(() => {
-    // Memoizing this is crucial for performance (Prompt N)
     const sites = Array.from(new Set(incidents.map(i => i.site))).sort();
     const years = Array.from(new Set(incidents.map(i => i.year))).sort().reverse();
-    const months = Array.from(new Set(incidents.map(i => i.month))).sort((a: number, b: number) => a - b);
-    const types = Array.from(new Set(incidents.map(i => i.type))).sort();
-    const locations = Array.from(new Set(incidents.map(i => i.location))).sort();
-    return { sites, years, months, types, locations };
+    return { sites, years };
   }, [incidents]);
 
   const filteredIncidents = useMemo(() => {
@@ -168,7 +168,6 @@ const App: React.FC = () => {
         if (filters.category === 'Transit' && !i.is_transit) return false;
         if (filters.search) {
             const term = filters.search.toLowerCase();
-            // Optimization: avoid parsing JSON for search if possible, rely on flattened fields
             return (
                 i.incident_id.toLowerCase().includes(term) ||
                 i.name.toLowerCase().includes(term) ||
@@ -179,86 +178,16 @@ const App: React.FC = () => {
     });
   }, [incidents, filters]);
 
-  // --- 5. HANDLERS ---
+  const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, exposureHours, exposureKm, settings, TARGET_SCENARIOS.Realista), [filteredIncidents, exposureHours, exposureKm, settings]);
+  const currentMissingImpact = useMemo(() => getMissingExposureImpact(incidents, exposureHours), [incidents, exposureHours]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const buffer = evt.target?.result as ArrayBuffer;
-      try {
-          // Parse and stage for confirmation (avoid blocking confirm())
-          const { incidents: newRecords, rules: newRules, report } = parseIncidentsExcel(buffer, rules);
-          setImportData({ incidents: newRecords, rules: newRules, report, fileName: file.name });
-      } catch(err: any) {
-          console.error(err);
-          // Fallback UI for error (no alert)
-          alert(`ERROR DE CARGA: ${err.message}`); 
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value = ''; 
-  };
-
-  const handleConfirmImport = () => {
-    if (!importData) return;
-    
-    try {
-        const result = upsertIncidents(incidents, importData.incidents);
-        setRules(importData.rules);
-        setIncidents(result.incidents);
-        setFileMeta({ name: importData.fileName, date: new Date().toLocaleString('es-ES') });
-        
-        // Log import in SyncLogs if manually done
-        const log: SyncLog = {
-            id: Date.now().toString(),
-            date: new Date().toISOString(),
-            status: 'SUCCESS',
-            message: `Carga manual de ${importData.fileName} ${isSandboxMode ? '(SANDBOX)' : ''}`,
-            recordsProcessed: importData.incidents.length
-        };
-        setSyncLogs(prev => [...prev, log]);
-
-        setActiveTab('pending'); 
-        setImportData(null);
-    } catch(e) {
-        console.error("Import error", e);
-    }
-  };
-
-  const handleExport = () => {
-      try {
-        const wb = XLSX.utils.book_new();
-        const incidentSheet = filteredIncidents.map(i => ({
-            ID: i.incident_id,
-            Fecha: i.fecha_evento,
-            Sitio: i.site,
-            Tipo: i.type,
-            Descripcion: i.description,
-            OSHA_Recordable: i.recordable_osha ? 'SI' : 'NO',
-            LTI: i.lti_case ? 'SI' : 'NO',
-            Dias_Perdidos: i.days_away,
-            Transito: i.is_transit ? 'SI' : 'NO'
-        }));
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(incidentSheet), "Lista_Incidentes_Filtrada");
-        const kpiData = generateDetailedKPIReport(incidents, exposureHours, exposureKm, settings);
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kpiData), "Reporte_KPIs_Mensual");
-        XLSX.writeFile(wb, "SST_Reporte_Inteligente.xlsx");
-      } catch (error) {
-        console.error(error);
-      }
-  };
-
+  // --- HANDLERS ---
   const handleUpdateIncident = (updated: Incident) => {
       setIncidents(prev => updateIncidentManual(prev, updated));
   };
 
   const handleReset = () => {
-      if(window.confirm && confirm("¿Estás seguro de reiniciar la base de datos a valores por defecto (Seed Data)? Esto borrará tus cambios locales.")) {
-          clearState();
-      } else if (!window.confirm) {
+      if(confirm("¿Reiniciar base de datos local? Se perderán configuraciones manuales si no están respaldadas.")) {
           clearState();
       }
   };
@@ -276,59 +205,7 @@ const App: React.FC = () => {
       setActiveTab('normalized'); 
   };
 
-  const resetFilters = () => {
-      setFilters({site: 'All', year: 'All', month: 'All', type: 'All', location: 'All', search: '', category: 'All'});
-  };
-
-  const handleManualSync = () => {
-      const log: SyncLog = {
-          id: Date.now().toString(),
-          date: new Date().toISOString(),
-          status: 'SUCCESS',
-          message: 'Sincronización manual completada (Simulación)',
-          recordsProcessed: 0
-      };
-      setSyncLogs(prev => [...prev, log]);
-      setSharePointConfig(prev => ({...prev, lastSyncDate: new Date().toISOString()}));
-  };
-
   if (!isLoaded) return <div className="flex h-screen items-center justify-center text-gray-500 font-medium">Iniciando sistema SST...</div>;
-
-  // Empty State
-  if (incidents.length === 0) {
-      return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 text-center">
-            {/* Import Modal */}
-            {importData && (
-              <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
-                  <div className="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full border border-gray-200">
-                      <div className="flex items-center mb-4 text-blue-600">
-                           <FileSpreadsheet className="w-6 h-6 mr-2" />
-                           <h3 className="text-lg font-bold">Reporte de Pre-Importación</h3>
-                      </div>
-                      <div className="bg-gray-50 p-4 rounded-lg text-sm space-y-2 mb-6">
-                          <div className="flex justify-between"><span className="text-gray-600">Registros:</span><span className="font-bold text-gray-900">{importData.incidents.length}</span></div>
-                          {importData.report.warnings.length > 0 && <div className="mt-2 text-xs text-orange-600 bg-orange-50 p-2 rounded max-h-24 overflow-y-auto">{importData.report.warnings.map((w, i) => <div key={i}>• {w}</div>)}</div>}
-                      </div>
-                      <div className="flex justify-end space-x-3">
-                          <button onClick={() => setImportData(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium">Cancelar</button>
-                          <button onClick={handleConfirmImport} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-bold shadow-sm">Importar Datos</button>
-                      </div>
-                  </div>
-              </div>
-            )}
-            <div className="bg-white p-10 rounded-2xl shadow-xl max-w-lg w-full border border-gray-100">
-                <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Upload className="w-10 h-10 text-blue-600" /></div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Bienvenido a SST Metrics Pro</h1>
-                <p className="text-gray-500 mb-8">Para comenzar, importa tu Excel de incidentes (basedatosincidentes.xlsx).</p>
-                <label className="cursor-pointer w-full block bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg flex items-center justify-center">
-                    <Upload className="w-5 h-5 mr-2"/> Seleccionar Archivo
-                    <input type="file" accept=".xlsx" className="hidden" onChange={handleFileUpload} />
-                </label>
-            </div>
-        </div>
-      );
-  }
 
   return (
     <div className={`min-h-screen font-sans text-gray-800 flex flex-col transition-colors ${isSandboxMode ? 'bg-amber-50/30' : 'bg-gray-50'}`}>
@@ -342,36 +219,6 @@ const App: React.FC = () => {
           onToggle={handleEnterSandbox}
       />
 
-      {/* === IMPORT CONFIRMATION MODAL === */}
-      {importData && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full border border-gray-200 animate-in zoom-in-95 duration-200">
-                <div className="flex items-center mb-4 text-blue-600 border-b border-gray-100 pb-2">
-                     <FileSpreadsheet className="w-6 h-6 mr-2" />
-                     <h3 className="text-lg font-bold">Confirmar Importación {isSandboxMode && <span className="text-amber-500">(SANDBOX)</span>}</h3>
-                </div>
-                
-                <div className="bg-gray-50 p-4 rounded-lg text-sm space-y-2 mb-6">
-                    <p className="text-gray-500 text-xs mb-2">Archivo: {importData.fileName}</p>
-                    <div className="flex justify-between">
-                        <span className="text-gray-600">Registros a Procesar:</span>
-                        <span className="font-bold text-gray-900">{importData.incidents.length}</span>
-                    </div>
-                </div>
-
-                <div className="flex justify-end space-x-3">
-                    <button onClick={() => setImportData(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md text-sm font-medium">Cancelar</button>
-                    <button 
-                        onClick={handleConfirmImport} 
-                        className={`px-4 py-2 text-white rounded-md text-sm font-bold shadow-sm ${isSandboxMode ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                    >
-                        Confirmar e Importar
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
-
       {/* === TOP BAR === */}
       <header className={`border-b sticky top-0 z-30 shadow-sm transition-colors ${isSandboxMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}>
         <div className="max-w-7xl mx-auto px-4">
@@ -383,19 +230,19 @@ const App: React.FC = () => {
                         <FileText className="w-5 h-5 text-white" />
                     </div>
                     <span className={`font-bold text-lg tracking-tight ${isSandboxMode ? 'text-white' : 'text-gray-900'}`}>
-                        SST Metrics Pro {isSandboxMode && <span className="text-amber-400 text-xs ml-2 border border-amber-500 px-2 py-0.5 rounded-full uppercase">LAB MODE</span>}
+                        SST Metrics Pro
                     </span>
                 </div>
 
-                {/* STEPPER NAV (UPDATED TO UX SPEC) */}
+                {/* STEPPER NAV */}
                 <nav className="hidden md:flex items-center space-x-1">
                     {[
-                        { id: 'raw', label: '1. RAW (Excel)', icon: Upload },
-                        { id: 'normalized', label: '2. Normalizado', icon: Layers },
-                        { id: 'pending', label: '3. Pendientes', icon: Zap },
-                        { id: 'kpis', label: '4. KPIs (Dashboard)', icon: LayoutDashboard },
-                        { id: 'calendar', label: '5. Calendario', icon: CalendarDays },
-                        { id: 'automation', label: '6. Auto', icon: Workflow },
+                        { id: 'automation', label: '1. Fuente', icon: HardDrive },
+                        { id: 'raw', label: '2. RAW', icon: FileSpreadsheet },
+                        { id: 'normalized', label: '3. Datos', icon: Layers },
+                        { id: 'pending', label: '4. Pendientes', icon: Zap },
+                        { id: 'kpis', label: '5. Dashboard', icon: LayoutDashboard },
+                        { id: 'calendar', label: '6. Calendario', icon: CalendarDays },
                     ].map((tab, idx, arr) => {
                         const isActive = activeTab === tab.id;
                         const Icon = tab.icon;
@@ -421,13 +268,25 @@ const App: React.FC = () => {
 
                 {/* Actions */}
                 <div className="flex items-center space-x-2">
-                    <label className={`cursor-pointer p-2 rounded-md ${isSandboxMode ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'}`} title="Importar Nuevo Archivo">
-                        <Upload className="w-5 h-5"/>
-                        <input type="file" accept=".xlsx" className="hidden" onChange={handleFileUpload} />
-                    </label>
-                    <button onClick={handleExport} className={`p-2 rounded-md ${isSandboxMode ? 'text-slate-400 hover:text-green-400 hover:bg-slate-800' : 'text-gray-500 hover:text-green-600 hover:bg-green-50'}`} title="Exportar Reporte">
-                        <Download className="w-5 h-5"/>
+                    {/* Data Indicator */}
+                    <div className="flex items-center px-2 py-1 bg-gray-100 rounded text-[10px] text-gray-500">
+                        {isProcessing ? (
+                            <span className="flex items-center text-blue-600"><RefreshCcw className="w-3 h-3 animate-spin mr-1"/> Procesando...</span>
+                        ) : (
+                            <span title={`Última actualización: ${lastAppSync ? new Date(lastAppSync).toLocaleTimeString() : 'Nunca'}`}>
+                                {incidents.length} regs
+                            </span>
+                        )}
+                    </div>
+                    
+                    <button 
+                        onClick={() => setModalMode('pdf_export')}
+                        className={`p-2 rounded-md ${isSandboxMode ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-gray-500 hover:text-red-600 hover:bg-red-50'}`} 
+                        title="Exportar PDF Global"
+                    >
+                        <FileText className="w-5 h-5"/>
                     </button>
+
                     {!isSandboxMode && (
                         <button onClick={handleReset} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md" title="Reiniciar App">
                             <RefreshCcw className="w-4 h-4"/>
@@ -437,41 +296,26 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {/* === FILTER BAR (Hidden on Calendar View to utilize internal filters) === */}
-        {activeTab !== 'calendar' && (
+        {/* === FILTER BAR === */}
+        {activeTab !== 'calendar' && activeTab !== 'automation' && (
         <div className={`border-t backdrop-blur-sm ${isSandboxMode ? 'bg-slate-800/90 border-slate-700' : 'bg-gray-50/50 border-gray-200'}`}>
             <div className="max-w-7xl mx-auto px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className={`flex items-center mr-1 ${isSandboxMode ? 'text-slate-500' : 'text-gray-400'}`}><Filter className="w-4 h-4" /></div>
-                    <div className={`flex items-center border rounded-md p-1 shadow-sm mr-2 ${isSandboxMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}>
-                         <button 
-                            onClick={() => setFilters({...filters, category: filters.category === 'LTI' ? 'All' : 'LTI'})}
-                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${filters.category === 'LTI' ? 'bg-orange-100 text-orange-700' : (isSandboxMode ? 'text-slate-400 hover:bg-slate-800' : 'text-gray-600 hover:bg-gray-100')}`}
-                         >Solo LTI</button>
-                         <div className={`w-px h-4 mx-1 ${isSandboxMode ? 'bg-slate-700' : 'bg-gray-200'}`}></div>
-                         <button 
-                            onClick={() => setFilters({...filters, category: filters.category === 'Transit' ? 'All' : 'Transit'})}
-                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${filters.category === 'Transit' ? 'bg-purple-100 text-purple-700' : (isSandboxMode ? 'text-slate-400 hover:bg-slate-800' : 'text-gray-600 hover:bg-gray-100')}`}
-                         >Tránsito</button>
-                    </div>
-
-                    <select className={`text-xs border rounded-md shadow-sm py-1.5 pl-2 pr-6 focus:ring-blue-500 focus:border-blue-500 ${isSandboxMode ? 'bg-slate-900 border-slate-700 text-slate-300' : 'bg-white border-gray-200 text-gray-700'}`} value={filters.site} onChange={e => setFilters({...filters, site: e.target.value})}>
+                    <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.site} onChange={e => setFilters({...filters, site: e.target.value})}>
                         <option value="All">Sitio: Todos</option>
                         {uniqueValues.sites.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-
-                    <select className={`text-xs border rounded-md shadow-sm py-1.5 pl-2 pr-6 focus:ring-blue-500 focus:border-blue-500 ${isSandboxMode ? 'bg-slate-900 border-slate-700 text-slate-300' : 'bg-white border-gray-200 text-gray-700'}`} value={filters.year} onChange={e => setFilters({...filters, year: e.target.value})}>
+                    <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.year} onChange={e => setFilters({...filters, year: e.target.value})}>
                         <option value="All">Año: Todos</option>
                         {uniqueValues.years.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
-
                     <div className="relative flex-1 min-w-[200px]">
                         <Search className="w-3.5 h-3.5 absolute left-3 top-2 text-gray-400" />
-                        <input type="text" placeholder="Buscar..." className={`w-full pl-9 pr-2 py-1.5 text-xs border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${isSandboxMode ? 'bg-slate-900 border-slate-700 text-slate-300 placeholder-slate-600' : 'bg-white border-gray-200'}`} value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+                        <input type="text" placeholder="Buscar..." className="w-full pl-9 pr-2 py-1.5 text-xs border rounded-md shadow-sm" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
                     </div>
-
-                    {(filters.site !== 'All' || filters.year !== 'All' || filters.search !== '' || filters.category !== 'All') && (
-                        <button onClick={resetFilters} className={`text-xs px-2 py-1.5 rounded-md transition-colors flex items-center ${isSandboxMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}><X className="w-3 h-3 mr-1" /> Limpiar</button>
+                    {(filters.site !== 'All' || filters.year !== 'All' || filters.search !== '') && (
+                        <button onClick={() => setFilters({site: 'All', year: 'All', month: 'All', type: 'All', location: 'All', search: '', category: 'All'})} className="text-xs px-2 py-1.5 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-700 flex items-center"><X className="w-3 h-3 mr-1" /> Limpiar</button>
                     )}
                 </div>
             </div>
@@ -481,6 +325,14 @@ const App: React.FC = () => {
         {/* === MAIN CONTENT === */}
         <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
             <div className="h-full min-h-[600px] animate-in fade-in duration-300 pb-20">
+                {activeTab === 'automation' && (
+                    <AutomationHub 
+                        incidents={incidents} 
+                        lastUpdate={lastAppSync}
+                        onFileUpload={handleFileUpload}
+                        isProcessing={isProcessing}
+                    />
+                )}
                 {activeTab === 'raw' && <DataExplorer incidents={filteredIncidents} mode="raw" onUpdateIncident={handleUpdateIncident} />}
                 {activeTab === 'normalized' && <DataExplorer incidents={filteredIncidents} mode="normalized" onUpdateIncident={handleUpdateIncident} />}
                 {activeTab === 'kpis' && (
@@ -505,7 +357,6 @@ const App: React.FC = () => {
                 {activeTab === 'calendar' && (
                     <CalendarView incidents={incidents} />
                 )}
-                {activeTab === 'automation' && <AutomationHub config={sharePointConfig} logs={syncLogs} reports={scheduledReports} incidents={incidents} onUpdateConfig={setSharePointConfig} onUpdateReports={setScheduledReports} onManualSyncTrigger={handleManualSync} />}
             </div>
         </main>
 
@@ -540,6 +391,21 @@ const App: React.FC = () => {
                 rules={rules}
                 onClose={() => { setModalMode(null); setReviewIncidentId(null); }}
                 onSave={(updated) => { handleUpdateIncident(updated); setModalMode(null); setReviewIncidentId(null); }}
+            />
+        )}
+
+        {modalMode === 'pdf_export' && (
+            <PDFExportCenter 
+                onClose={() => setModalMode(null)}
+                incidents={filteredIncidents}
+                allIncidents={incidents}
+                metrics={currentMetrics}
+                exposureHours={exposureHours}
+                exposureKm={exposureKm}
+                settings={settings}
+                missingExposure={currentMissingImpact}
+                currentView={activeTab}
+                filters={filters}
             />
         )}
     </div>

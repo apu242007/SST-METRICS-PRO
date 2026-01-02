@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Incident, HeatmapData } from '../types';
 import { MONTHS } from '../constants';
@@ -7,6 +6,13 @@ import * as XLSX from 'xlsx';
 
 interface HeatmapMatrixProps {
   incidents: Incident[];
+}
+
+interface RowData {
+    site: string;
+    counts: number[];
+    total: number;
+    lastMonthIndex: number;
 }
 
 export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
@@ -19,10 +25,10 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
 
   // --- DATA PROCESSING (Memoized) ---
   const matrixData = useMemo(() => {
-    const sites = Array.from(new Set(incidents.map(i => i.site))).sort();
+    const sites: string[] = (Array.from(new Set(incidents.map(i => i.site))) as string[]).sort();
     
     // 1. Build Base Matrix & Row Stats
-    let rows = sites.map(site => {
+    let rows: RowData[] = sites.map(site => {
         const siteIncidents = incidents.filter(i => i.site === site);
         const monthlyCounts = Array(12).fill(0);
         let lastMonthIndex = -1;

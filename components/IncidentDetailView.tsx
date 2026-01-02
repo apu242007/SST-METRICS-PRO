@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Incident, MappingRule } from '../types';
-import { X, Save, ArrowRight, Database, Wand2, Edit3, AlertTriangle, CheckCircle2, FileJson, History } from 'lucide-react';
+import { X, Save, ArrowRight, Database, Wand2, Edit3, AlertTriangle, CheckCircle2, FileJson, History, PersonStanding } from 'lucide-react';
 import { parseStrictDate } from '../utils/importHelpers';
+import { BodyMap } from './BodyMap';
 
 interface IncidentDetailViewProps {
   incident: Incident;
@@ -184,6 +185,19 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                                 <span className="text-xs text-gray-500">Descripción</span>
                                 <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded mt-1">{incident.description}</div>
                              </div>
+                        </div>
+                    </div>
+
+                    {/* Body Map Visualization */}
+                    <div className="border border-gray-200 rounded-lg p-2 bg-slate-50">
+                        <h4 className="text-xs font-bold text-gray-900 border-b border-gray-200 pb-1 mb-2 flex items-center">
+                            <PersonStanding className="w-3 h-3 mr-1" /> Zona de Lesión Automática
+                        </h4>
+                        <div className="h-64 flex justify-center">
+                            <BodyMap highlightedZones={incident.affected_zones} mode="individual" />
+                        </div>
+                        <div className="mt-2 text-center text-xs text-gray-500">
+                            Texto origen: <span className="font-mono bg-white px-1 border rounded">{incident.body_part_text || "N/A"}</span>
                         </div>
                     </div>
 

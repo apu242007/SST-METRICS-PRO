@@ -2,26 +2,36 @@
 import React, { useState, useMemo } from 'react';
 import { Incident } from '../types';
 import { MONTHS } from '../constants';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Filter, Download, History, MapPin, AlertTriangle, Info, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Filter, Download, History, MapPin, AlertTriangle, Info, X, Zap, FileText, ChevronDown, ChevronUp, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { generateSafetyTalk, SafetyTalk } from '../utils/safetyTalkGenerator';
+import { exportToPDF } from '../utils/pdfExportService';
 
 interface CalendarViewProps {
   incidents: Incident[];
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(0); // 0 = Jan
-  const [selectedDate, setSelectedDate] = useState<string | null>(null); // YYYY-MM-DD
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   
   // Filters
   const [filterSite, setFilterSite] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
   const [showPotential, setShowPotential] = useState(true);
-  const [onlyWithIncidents, setOnlyWithIncidents] = useState(false);
-
-  // --- 1. DATA PREPARATION (Memoized) ---
   
+  // Feature State
+  const [generatedTalk, setGeneratedTalk] = useState<SafetyTalk | null>(null);
+  const [isTalkExpanded, setIsTalkExpanded] = useState(false);
+  const [showPdfOptions, setShowPdfOptions] = useState(false);
+  const [pdfConfig, setPdfConfig] = useState({
+    include2026Table: true,
+    includeHistoryTable: true,
+    includeTalk: true,
+    includeFilters: true
+  });
+
   const { uniqueSites, uniqueTypes } = useMemo(() => {
       const sites = Array.from(new Set(incidents.map(i => i.site))).sort();
       const types = Array.from(new Set(incidents.map(i => i.type))).sort();
@@ -36,7 +46,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
       });
   }, [incidents, filterSite, filterType]);
 
-  // Indexed by Date (YYYY-MM-DD) -> Incidents[]
   const calendarMap = useMemo(() => {
       const map: Record<string, Incident[]> = {};
       filteredIncidents.forEach(inc => {
@@ -47,76 +56,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
       return map;
   }, [filteredIncidents]);
 
-  // --- 2. "ON THIS DAY" LOGIC ---
   const historicalData = useMemo(() => {
       if (!selectedDate) return { count: 0, incidents: [] };
-      
       const [selYear, selMonth, selDay] = selectedDate.split('-').map(Number);
       const targetMMDD = `${String(selMonth).padStart(2, '0')}-${String(selDay).padStart(2, '0')}`;
-      
-      // Find matches: Same MM-DD, but Year < Current Selected Calendar Year (or just different year)
-      // Usually "On This Day" implies past years.
-      const history = incidents.filter(i => {
-          if (!i.fecha_evento) return false;
-          // Check Month-Day match
-          const matchesDate = i.fecha_evento.endsWith(targetMMDD);
-          // Check Year is strictly before the calendar's year context (or simply not this specific date)
-          // Let's show ALL years except the exact selected date to see patterns
-          const differentDate = i.fecha_evento !== selectedDate; 
-          
-          return matchesDate && differentDate;
-      });
+      const history = incidents.filter(i => i.fecha_evento.endsWith(targetMMDD) && i.fecha_evento !== selectedDate);
+      return { count: history.length, incidents: history.sort((a,b) => b.year - a.year) };
+  }, [selectedDate, incidents]);
 
-      return {
-          count: history.length,
-          incidents: history.sort((a,b) => b.year - a.year) // Newest first
-      };
-  }, [selectedDate, incidents]); // Note: "On This Day" usually ignores filters to show global context, or use filteredIncidents if preferred. Using 'incidents' for broader context.
-
-  // --- 3. HELPER FUNCTIONS ---
-
-  const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const getFirstDayOfMonth = (year: number, month: number) => {
-      let day = new Date(year, month, 1).getDay();
-      // Shift to Monday start: Sun(0) -> 6, Mon(1) -> 0
-      return day === 0 ? 6 : day - 1;
+  const handleGenerateTalk = () => {
+    if (!selectedDate) return;
+    const talk = generateSafetyTalk(selectedDate, calendarMap[selectedDate] || [], historicalData.incidents);
+    setGeneratedTalk(talk);
+    setIsTalkExpanded(true);
   };
 
-  const handlePrevMonth = () => {
-      if (currentMonth === 0) {
-          setCurrentMonth(11);
-          setCurrentYear(prev => prev - 1);
-      } else {
-          setCurrentMonth(prev => prev - 1);
-      }
-      setSelectedDate(null);
+  const handleExportPDF = () => {
+    if (!selectedDate) return;
+    exportToPDF(
+        selectedDate, 
+        calendarMap[selectedDate] || [], 
+        historicalData.incidents, 
+        generatedTalk,
+        { ...pdfConfig, filters: { site: filterSite, type: filterType } }
+    );
+    setShowPdfOptions(false);
   };
 
-  const handleNextMonth = () => {
-      if (currentMonth === 11) {
-          setCurrentMonth(0);
-          setCurrentYear(prev => prev + 1);
-      } else {
-          setCurrentMonth(prev => prev + 1);
-      }
-      setSelectedDate(null);
-  };
-
-  const handleExportDay = (date: string, data: Incident[]) => {
-      const ws = XLSX.utils.json_to_sheet(data.map(i => ({
-          ID: i.incident_id,
-          Fecha: i.fecha_evento,
-          Sitio: i.site,
-          Tipo: i.type,
-          Severidad: i.potential_risk,
-          Descripción: i.description
-      })));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Incidentes_Dia");
-      XLSX.writeFile(wb, `Incidentes_${date}.xlsx`);
-  };
-
-  // Color helper based on severity/potentiality
   const getSeverityColor = (risk: string) => {
       const r = (risk || '').toLowerCase();
       if (r.includes('alta') || r.includes('high')) return 'bg-red-500';
@@ -124,55 +90,67 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
       return 'bg-blue-400';
   };
 
-  // --- 4. RENDER ---
-
-  const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-  const startOffset = getFirstDayOfMonth(currentYear, currentMonth);
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
   const totalSlots = Math.ceil((daysInMonth + startOffset) / 7) * 7;
 
   return (
     <div className="flex flex-col h-full space-y-4 animate-in fade-in duration-500">
         
-        {/* Header Bar */}
+        {/* PDF Options Modal */}
+        {showPdfOptions && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-gray-200">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                        <Printer className="w-5 h-5 mr-2 text-blue-600" /> Opciones de Exportación PDF
+                    </h3>
+                    <div className="space-y-3">
+                        <label className="flex items-center space-x-3 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox" checked={pdfConfig.include2026Table} onChange={e => setPdfConfig({...pdfConfig, include2026Table: e.target.checked})} className="rounded text-blue-600"/>
+                            <span className="text-sm text-gray-700 font-medium">Incluir tabla de incidentes 2026</span>
+                        </label>
+                        <label className="flex items-center space-x-3 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox" checked={pdfConfig.includeHistoryTable} onChange={e => setPdfConfig({...pdfConfig, includeHistoryTable: e.target.checked})} className="rounded text-blue-600"/>
+                            <span className="text-sm text-gray-700 font-medium">Incluir tabla histórica (Un día como hoy)</span>
+                        </label>
+                        <label className="flex items-center space-x-3 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox" checked={pdfConfig.includeTalk} onChange={e => setPdfConfig({...pdfConfig, includeTalk: e.target.checked})} className="rounded text-blue-600"/>
+                            <span className="text-sm text-gray-700 font-medium">Incluir charla de 5 minutos generada</span>
+                        </label>
+                        <label className="flex items-center space-x-3 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                            <input type="checkbox" checked={pdfConfig.includeFilters} onChange={e => setPdfConfig({...pdfConfig, includeFilters: e.target.checked})} className="rounded text-blue-600"/>
+                            <span className="text-sm text-gray-700 font-medium">Incluir filtros activos en portada</span>
+                        </label>
+                    </div>
+                    <div className="mt-6 flex justify-end space-x-3">
+                        <button onClick={() => setShowPdfOptions(false)} className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700">Cancelar</button>
+                        <button onClick={handleExportPDF} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-sm">Generar PDF A4</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Top Header */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-wrap justify-between items-center gap-4">
             <div className="flex items-center space-x-4">
                 <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                    <button onClick={handlePrevMonth} className="p-1 hover:bg-white rounded shadow-sm transition"><ChevronLeft className="w-5 h-5 text-gray-600"/></button>
-                    <span className="px-4 font-bold text-gray-800 min-w-[140px] text-center select-none">
-                        {MONTHS[currentMonth]} {currentYear}
-                    </span>
-                    <button onClick={handleNextMonth} className="p-1 hover:bg-white rounded shadow-sm transition"><ChevronRight className="w-5 h-5 text-gray-600"/></button>
+                    <button onClick={() => currentMonth === 0 ? (setCurrentMonth(11), setCurrentYear(y => y-1)) : setCurrentMonth(m => m-1)} className="p-1 hover:bg-white rounded shadow-sm transition"><ChevronLeft className="w-5 h-5 text-gray-600"/></button>
+                    <span className="px-4 font-bold text-gray-800 min-w-[140px] text-center select-none">{MONTHS[currentMonth]} {currentYear}</span>
+                    <button onClick={() => currentMonth === 11 ? (setCurrentMonth(0), setCurrentYear(y => y+1)) : setCurrentMonth(m => m+1)} className="p-1 hover:bg-white rounded shadow-sm transition"><ChevronRight className="w-5 h-5 text-gray-600"/></button>
                 </div>
-                <button 
-                    onClick={() => { setCurrentYear(new Date().getFullYear()); setCurrentMonth(new Date().getMonth()); }}
-                    className="text-xs font-medium text-blue-600 hover:underline"
-                >
-                    Ir a Hoy
-                </button>
+                <button onClick={() => { setCurrentYear(new Date().getFullYear()); setCurrentMonth(new Date().getMonth()); }} className="text-xs font-medium text-blue-600 hover:underline">Hoy</button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center text-gray-500 mr-2">
-                    <Filter className="w-4 h-4 mr-1" />
-                    <span className="text-xs font-bold uppercase">Filtros:</span>
-                </div>
-                <select 
-                    value={filterSite} 
-                    onChange={e => setFilterSite(e.target.value)}
-                    className="text-xs border-gray-300 rounded shadow-sm py-1.5 pl-2 pr-6"
-                >
+                <select value={filterSite} onChange={e => setFilterSite(e.target.value)} className="text-xs border-gray-300 rounded shadow-sm py-1.5 pl-2 pr-6">
                     <option value="ALL">Todos los Sitios</option>
                     {uniqueSites.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <select 
-                    value={filterType} 
-                    onChange={e => setFilterType(e.target.value)}
-                    className="text-xs border-gray-300 rounded shadow-sm py-1.5 pl-2 pr-6 max-w-[150px]"
-                >
+                <select value={filterType} onChange={e => setFilterType(e.target.value)} className="text-xs border-gray-300 rounded shadow-sm py-1.5 pl-2 pr-6 max-w-[150px]">
                     <option value="ALL">Todos los Tipos</option>
                     {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-                <div className="w-px h-6 bg-gray-200 mx-2"></div>
                 <label className="flex items-center space-x-2 text-xs cursor-pointer select-none">
                     <input type="checkbox" checked={showPotential} onChange={e => setShowPotential(e.target.checked)} className="rounded text-blue-600"/>
                     <span>Ver Severidad</span>
@@ -181,67 +159,38 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-[600px]">
-            
-            {/* CALENDAR GRID */}
+            {/* GRID */}
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                {/* Days Header */}
                 <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
                     {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
-                        <div key={d} className="py-2 text-center text-xs font-bold text-gray-500 uppercase">
-                            {d}
-                        </div>
+                        <div key={d} className="py-2 text-center text-xs font-bold text-gray-500 uppercase">{d}</div>
                     ))}
                 </div>
-                
-                {/* Grid Body */}
                 <div className="grid grid-cols-7 flex-1 auto-rows-fr bg-gray-200 gap-px border-b border-gray-200">
                     {Array.from({ length: totalSlots }).map((_, idx) => {
                         const dayNumber = idx - startOffset + 1;
-                        const isValidDay = dayNumber > 0 && dayNumber <= daysInMonth;
-                        
-                        if (!isValidDay) return <div key={idx} className="bg-gray-50 min-h-[80px]"></div>;
+                        const isValid = dayNumber > 0 && dayNumber <= daysInMonth;
+                        if (!isValid) return <div key={idx} className="bg-gray-50"></div>;
 
                         const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
                         const dayIncidents = calendarMap[dateKey] || [];
                         const isSelected = selectedDate === dateKey;
-                        const isToday = dateKey === new Date().toISOString().split('T')[0];
-
-                        if (onlyWithIncidents && dayIncidents.length === 0) return <div key={idx} className="bg-white min-h-[80px] opacity-50"></div>;
 
                         return (
                             <div 
                                 key={dateKey}
-                                onClick={() => setSelectedDate(dateKey)}
+                                onClick={() => { setSelectedDate(dateKey); setGeneratedTalk(null); }}
                                 className={`bg-white min-h-[100px] p-2 relative cursor-pointer hover:bg-blue-50 transition-colors flex flex-col ${isSelected ? 'ring-2 ring-inset ring-blue-500 z-10' : ''}`}
                             >
-                                <div className="flex justify-between items-start">
-                                    <span className={`text-sm font-medium ${isToday ? 'bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : 'text-gray-700'}`}>
-                                        {dayNumber}
-                                    </span>
-                                    {dayIncidents.length > 0 && (
-                                        <span className="text-[10px] font-bold bg-gray-100 px-1.5 rounded text-gray-600">
-                                            {dayIncidents.length}
-                                        </span>
-                                    )}
-                                </div>
-                                
-                                {/* Incident Dots/Bars */}
+                                <span className="text-sm font-medium text-gray-700">{dayNumber}</span>
                                 <div className="mt-2 space-y-1 overflow-hidden">
-                                    {dayIncidents.slice(0, 4).map((inc, i) => (
+                                    {dayIncidents.slice(0, 3).map((inc, i) => (
                                         <div key={inc.incident_id} className="flex items-center">
-                                            {showPotential && (
-                                                <div className={`w-2 h-2 rounded-full mr-1.5 flex-shrink-0 ${getSeverityColor(inc.potential_risk)}`} />
-                                            )}
-                                            <span className="text-[9px] text-gray-600 truncate leading-tight w-full">
-                                                {inc.type}
-                                            </span>
+                                            {showPotential && <div className={`w-1.5 h-1.5 rounded-full mr-1 flex-shrink-0 ${getSeverityColor(inc.potential_risk)}`} />}
+                                            <span className="text-[8px] text-gray-500 truncate leading-tight">{inc.type}</span>
                                         </div>
                                     ))}
-                                    {dayIncidents.length > 4 && (
-                                        <div className="text-[9px] text-gray-400 pl-3">
-                                            + {dayIncidents.length - 4} más...
-                                        </div>
-                                    )}
+                                    {dayIncidents.length > 3 && <span className="text-[8px] text-gray-400">+{dayIncidents.length-3}</span>}
                                 </div>
                             </div>
                         );
@@ -249,97 +198,139 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                 </div>
             </div>
 
-            {/* SIDEBAR: DETAILS & ON THIS DAY */}
-            <div className="w-full lg:w-96 flex flex-col space-y-4">
-                
-                {/* 1. Selected Day Details */}
-                <div className={`bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col transition-all duration-300 ${selectedDate ? 'flex-1' : 'h-32'}`}>
-                    <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-xl flex justify-between items-center">
-                        <h3 className="font-bold text-gray-800 flex items-center">
+            {/* SIDEBAR */}
+            <div className="w-full lg:w-[420px] flex flex-col space-y-4">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h3 className="font-bold text-gray-800 flex items-center text-sm">
                             <CalIcon className="w-4 h-4 mr-2 text-blue-600" />
-                            {selectedDate ? `Incidentes del ${selectedDate.split('-').reverse().join('/')}` : 'Seleccione un día'}
+                            {selectedDate ? `Resumen ${selectedDate.split('-').reverse().join('/')}` : 'Detalles del día'}
                         </h3>
-                        {selectedDate && (calendarMap[selectedDate]?.length || 0) > 0 && (
-                            <button onClick={() => handleExportDay(selectedDate, calendarMap[selectedDate])} className="text-gray-400 hover:text-green-600">
-                                <Download className="w-4 h-4" />
-                            </button>
+                        {selectedDate && (
+                            <div className="flex space-x-2">
+                                <button onClick={() => setShowPdfOptions(true)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Exportar Reporte Diario PDF">
+                                    <Printer className="w-4 h-4" />
+                                </button>
+                            </div>
                         )}
                     </div>
-                    
-                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
                         {!selectedDate ? (
-                            <div className="text-center text-gray-400 mt-4 flex flex-col items-center">
+                            <div className="text-center text-gray-400 py-10 flex flex-col items-center">
                                 <MapPin className="w-8 h-8 mb-2 opacity-50" />
-                                <p className="text-xs">Haga click en un día del calendario para ver detalles.</p>
+                                <p className="text-xs">Seleccione una fecha para ver incidentes y generar guion.</p>
                             </div>
-                        ) : (calendarMap[selectedDate] || []).length === 0 ? (
-                            <p className="text-sm text-gray-500 italic text-center py-4">Sin incidentes registrados este día.</p>
                         ) : (
-                            <div className="space-y-3">
-                                {calendarMap[selectedDate].map(inc => (
-                                    <div key={inc.incident_id} className="bg-gray-50 p-3 rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
-                                        <div className="flex justify-between items-start mb-1">
-                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">{inc.site}</span>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${getSeverityColor(inc.potential_risk)}`}>
-                                                {inc.potential_risk || 'N/A'}
-                                            </span>
+                            <>
+                                {/* Charla de 5 Minutos Action */}
+                                <div className="bg-blue-600 rounded-lg p-4 shadow-md text-white">
+                                    <h4 className="font-bold flex items-center mb-2">
+                                        <Zap className="w-5 h-5 mr-2 text-yellow-300" /> Charla de Seguridad
+                                    </h4>
+                                    {!generatedTalk ? (
+                                        <>
+                                            <p className="text-xs text-blue-100 mb-4 leading-relaxed">Analice los patrones históricos para generar una charla preventiva de alto impacto.</p>
+                                            <button onClick={handleGenerateTalk} className="w-full bg-white text-blue-700 font-bold py-2 rounded-md hover:bg-blue-50 transition-colors text-sm">Generar charla de 5 minutos</button>
+                                        </>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="bg-blue-700/50 p-3 rounded-md">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[10px] font-bold uppercase text-blue-300">Guion Generado</span>
+                                                    <button onClick={() => setIsTalkExpanded(!isTalkExpanded)} className="text-blue-300">
+                                                        {isTalkExpanded ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
+                                                    </button>
+                                                </div>
+                                                <p className="text-xs font-bold leading-tight">{generatedTalk.title}</p>
+                                            </div>
+                                            
+                                            {isTalkExpanded && (
+                                                <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                                                    <div>
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">¿Por qué hoy?</h5>
+                                                        <p className="text-xs leading-relaxed text-blue-50">{generatedTalk.whyToday}</p>
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Mensajes Clave</h5>
+                                                        <ul className="space-y-1.5">
+                                                            {generatedTalk.keyMessages.map((m, i) => (
+                                                                <li key={i} className="text-xs leading-tight flex items-start"><span className="mr-2 text-blue-300">•</span> {m}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Acciones</h5>
+                                                        <ul className="space-y-1.5">
+                                                            {generatedTalk.actions.map((a, i) => (
+                                                                <li key={i} className="text-xs leading-tight flex items-start"><span className="mr-2 text-green-300">✓</span> {a}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                    <div className="pt-2 border-t border-blue-500 flex justify-between items-center">
+                                                        <span className="text-[9px] text-blue-300 italic">Fuente: {generatedTalk.sourceInfo}</span>
+                                                        <button onClick={() => setShowPdfOptions(true)} className="flex items-center text-[10px] bg-blue-500 hover:bg-blue-400 px-2 py-1 rounded">
+                                                            <FileText className="w-3 h-3 mr-1"/> PDF
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <h4 className="text-xs font-bold text-gray-800 mb-1">{inc.type}</h4>
-                                        <p className="text-xs text-gray-600 line-clamp-2" title={inc.description}>{inc.description}</p>
-                                        <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between items-center">
-                                            <span className="text-[9px] text-gray-400 font-mono">{inc.incident_id}</span>
-                                            {inc.recordable_osha && <span className="text-[9px] text-red-600 font-bold flex items-center"><AlertTriangle className="w-3 h-3 mr-1"/> OSHA</span>}
-                                        </div>
+                                    )}
+                                </div>
+
+                                {/* On this Day History */}
+                                <div className="bg-slate-900 text-white rounded-xl shadow-lg overflow-hidden flex flex-col">
+                                    <div className="p-4 border-b border-slate-700 bg-slate-800 flex justify-between items-center">
+                                        <h3 className="font-bold text-xs flex items-center text-amber-400"><History className="w-4 h-4 mr-2" /> Un día como hoy...</h3>
+                                        <span className="bg-slate-700 px-2 py-1 rounded text-xs font-mono font-bold">{historicalData.count}</span>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="max-h-[300px] overflow-y-auto p-4 custom-scrollbar">
+                                        {historicalData.count === 0 ? (
+                                            <div className="text-center py-4 text-slate-500 text-xs italic">Sin registros históricos previos.</div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {historicalData.incidents.map(inc => (
+                                                    <div key={inc.incident_id} className="relative pl-4 border-l-2 border-slate-600">
+                                                        <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-slate-600 border-2 border-slate-900"></div>
+                                                        <div className="flex justify-between items-baseline mb-0.5">
+                                                            <span className="text-xs font-bold text-blue-300">{inc.year}</span>
+                                                            <span className="text-[9px] text-slate-500 truncate max-w-[100px]">{inc.site}</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-300 font-medium">{inc.type}</p>
+                                                        <p className="text-[9px] text-slate-500 line-clamp-1 italic">"{inc.description}"</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Today's List (2026) */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-gray-700 mb-2 uppercase flex items-center">
+                                        <CalIcon className="w-3.5 h-3.5 mr-1.5" /> Incidentes del día
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {(calendarMap[selectedDate] || []).length === 0 ? (
+                                            <p className="text-xs text-gray-400 italic">Sin incidentes este día.</p>
+                                        ) : (
+                                            calendarMap[selectedDate].map(inc => (
+                                                <div key={inc.incident_id} className="bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                                                    <div className="flex justify-between mb-1">
+                                                        <span className="text-[9px] font-bold text-blue-600">{inc.site}</span>
+                                                        <span className={`text-[9px] px-1.5 rounded-full text-white ${getSeverityColor(inc.potential_risk)}`}>{inc.potential_risk}</span>
+                                                    </div>
+                                                    <p className="text-xs font-bold text-gray-800 leading-tight">{inc.type}</p>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>
-
-                {/* 2. ON THIS DAY (Historical) */}
-                {selectedDate && (
-                    <div className="bg-slate-900 text-white rounded-xl shadow-lg overflow-hidden flex flex-col max-h-[400px] animate-in slide-in-from-right-5">
-                        <div className="p-4 border-b border-slate-700 bg-slate-800 flex justify-between items-center">
-                            <div>
-                                <h3 className="font-bold text-sm flex items-center text-amber-400">
-                                    <History className="w-4 h-4 mr-2" />
-                                    Un día como hoy...
-                                </h3>
-                                <p className="text-[10px] text-slate-400 mt-0.5">
-                                    ({selectedDate.split('-')[2]}/{selectedDate.split('-')[1]}) en años anteriores
-                                </p>
-                            </div>
-                            <span className="bg-slate-700 px-2 py-1 rounded text-xs font-mono font-bold">
-                                {historicalData.count}
-                            </span>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                            {historicalData.count === 0 ? (
-                                <div className="text-center py-6 text-slate-500 text-xs">
-                                    <Info className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                                    No hay registros históricos para esta fecha.
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {historicalData.incidents.map(inc => (
-                                        <div key={inc.incident_id} className="relative pl-4 border-l-2 border-slate-600">
-                                            <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-slate-600 border-2 border-slate-900"></div>
-                                            <div className="mb-1 flex justify-between items-baseline">
-                                                <span className="text-sm font-bold text-blue-300">{inc.year}</span>
-                                                <span className="text-[10px] text-slate-400">{inc.site}</span>
-                                            </div>
-                                            <p className="text-xs text-slate-300 font-medium mb-1">{inc.type}</p>
-                                            <p className="text-[10px] text-slate-500 line-clamp-2 italic">"{inc.description}"</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
             </div>
         </div>
     </div>

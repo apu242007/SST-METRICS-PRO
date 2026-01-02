@@ -1,5 +1,5 @@
 
-import { Incident, ExposureHour, ExposureKm, DashboardMetrics, AppSettings, ParetoData, HeatmapData, KPITargets } from "../types";
+import { Incident, ExposureHour, ExposureKm, DashboardMetrics, AppSettings, ParetoData, HeatmapData, KPITargets, BodyZone } from "../types";
 import { RISK_WEIGHTS } from "../constants";
 
 // Helper: Calculate Rate
@@ -18,11 +18,7 @@ export const calculateKPIs = (
   const totalManHours = exposureHours.reduce((sum, e) => sum + (e.hours || 0), 0);
   const totalKM = exposureKm.reduce((sum, e) => sum + (e.km || 0), 0);
 
-  // 1. Safety Incidents (Exclude ALL Transit for Person-based KPIs)
-  // Strict separation: IFAT logic separate from TRIR logic if desired, 
-  // but typically In Itinere is excluded from TRIR, while Work Transit IS included in TRIR if injury occurred.
-  // HOWEVER, user Prompt 5 says: "In Itinere se reporta aparte". Work Transit stays in IFAT.
-  // We will adhere to standard: Exclude In Itinere from TRIR. Include Work Transit in TRIR if injury.
+  // 1. Safety Incidents (Exclude In Itinere from safety stats usually, keep Work Transit)
   const oshaIncidents = incidents.filter(i => !i.is_in_itinere);
 
   const recordables = oshaIncidents.filter(i => i.recordable_osha).length;
@@ -41,33 +37,72 @@ export const calculateKPIs = (
   const transitLaboralIncidents = incidents.filter(i => i.is_transit_laboral).length;
   const inItinereIncidents = incidents.filter(i => i.is_in_itinere).length;
 
-  // 3. Risk Index Calculation
+  // 3. Risk Index & HIPO
   let riskSum = 0;
+  let hipoCount = 0;
+  
+  // Weights for Probability Index estimation
+  let probWeightedSum = 0;
+  let probCount = 0;
+
   incidents.forEach(i => {
-      // Fuzzy match potentiality
+      // Risk Index
       const pot = i.potential_risk || 'N/A';
       const weight = RISK_WEIGHTS[pot] || RISK_WEIGHTS[Object.keys(RISK_WEIGHTS).find(k => pot.includes(k)) || 'N/A'] || 1;
       riskSum += weight;
+
+      // HIPO Detection (High Potential)
+      if (weight >= 5) hipoCount++;
+
+      // Probability Index Helper
+      if (pot) {
+          probCount++;
+          probWeightedSum += weight;
+      }
   });
 
-  // 4. Forecast / Projection (Linear extrapolation based on months passed)
-  // Assuming data exists up to the max month found in incidents or exposure
+  // Probability Index Calculation (Average Risk Level mapped to Label)
+  let probabilityIndexLabel = "Bajo";
+  if (probCount > 0) {
+      const avgProb = probWeightedSum / probCount;
+      if (avgProb > 4) probabilityIndexLabel = "Alto";
+      else if (avgProb > 2) probabilityIndexLabel = "Medio";
+      else probabilityIndexLabel = "Bajo";
+  }
+
+  // 4. Forecast
   const maxMonth = Math.max(
       ...incidents.map(i => i.month),
       ...exposureHours.map(e => parseInt(e.period.split('-')[1]))
   ) || 1;
-  
   const projectionFactor = 12 / Math.max(1, maxMonth);
   const projectedRecordables = Math.round(recordables * projectionFactor);
   const projectedLti = Math.round(ltis * projectionFactor);
-  const projectedHH = totalManHours * projectionFactor; // Estimate annual HH
+  const projectedHH = totalManHours * projectionFactor; 
 
   const forecast_trir = calcRate(projectedRecordables, settings.base_trir, projectedHH);
-
-  // Remaining Events (Burn-down)
-  // How many more can occur to hit the Target?
   const maxAllowedTrirEvents = targets ? targets.max_events_trir : 0;
   const maxAllowedLtiEvents = targets ? targets.max_events_lti : 0;
+
+  // 5. Environmental
+  // Logic: Type 'Environmental'. Major if Potential Risk is High, else Minor.
+  const envIncidents = incidents.filter(i => i.type.toLowerCase().includes('environmental') || i.type.toLowerCase().includes('ambiental'));
+  const envMajor = envIncidents.filter(i => (RISK_WEIGHTS[i.potential_risk] || 1) >= 5).length;
+  const envMinor = envIncidents.length - envMajor;
+
+  // 6. Incidence Rate % (Tasa de Incidencia)
+  // Formula: (Total Incidents / Avg Workers) * 100
+  // Estimate Avg Workers = TotalManHours / 200 (approx monthly hours)
+  const estimatedWorkers = totalManHours / 200; // Simplified estimation
+  const incidenceRatePct = estimatedWorkers > 0 
+      ? parseFloat(((incidents.length / estimatedWorkers) * 100).toFixed(2)) 
+      : null;
+
+  // 7. HIPO Rate (Ratio)
+  // Formula: HIPO Events / Total Incidents
+  const hipoRate = incidents.length > 0 
+      ? parseFloat((hipoCount / incidents.length).toFixed(2)) 
+      : 0;
 
   return {
     totalIncidents: incidents.length,
@@ -77,13 +112,22 @@ export const calculateKPIs = (
     totalManHours,
     totalKM,
     
-    // Rates
+    // Standard Rates
     trir: calcRate(recordables, settings.base_trir, totalManHours),
     ltir: calcRate(ltis, settings.base_trir, totalManHours),
     dart: calcRate(dartCases, settings.base_trir, totalManHours),
     frequencyRate: calcRate(ltis, settings.base_if, totalManHours), 
     severityRate: calcRate(totalDaysLost, settings.base_if, totalManHours),
     
+    // New KPIs
+    incidenceRatePct,
+    ifatRate: calcRate(transitLaboralIncidents, 1000000, totalKM), // IFAT (1M km)
+    envIncidentsMajor: envMajor,
+    envIncidentsMinor: envMinor,
+    probabilityIndexLabel,
+    hipoRate,
+    hipoCount,
+
     // Forecasts
     forecast_trir,
     forecast_recordable_count: projectedRecordables,
@@ -93,11 +137,10 @@ export const calculateKPIs = (
 
     // Risk
     risk_index_total: riskSum,
-    risk_index_rate: calcRate(riskSum, 1000000, totalManHours), // Risk Points per 1M HH
+    risk_index_rate: calcRate(riskSum, 1000000, totalManHours),
 
     // Transit
     cnt_transit_laboral: transitLaboralIncidents,
-    ifat: calcRate(transitLaboralIncidents, 1000000, totalKM), 
     cnt_in_itinere: inItinereIncidents,
     rate_in_itinere_hh: calcRate(inItinereIncidents, settings.base_trir, totalManHours)
   };
@@ -146,6 +189,25 @@ export const generateHeatmapData = (incidents: Incident[], sites: string[]): Hea
     return data;
 };
 
+// --- Body Zone Totals Calculator (New for 2025) ---
+export const calculateBodyZoneTotals = (incidents: Incident[]): Record<BodyZone, number> => {
+    const totals: Record<string, number> = {};
+    
+    incidents.forEach(inc => {
+        // If zones are mapped, iterate
+        if (inc.affected_zones && inc.affected_zones.length > 0 && !inc.affected_zones.includes('unknown')) {
+            inc.affected_zones.forEach(zone => {
+                totals[zone] = (totals[zone] || 0) + 1;
+            });
+        } else {
+            // Fallback: If array is empty OR explicitly contains 'unknown'
+            totals['unknown'] = (totals['unknown'] || 0) + 1;
+        }
+    });
+
+    return totals as Record<BodyZone, number>;
+};
+
 export const generateDetailedKPIReport = (
   incidents: Incident[],
   exposureHours: ExposureHour[],
@@ -178,8 +240,8 @@ export const generateDetailedKPIReport = (
       'LTI Cases': metrics.totalLTI,
       'Risk Score': metrics.risk_index_total,
       'TRIR': metrics.trir ?? '—',
-      'IFAT': metrics.ifat ?? '—',
-      'In Itinere': metrics.cnt_in_itinere
+      'IFAT': metrics.ifatRate ?? '—',
+      'Incidence Rate %': metrics.incidenceRatePct ?? '—'
     };
   });
 

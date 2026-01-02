@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { ExposureHour, ExposureKm, MissingExposureKey } from '../types';
-import { Save, Plus, AlertTriangle, PenTool, Zap, Filter } from 'lucide-react';
+import { Save, Plus, AlertTriangle, PenTool, Zap, Filter, Info, Lock } from 'lucide-react';
+import { getAutoHH } from '../utils/importHelpers';
 
 interface ExposureManagerProps {
   exposureHours: ExposureHour[];
@@ -43,52 +44,41 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
       }
   }, [initialSite]);
 
-  // Effect: If missing keys exist, auto-create 0-value entries for them so user sees them immediately
-  useEffect(() => {
-    if (missingKeys.length > 0) {
-      const newHours = [...exposureHours];
-      let added = false;
-      
-      missingKeys.forEach(k => {
-        const exists = newHours.some(h => h.site === k.site && h.period === k.period);
-        if (!exists) {
-           newHours.push({ 
-             id: `EXP-H-${k.site}-${k.period}-AUTO`, 
-             site: k.site, 
-             period: k.period, 
-             worker_type: 'total', 
-             hours: 0 // Default to 0 so user notices validatin
-           });
-           added = true;
-        }
-      });
-      
-      if (added) {
-        setHoursList(newHours);
-      }
-    }
-  }, [missingKeys, exposureHours]);
+  // Note: generateAutoExposureRecords in App.tsx now handles the logic. 
+  // ExposureManager is mostly for Display & Manual Fixes.
 
   const mergedData = useMemo(() => {
     const keys = new Set<string>();
     hoursList.forEach(h => keys.add(`${h.site}|${h.period}`));
     kmList.forEach(k => keys.add(`${k.site}|${k.period}`));
 
+    // Also ensure missing keys appear even if not in hoursList yet (though auto logic should have caught them as 0s)
+    missingKeys.forEach(mk => keys.add(`${mk.site}|${mk.period}`));
+
     let data = Array.from(keys).map(key => {
       const [site, period] = key.split('|');
       const hourEntry = hoursList.find(h => h.site === site && h.period === period);
       const kmEntry = kmList.find(k => k.site === site && k.period === period);
-      const isMissing = missingKeys.some(mk => mk.site === site && mk.period === period && (!hourEntry || hourEntry.hours === 0));
+      
+      const hoursVal = hourEntry?.hours || 0;
+      
+      // Determination of State
+      // Missing = Hours are 0.
+      const isMissing = hoursVal === 0;
+      
+      // Auto Filled = Not missing (hours > 0) AND ID contains 'AUTO'.
+      const isAuto = !isMissing && hourEntry?.id?.includes('AUTO');
 
       return {
         key,
         site,
         period,
-        hours: hourEntry?.hours || 0,
+        hours: hoursVal,
         km: kmEntry?.km || 0,
         hourId: hourEntry?.id,
         kmId: kmEntry?.id,
-        isMissing
+        isMissing,
+        isAuto
       };
     });
 
@@ -110,7 +100,7 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
     if (type === 'hours') {
       const exists = hoursList.find(h => h.site === site && h.period === period);
       if (exists) {
-        setHoursList(prev => prev.map(h => h.id === exists.id ? {...h, hours: num} : h));
+        setHoursList(prev => prev.map(h => h.id === exists.id ? {...h, hours: num, id: h.id.replace('AUTO', 'MANUAL')} : h));
       } else {
         setHoursList(prev => [...prev, { id: `EXP-H-${site}-${period}-${Date.now()}`, site, period, worker_type: 'total', hours: num }]);
       }
@@ -160,7 +150,12 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
       alert("La entrada ya existe");
       return;
     }
-    setHoursList(prev => [...prev, { id: `EXP-H-${newSite}-${newPeriod}-${Date.now()}`, site: newSite, period: newPeriod, worker_type: 'total', hours: 0 }]);
+    
+    // Auto-fill HH if rule exists
+    const autoHH = getAutoHH(newSite);
+    const newId = autoHH > 0 ? `EXP-H-${newSite}-${newPeriod}-AUTO-${Date.now()}` : `EXP-H-${newSite}-${newPeriod}-${Date.now()}`;
+    
+    setHoursList(prev => [...prev, { id: newId, site: newSite, period: newPeriod, worker_type: 'total', hours: autoHH }]);
     setKmList(prev => [...prev, { id: `EXP-K-${newSite}-${newPeriod}-${Date.now()}`, site: newSite, period: newPeriod, km: 0 }]);
   };
 
@@ -177,7 +172,7 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
                 <div className="ml-3">
                     <h3 className="text-sm font-bold text-blue-800 uppercase">Gestión de Exposición</h3>
                     <p className="text-xs text-blue-700 mt-1">
-                        Complete HH y KM. Las celdas en <strong className="text-red-600">rojo</strong> son obligatorias (tienen incidentes).
+                        Complete HH y KM. <strong className="text-red-600">Rojo</strong> = Sin configuración (Manual). <strong className="text-green-600">Verde</strong> = Asignado Automáticamente.
                     </p>
                 </div>
             </div>
@@ -256,6 +251,10 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
             <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide">
                 Planilla de Datos {tableFilterSite !== 'ALL' && <span className="text-blue-600 ml-1">({tableFilterSite})</span>}
             </h3>
+            <div className="flex items-center text-[10px] space-x-3 mr-4">
+                 <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-red-500 mr-1"></span> Sin Configuración (Manual)</span>
+                 <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-green-500 mr-1"></span> Auto-Asignado</span>
+            </div>
             <button id="save-btn" onClick={handleSave} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded text-white bg-green-600 hover:bg-green-700 shadow-sm transition-all">
                 <Save className="w-4 h-4 mr-2"/> Guardar Cambios
             </button>
@@ -272,20 +271,30 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {mergedData.map(entry => (
-                        <tr key={entry.key} className={`hover:bg-gray-50 transition-colors ${entry.isMissing ? "bg-red-50" : ""}`}>
+                        <tr key={entry.key} className={`hover:bg-gray-50 transition-colors ${entry.isMissing ? "bg-red-50" : (entry.isAuto ? "bg-green-50/30" : "")}`}>
                             <td className="px-6 py-3 text-sm text-gray-900 font-medium flex items-center">
-                                {entry.isMissing && <AlertTriangle className="w-4 h-4 text-red-500 mr-2" />}
+                                {entry.isMissing && (
+                                    <span title="Sitio sin HH configuradas" className="mr-2 flex items-center">
+                                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                                    </span>
+                                )}
+                                {entry.isAuto && (
+                                    <span title="Asignado automáticamente" className="mr-2 flex items-center">
+                                        <Lock className="w-3 h-3 text-green-600 opacity-50" />
+                                    </span>
+                                )}
                                 {entry.period}
                             </td>
                             <td className="px-6 py-3 text-sm text-gray-600">{entry.site}</td>
                             <td className="px-6 py-2 bg-blue-50/20">
                                 <input 
                                     type="number" 
-                                    className={`w-full border-gray-300 rounded text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 p-2 border shadow-sm ${entry.isMissing && entry.hours === 0 ? 'border-red-300 ring-1 ring-red-200 bg-red-50' : ''}`}
+                                    className={`w-full border-gray-300 rounded text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500 p-2 border shadow-sm ${entry.isMissing ? 'border-red-300 ring-1 ring-red-200 bg-red-50' : ''} ${entry.isAuto ? 'text-gray-500 bg-gray-50' : ''}`}
                                     value={entry.hours}
                                     onFocus={(e) => e.target.select()} // Auto-select for fast entry
                                     placeholder="0"
                                     onChange={(e) => updateVal(entry.site, entry.period, 'hours', e.target.value)}
+                                    title={entry.isMissing ? "Ingrese HH Manualmente" : (entry.isAuto ? "Valor Auto-Asignado (Editable)" : "Valor Manual")}
                                 />
                             </td>
                             <td className="px-6 py-2 bg-purple-50/20">

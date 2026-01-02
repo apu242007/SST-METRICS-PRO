@@ -1,6 +1,7 @@
 
 import * as XLSX from 'xlsx';
-import { Incident, ExposureHour, ExposureKm, MappingRule, MissingExposureKey, MissingExposureImpact } from '../types';
+import { Incident, ExposureHour, ExposureKm, MappingRule, MissingExposureKey, MissingExposureImpact, BodyZone } from '../types';
+import { SITE_HH_DEFAULTS, ANATOMICAL_ZONE_RULES } from '../constants';
 
 // Data Contract (Prompt D)
 const DATA_CONTRACT = {
@@ -15,27 +16,242 @@ const DATA_CONTRACT = {
   }
 };
 
-// Helper: Heuristic to generate a Rule based on the text of the Incident Type
-const generateRuleForType = (type: string): MappingRule => {
-  const t = (type || '').toLowerCase();
-  
-  // Strict matching based on user prompt
-  const isTransitLaboral = t.includes('vehicular') || t.includes('tránsito') || t === 'accidente vehicular/tránsito';
-  const isInItinere = t.includes('itinere') || t === 'accidente in itinere';
-  
-  const isLti = t.includes('lost time') || t.includes('con baja') || t.includes('días perdidos') || t.includes('lti');
-  const isMedical = t.includes('médico') || t.includes('medical') || t.includes('tratamiento') || t.includes('hospital');
-  const isFatal = t.includes('fatal') || t.includes('fatalidad') || t.includes('muerte');
-  
-  const isRecordable = isLti || isMedical || isFatal;
+// Helper: Normaliza strings (elimina tildes, trim, uppercase)
+const normalize = (str: string) => {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+};
 
-  return {
-    tipo_incidente: type,
-    default_recordable: isRecordable,
-    default_lti: isLti,
-    default_is_transit_laboral: isTransitLaboral,
-    default_is_in_itinere: isInItinere
-  };
+// Helper específico para clasificación que tolera saltos de línea y espacios múltiples
+const normalizeForClassification = (str: string) => {
+    if (!str) return "";
+    return str.normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "") // Eliminar acentos
+              .replace(/[\n\r]+/g, " ")        // Reemplazar saltos de línea por espacio
+              .replace(/\s+/g, " ")            // Colapsar espacios múltiples
+              .trim()
+              .toUpperCase();
+};
+
+// --- NORMALIZACIÓN STRICTA PARA MAPEO CORPORAL (NUEVO REQUISITO) ---
+const normalizeBodyPart = (text: string) => {
+  if (!text) return "";
+
+  return text
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")   // acentos
+    .replace(/\(.*?\)/g, "")          // TODO lo que está entre paréntesis (ej: IZQUIERDA)
+    .replace(/[^A-Z\s]/g, "")          // símbolos que no sean letras o espacios
+    .replace(/\s+/g, " ")              // espacios múltiples
+    .trim();
+};
+
+// --- LOGICA DE MAPEO CORPORAL (Actualizada 2025) ---
+const detectBodyZones = (rawText: string): BodyZone[] => {
+    if (!rawText) return ['unknown'];
+
+    // 1. Detectar Lateralidad desde el texto CRUDO (antes de borrar paréntesis)
+    // Buscamos patrones de lado en el texto original
+    const rawUpper = rawText.toUpperCase();
+    const isLeft = /\bIZQ/.test(rawUpper) || /\bLEFT\b/.test(rawUpper);
+    const isRight = /\bDER/.test(rawUpper) || /\bRIGHT\b/.test(rawUpper);
+    
+    // Si no se especifica lado, o se especifican ambos, asumimos bilateral para zonas pareadas.
+    // OJO: Si dice "DEDOS DE LAS MANOS" sin lado, se pintan ambas.
+    const isBilateral = (isLeft && isRight) || (!isLeft && !isRight);
+
+    // 2. Normalización Estricta para Matching de Zona
+    const cleanText = normalizeBodyPart(rawText);
+    const zones = new Set<BodyZone>();
+
+    // 3. Iterar Catálogo
+    let matchFound = false;
+    
+    ANATOMICAL_ZONE_RULES.forEach(rule => {
+        // Verificar coincidencias en el texto limpio
+        // Usamos RegExp o string includes
+        const matches = rule.patterns.some(p => p.test(cleanText));
+        
+        if (matches) {
+            // Verificar exclusiones (ej: PIE excepto DEDOS)
+            if (rule.excludes && rule.excludes.some(p => p.test(cleanText))) return;
+
+            matchFound = true;
+            
+            // Si la regla soporta lados, filtrar
+            if (rule.supportsSide) {
+                rule.zones.forEach(z => {
+                    const zStr = z as string;
+                    if (isBilateral) {
+                        zones.add(z);
+                    } else if (isLeft && zStr.includes('left')) {
+                        zones.add(z);
+                    } else if (isRight && zStr.includes('right')) {
+                        zones.add(z);
+                    } else if (!zStr.includes('left') && !zStr.includes('right')) {
+                        // Zona central en regla con soporte de lado (raro pero posible)
+                        zones.add(z);
+                    }
+                });
+            } else {
+                // Agregar todas las zonas base si no soporta lado (ej. Torax)
+                rule.zones.forEach(z => zones.add(z));
+            }
+        }
+    });
+
+    if (!matchFound) return ['unknown'];
+    return Array.from(zones);
+};
+
+
+// Lógica de Clasificación Automática (Business Logic)
+const applyAutoClassification = (type: string, incident: any) => {
+    const t = normalizeForClassification(type);
+    
+    // Default state: Reset flags based on rules to ensure clean slate
+    // But preserve what isn't touched by specific rules if needed. 
+    // Here we enforce the rules strictly.
+    
+    // 1. Primeros Auxilios -> OSHA, Guardar
+    if (t.includes('PRIMEROS AUXILIOS')) {
+        incident.recordable_osha = true; 
+        incident.is_verified = true;
+        return;
+    }
+
+    // 2. Accidente Operativo -> Guardar
+    if (t.includes('ACCIDENTE OPERATIVO') || t === 'OPERATIVO') {
+        incident.is_verified = true;
+        return;
+    }
+
+    // 3. Accidente Industrial -> Guardar
+    if (t.includes('ACCIDENTE INDUSTRIAL') || t === 'INDUSTRIAL') {
+        incident.is_verified = true;
+        return;
+    }
+
+    // 4. Accidente In Itinere -> In Itinere Flag, Guardar
+    if (t.includes('IN ITINERE')) {
+        incident.is_in_itinere = true;
+        incident.is_transit_laboral = false; // Mutually exclusive usually
+        incident.is_verified = true;
+        return;
+    }
+
+    // 5. Evacuación / Atención Médica -> OSHA, Guardar
+    if (t.includes('EVACUACION') || t.includes('ATENCION MEDICA')) {
+        incident.recordable_osha = true;
+        incident.is_verified = true;
+        return;
+    }
+
+    // 6. Accidente de Calidad -> Guardar
+    if (t.includes('ACCIDENTE DE CALIDAD') || t.includes('CALIDAD')) {
+        incident.is_verified = true;
+        return;
+    }
+
+    // 7. Accidente Vehicular / Tránsito -> IFAT, Guardar
+    if (t.includes('VEHICULAR') || t.includes('TRANSITO')) {
+        incident.is_transit_laboral = true;
+        incident.is_in_itinere = false;
+        incident.is_verified = true;
+        return;
+    }
+
+    // 8. Accidente con Días Perdidos -> OSHA, LTI, Guardar
+    if (t.includes('DIAS PERDIDOS') || t.includes('CON BAJA')) {
+        incident.recordable_osha = true;
+        incident.lti_case = true;
+        incident.is_verified = true;
+        return;
+    }
+
+    // 9. Accidente Ambiental -> Guardar
+    if (t.includes('AMBIENTAL') || t.includes('ENVIRONMENTAL')) {
+        incident.is_verified = true;
+        return;
+    }
+
+    // Si no coincide con ninguna regla:
+    incident.is_verified = false; // Marcar para revisión manual
+};
+
+// Helper: Get Auto HH based on Site Name
+export const getAutoHH = (site: string): number => {
+    if (!site) return 0;
+    const s = site.trim(); // Keep original casing for regex, but trim
+    const sNorm = normalize(s);
+
+    // 1. Check Patterns (Regex)
+    // We check rules that have isPattern: true
+    const patternMatch = SITE_HH_DEFAULTS.find(rule => rule.isPattern && rule.pattern && rule.pattern.test(s));
+    if (patternMatch) return patternMatch.hh;
+
+    // 2. Check Exact Matches (Normalized)
+    // We compare normalized strings (FABRICA == FÁBRICA)
+    const exactMatch = SITE_HH_DEFAULTS.find(rule => !rule.isPattern && normalize(rule.name) === sNorm);
+    if (exactMatch) return exactMatch.hh;
+
+    return 0;
+};
+
+/**
+ * Función Transparente: Genera registros de exposición automática.
+ * Evalúa automáticamente el campo Sitio y asigna HH si existe en la lógica.
+ * Si no existe, crea el registro en 0 para permitir carga manual.
+ */
+export const generateAutoExposureRecords = (incidents: Incident[], currentExposure: ExposureHour[]): ExposureHour[] => {
+    const exposureMap = new Map<string, ExposureHour>();
+    
+    // 1. Index current exposure
+    currentExposure.forEach(exp => {
+        exposureMap.set(`${exp.site}|${exp.period}`, exp);
+    });
+
+    // 2. Identify required keys from incidents
+    incidents.forEach(inc => {
+        const period = inc.fecha_evento.substring(0, 7); // YYYY-MM
+        if (!period.match(/^\d{4}-\d{2}$/)) return;
+        
+        const key = `${inc.site}|${period}`;
+
+        // Check if exists
+        const existing = exposureMap.get(key);
+
+        if (existing && existing.hours > 0) {
+            // Case A: Exists and has manual data. Do NOT overwrite.
+            return;
+        }
+
+        // Case B: Does not exist OR exists but is 0 (missing). Try Auto-Assign.
+        const autoHH = getAutoHH(inc.site);
+        
+        if (autoHH > 0) {
+            // LOGIC FOUND -> Auto Assign Transparently
+            exposureMap.set(key, {
+                id: existing ? existing.id : `EXP-H-${inc.site}-${period}-AUTO-${Date.now()}`,
+                site: inc.site,
+                period: period,
+                worker_type: 'total',
+                hours: autoHH
+            });
+        } else if (!existing) {
+            // NO LOGIC & NEW -> Create empty record (0)
+            // Visually will appear as "Sitio sin HH configuradas"
+            exposureMap.set(key, {
+                id: `EXP-H-${inc.site}-${period}-PENDING-${Date.now()}`,
+                site: inc.site,
+                period: period,
+                worker_type: 'total',
+                hours: 0
+            });
+        }
+    });
+
+    return Array.from(exposureMap.values());
 };
 
 export const parseStrictDate = (val: any): string | null => {
@@ -86,33 +302,7 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
     throw new Error(`VIOLACIÓN DE CONTRATO: Faltan columnas requeridas: ${missingColumns.join(', ')}.`);
   }
 
-  // 2. Processing
-  const uniqueTypes = new Set<string>();
   const idTracker = new Set<string>();
-
-  rawData.forEach((row: any, idx) => {
-    // Type Check Warning
-    if (row['Año'] && typeof row['Año'] !== 'number') warnings.push(`Fila ${idx+2}: 'Año' debería ser numérico.`);
-    
-    // Duplicate ID Check
-    const id = row['ID'] ? String(row['ID']) : null;
-    if (id && idTracker.has(id)) {
-        warnings.push(`Fila ${idx+2}: ID duplicado detectado '${id}'. Se usará la última aparición.`);
-    }
-    if(id) idTracker.add(id);
-
-    if (row['Tipo de Incidente']) uniqueTypes.add(row['Tipo de Incidente'].trim());
-  });
-
-  // Rule Generation
-  const newRules: MappingRule[] = [];
-  const existingRulesMap = new Map(existingRules.map(r => [r.tipo_incidente.toLowerCase(), r]));
-  uniqueTypes.forEach(type => {
-    if (!existingRulesMap.has(type.toLowerCase())) {
-      newRules.push(generateRuleForType(type));
-    }
-  });
-  const allRules = [...existingRules, ...newRules];
 
   const incidents = rawData.map((row: any, index) => {
     const id = row['ID'] ? String(row['ID']) : `UNKNOWN-${index}-${Date.now()}`;
@@ -122,22 +312,15 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
     const fechaEvento = fechaSiniestro || fechaCarga;
     
     const type = row['Tipo de Incidente'] ? row['Tipo de Incidente'].trim() : 'Unspecified';
-    const rule = allRules.find(r => r.tipo_incidente.toLowerCase() === type.toLowerCase());
+    const bodyPartText = row['Datos ART: UBICACIÓN DE LA LESIÓN'] || '';
 
-    let isRecordable = rule ? rule.default_recordable : false;
-    let isLti = rule ? rule.default_lti : false;
-    let isTransitLaboral = rule ? rule.default_is_transit_laboral : false;
-    let isInItinere = rule ? rule.default_is_in_itinere : false;
-    
+    // Default base calc
     let daysAway = 0;
     if (fechaSiniestro && fechaAlta) {
         const start = new Date(fechaSiniestro).getTime();
         const end = new Date(fechaAlta).getTime();
         if (end > start) daysAway = Math.ceil((end - start) / (1000 * 3600 * 24));
     }
-    if (daysAway > 0 && !isTransitLaboral && !isInItinere) isLti = true;
-    const isFatal = type.toLowerCase().includes('fatal');
-    if (isLti || isFatal) isRecordable = true;
 
     const parts = [
       row['Breve descripcion del Incidente'],
@@ -145,7 +328,8 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       row['Nombre y Apellido Involucrado'] ? `Involucrado: ${row['Nombre y Apellido Involucrado']}` : null
     ];
 
-    return {
+    // Initial Object
+    const incidentObj: Incident = {
       incident_id: id,
       name: row['Nombre'] || 'Sin Nombre',
       description: parts.filter(Boolean).join('. ').trim() || 'Sin descripción',
@@ -157,23 +341,39 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       location: row['Ubicación'] || 'General',
       potential_risk: row['Potencialidad del Incidente'] || 'N/A',
       
-      recordable_osha: isRecordable,
-      lti_case: isLti,
-      is_transit_laboral: isTransitLaboral,
-      is_in_itinere: isInItinere,
-      is_transit: isTransitLaboral || isInItinere, // Legacy compatibility
+      // BODY MAP AUTOMATION (UPDATED)
+      body_part_text: bodyPartText,
+      affected_zones: detectBodyZones(bodyPartText),
 
-      fatality: isFatal,
+      // Flags (Will be overwritten by applyAutoClassification)
+      recordable_osha: false,
+      lti_case: false,
+      is_transit_laboral: false,
+      is_in_itinere: false,
+      is_transit: false, 
+
+      fatality: type.toLowerCase().includes('fatal'),
       job_transfer: false,
       days_away: daysAway,
       days_restricted: 0,
-      is_verified: false,
+      
+      // AUTOMATIC CONFIRMATION LOGIC
+      is_verified: false, // Default to false, applyAutoClassification will set to true if rule matches
+      
       raw_json: JSON.stringify(row),
       updated_at: new Date().toISOString()
     };
+
+    // Apply Specific Business Rules for Auto-Classification
+    applyAutoClassification(type, incidentObj);
+
+    // Sync legacy transit flag
+    incidentObj.is_transit = incidentObj.is_transit_laboral || incidentObj.is_in_itinere;
+
+    return incidentObj;
   });
 
-  return { incidents, rules: allRules, report: { errors, warnings } };
+  return { incidents, rules: existingRules, report: { errors, warnings } };
 };
 
 export const getMissingExposureKeys = (incidents: Incident[], exposure: ExposureHour[]): MissingExposureKey[] => {
@@ -239,11 +439,6 @@ export const getMissingExposureImpact = (incidents: Incident[], exposureHours: E
         };
     });
 
-    // Sort Rules:
-    // 1. Missing Months Count (desc)
-    // 2. Affected Incidents Count (desc)
-    // 3. Affected Severe Count (desc)
-    // 4. Site Name (asc)
     return result.sort((a, b) => {
         if (b.missingPeriods.length !== a.missingPeriods.length) {
             return b.missingPeriods.length - a.missingPeriods.length;
@@ -260,8 +455,6 @@ export const getMissingExposureImpact = (incidents: Incident[], exposureHours: E
 
 export const getMissingKmKeys = (incidents: Incident[], exposureKm: ExposureKm[]): MissingExposureKey[] => {
   const requiredKeys = new Set<string>();
-  // IMPORTANT: Only ask for KM if incidents are flagged as WORK TRANSIT (IFAT).
-  // Exclude In Itinere from this requirement.
   incidents.filter(i => i.is_transit_laboral).forEach(inc => {
     const period = inc.fecha_evento.substring(0, 7);
     if(period.match(/^\d{4}-\d{2}$/)) requiredKeys.add(`${inc.site}|${period}`);
