@@ -360,6 +360,10 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       days_away: daysAway,
       days_restricted: 0,
       
+      // Missing process safety properties default initialization
+      is_process_safety_tier_1: false,
+      is_process_safety_tier_2: false,
+
       // AUTOMATIC CONFIRMATION LOGIC
       is_verified: false, // Default to false, applyAutoClassification will set to true if rule matches
       

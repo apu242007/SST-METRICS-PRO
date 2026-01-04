@@ -2,18 +2,135 @@
 import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone } from "./types";
 
 export const DEFAULT_KPI_SETTINGS: AppSettings = {
-  base_if: 200000, // OSHA Standard (adjusted from 1M to 200k for standard consistency)
-  base_trir: 200000, // OSHA Standard for TRIR/LTIR
+  base_if: 1000,    // ILO/SRT Severity Rate (base 1000)
+  base_trir: 200000, // OSHA Standard
   days_cap: 180,
 };
 
-// Based on ~2M HH/year baseline for event calculations
+// --- DEFINICIONES DE FÓRMULAS PARA MODALES ---
+export const KPI_DEFINITIONS = {
+    trir: {
+        title: "TRIR (Total Recordable Incident Rate)",
+        description: "Mide la frecuencia de incidentes registrables (médicos, con baja, restringidos) normalizada por 200,000 horas.",
+        formula: "( Incidentes Registrables x 200,000 ) / Horas Hombre Totales",
+        numeratorLabel: "Incidentes Registrables",
+        denominatorLabel: "Horas Hombre",
+        factor: 200000
+    },
+    ltif: {
+        title: "LTIF (Lost Time Injury Frequency)",
+        description: "Frecuencia de lesiones con tiempo perdido (incapacitantes) normalizada bajo estándar IOGP (1 millón de horas).",
+        formula: "( Incidentes LTI x 1,000,000 ) / Horas Hombre Totales",
+        numeratorLabel: "Incidentes LTI",
+        denominatorLabel: "Horas Hombre",
+        factor: 1000000
+    },
+    dart: {
+        title: "DART (Days Away, Restricted or Transferred)",
+        description: "Tasa de incidentes que resultaron en días perdidos, trabajo restringido o transferencia de puesto.",
+        formula: "( Casos DART x 200,000 ) / Horas Hombre Totales",
+        numeratorLabel: "Casos DART",
+        denominatorLabel: "Horas Hombre",
+        factor: 200000
+    },
+    sr: {
+        title: "SR (Severity Rate)",
+        description: "Tasa de severidad que mide la cantidad de días perdidos por cada 1,000 horas trabajadas (Estándar OIT/SRT).",
+        formula: "( Días Perdidos + Restringidos x 1,000 ) / Horas Hombre Totales",
+        numeratorLabel: "Días Perdidos/Restr.",
+        denominatorLabel: "Horas Hombre",
+        factor: 1000
+    },
+    far: {
+        title: "FAR (Fatal Accident Rate)",
+        description: "Tasa de accidentes fatales normalizada por 100 millones de horas hombre.",
+        formula: "( Fatalidades x 100,000,000 ) / Horas Hombre Totales",
+        numeratorLabel: "Fatalidades",
+        denominatorLabel: "Horas Hombre",
+        factor: 100000000
+    },
+    t1_pser: {
+        title: "Tier 1 PSER (Process Safety Event Rate)",
+        description: "Tasa de eventos de seguridad de procesos mayores (Tier 1) según API RP 754.",
+        formula: "( Eventos Tier 1 x 200,000 ) / Horas Hombre Totales",
+        numeratorLabel: "Eventos Tier 1",
+        denominatorLabel: "Horas Hombre",
+        factor: 200000
+    },
+    t2_pser: {
+        title: "Tier 2 PSER (Process Safety Event Rate)",
+        description: "Tasa de eventos de seguridad de procesos de menor magnitud (Tier 2) según API RP 754.",
+        formula: "( Eventos Tier 2 x 200,000 ) / Horas Hombre Totales",
+        numeratorLabel: "Eventos Tier 2",
+        denominatorLabel: "Horas Hombre",
+        factor: 200000
+    },
+    incidenceRateSRT: {
+        title: "Índice de Incidencia (SRT)",
+        description: "Indicador regulatorio argentino. Estima la cantidad de casos con baja cada 1000 trabajadores cubiertos.",
+        formula: "( Casos con Baja x 1,000 ) / Trabajadores Promedio",
+        numeratorLabel: "Casos con Baja",
+        denominatorLabel: "Trabajadores Promedio",
+        factor: 1000
+    },
+    slg24h: {
+        title: "Cumplimiento SLG 24h",
+        description: "Porcentaje de denuncias a la ART realizadas dentro de las 24 horas de ocurrido el evento.",
+        formula: "( Denuncias <= 24h / Total Denunciables ) * 100",
+        numeratorLabel: "Denuncias a Tiempo",
+        denominatorLabel: "Total Denunciables",
+        factor: 100
+    },
+    lcer: {
+        title: "LCER (Legal Compliance Evaluation Rate)",
+        description: "Porcentaje de cumplimiento de requisitos legales aplicables en materia de HSE.",
+        formula: "( Requisitos Cumplidos / Requisitos Totales ) * 100",
+        numeratorLabel: "Req. Cumplidos",
+        denominatorLabel: "Req. Totales",
+        factor: 100
+    },
+    iap: {
+        title: "IAP (Internal Audit Performance)",
+        description: "Porcentaje de avance del plan anual de auditorías internas.",
+        formula: "( Auditorías Ejecutadas / Auditorías Planificadas ) * 100",
+        numeratorLabel: "Ejecutadas",
+        denominatorLabel: "Planificadas",
+        factor: 100
+    },
+    capa_otc: {
+        title: "CAPA OTC (On Time Closure)",
+        description: "Porcentaje de acciones correctivas y preventivas cerradas en tiempo y forma.",
+        formula: "( Acciones Cerradas a Tiempo / Acciones Totales Vencidas ) * 100",
+        numeratorLabel: "Cerradas OK",
+        denominatorLabel: "Total Comprometido",
+        factor: 100
+    },
+    ifatRate: {
+        title: "IFAT (Índice de Frecuencia de Accidentes de Tránsito)",
+        description: "Frecuencia de accidentes viales laborales por millón de kilómetros recorridos.",
+        formula: "( Accidentes Viales x 1,000,000 ) / Kilómetros Recorridos",
+        numeratorLabel: "Accidentes Viales",
+        denominatorLabel: "KM Totales",
+        factor: 1000000
+    }
+};
+
+// Based on Corporate Standard (OSHA 200k, IOGP 1M, FAR 100M)
 export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
-  'Realista': {
-      trir: 2.50,        
-      ltir: 1.00,        
-      if: 2.00,          
-      ig: 200,           
+  'Realista 2025': {
+      trir: 2.50,        // 200k
+      ltif: 5.00,        // 1M (Approx TRIR*2 for mixed severity) - Industry avg ~3-5
+      dart: 1.20,        // 200k
+      sr: 0.20,          // 1000 base
+      far: 2.00,         // 100M base
+      
+      t1_pser: 0.50,     // 200k
+      t2_pser: 1.50,     // 200k
+      
+      lcer: 90,          // Legal Compliance %
+      iap: 85,           // Audit Performance %
+      capa_otc: 80,      // Action Closure %
+      
       ifat_km: 3.00,     
       max_events_trir: 25,
       max_events_lti: 10,
@@ -21,41 +138,22 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       env_major: 0,
       env_minor: 5,
       probability_index_target: 'Medio',
-      hipo_rate_min: 0.1, // 1 per 10
-  },
-  'Desafiante': {
-      trir: 1.80,        
-      ltir: 0.80,        
-      if: 1.50,
-      ig: 100,           
-      ifat_km: 2.50,
-      max_events_trir: 18,
-      max_events_lti: 8,
-      incidence_rate_pct: 2.0,
-      env_major: 0,
-      env_minor: 2,
-      probability_index_target: 'Bajo',
-      hipo_rate_min: 0.15,
-  },
-  'Excelencia': {
-      trir: 0.50,        
-      ltir: 0.20,        
-      if: 1.00,
-      ig: 50,
-      ifat_km: 0.00,
-      max_events_trir: 5,
-      max_events_lti: 2,
-      incidence_rate_pct: 1.0,
-      env_major: 0,
-      env_minor: 0,
-      probability_index_target: 'Bajo',
-      hipo_rate_min: 0.2, // 1 per 5
+      hipo_rate_min: 0.1,
   },
   'Metas 2026': {
-      trir: 1.50,
-      ltir: 0.60,
-      if: 1.20,
-      ig: 150,
+      trir: 1.20,        // Corporate Target 2026
+      ltif: 2.50,        // IOGP Target
+      dart: 0.60,
+      sr: 0.15,
+      far: 0.00,
+
+      t1_pser: 0.10,
+      t2_pser: 1.00,
+
+      lcer: 98,
+      iap: 98,
+      capa_otc: 95,
+
       ifat_km: 2.00,
       max_events_trir: 15,
       max_events_lti: 6,
@@ -63,8 +161,7 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       env_major: 0,
       env_minor: 1,
       probability_index_target: 'Bajo',
-      hipo_rate_min: 0.20, // 1 evento por cada 5 incidentes (20%)
-      total_incidents_reduction: 15, // 15% reduction
+      hipo_rate_min: 0.20, 
   }
 };
 

@@ -2,7 +2,7 @@
 import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, ChangeLogEntry, SharePointConfig, SyncLog, ScheduledReport, GlobalKmRecord, SGIDocument } from "../types";
 import { SEED_INCIDENTS, SEED_EXPOSURE_HOURS, SEED_EXPOSURE_KM, SEED_SETTINGS, SEED_RULES, SEED_DOCUMENTS } from "../utils/seedData";
 
-const STORAGE_KEY = 'sst_metrics_db_v6_global_km';
+const STORAGE_KEY = 'sst_metrics_db_v7_clean';
 
 export interface AppState {
   incidents: Incident[];
@@ -31,10 +31,8 @@ const DEFAULT_SHAREPOINT_CONFIG: SharePointConfig = {
     lastFileHash: null
 };
 
-// Default KM for 2025 as per context, but allowing 0 if not set
-const SEED_GLOBAL_KM: GlobalKmRecord[] = [
-    { year: 2025, value: 2741216.83, last_updated: new Date().toISOString() }
-];
+// Default KM: Empty
+const SEED_GLOBAL_KM: GlobalKmRecord[] = [];
 
 export const loadState = (): AppState => {
   try {

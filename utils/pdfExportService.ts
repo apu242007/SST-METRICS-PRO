@@ -149,7 +149,7 @@ export class PDFGenerator {
     // KPI Grid Simulation
     const kpis = [
         { label: "TRIR (Tasa)", val: metrics.trir ?? "—" },
-        { label: "LTIR (Tasa)", val: metrics.ltir ?? "—" },
+        { label: "LTIR (Tasa)", val: metrics.ltif ?? "—" },
         { label: "Días Perdidos", val: metrics.totalDaysLost },
         { label: "IFAT (Vial)", val: metrics.ifatRate ?? "—" },
         { label: "Total Incidentes", val: metrics.totalIncidents },

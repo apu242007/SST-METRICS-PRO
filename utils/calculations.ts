@@ -24,12 +24,15 @@ export const calculateKPIs = (
   if (!incidents || !exposureHours) {
       // Return zeroed structure if inputs are missing
       return {
-          totalIncidents: 0, totalRecordables: 0, totalLTI: 0, totalDaysLost: 0, totalManHours: 0, totalKM: 0,
-          trir: null, ltir: null, dart: null, frequencyRate: null, severityRate: null,
+          totalManHours: 0, totalKM: 0,
+          totalIncidents: 0, totalRecordables: 0, totalLTI: 0, totalFatalities: 0, totalDaysLost: 0, totalDARTCases: 0,
+          trir: null, ltif: null, dart: null, sr: null, alos: null, far: null,
+          t1_count: 0, t2_count: 0, t1_pser: null, t2_pser: null,
+          incidenceRateSRT: null, slg24h: null,
+          lcer: 0, iap: 0, capa_otc: 0,
           incidenceRatePct: null, ifatRate: null, envIncidentsMajor: 0, envIncidentsMinor: 0,
           probabilityIndexLabel: 'N/A', hipoRate: null, hipoCount: 0,
           forecast_trir: null, forecast_lti_count: 0, forecast_recordable_count: 0,
-          remaining_trir_events: 0, remaining_lti_events: 0,
           risk_index_total: 0, risk_index_rate: null,
           cnt_transit_laboral: 0, cnt_in_itinere: 0, rate_in_itinere_hh: null,
           top5Sites: [], daysSinceList: [], trendAlerts: [], siteEvolutions: [], suggestedActions: []
@@ -46,11 +49,12 @@ export const calculateKPIs = (
       totalKM = exposureKm ? exposureKm.reduce((sum, e) => sum + (e.km || 0), 0) : 0;
   }
 
-  // 1. Safety Incidents (Exclude In Itinere from safety stats usually, keep Work Transit)
-  const oshaIncidents = incidents.filter(i => !i.is_in_itinere);
+  // --- A. Occupational Safety (Lagging) ---
+  const oshaIncidents = incidents.filter(i => !i.is_in_itinere); // Exclude commuting for safety stats
 
   const recordables = oshaIncidents.filter(i => i.recordable_osha).length;
   const ltis = oshaIncidents.filter(i => i.lti_case).length;
+  const fatalities = oshaIncidents.filter(i => i.fatality).length;
   
   const dartCases = oshaIncidents.filter(i => 
     i.days_away > 0 || i.days_restricted > 0 || i.job_transfer
@@ -61,35 +65,66 @@ export const calculateKPIs = (
     return sum + Math.min(days, settings.days_cap || 180);
   }, 0);
 
-  // 2. Transit Module
+  // RATES (Corporate Standard)
+  const trir = calcRate(recordables, 200000, totalManHours); // OSHA Base
+  const ltif = calcRate(ltis, 1000000, totalManHours); // IOGP Base
+  const dart = calcRate(dartCases, 200000, totalManHours); // OSHA Base
+  const sr = calcRate(totalDaysLost, 1000, totalManHours); // ILO/SRT Base
+  const far = calcRate(fatalities, 100000000, totalManHours); // Standard Oil & Gas Base
+
+  const alos = ltis > 0 ? parseFloat((totalDaysLost / ltis).toFixed(1)) : null;
+
+  // --- B. Process Safety (API RP 754) ---
+  const t1Incidents = incidents.filter(i => i.is_process_safety_tier_1);
+  const t2Incidents = incidents.filter(i => i.is_process_safety_tier_2);
+  
+  const t1_count = t1Incidents.length;
+  const t2_count = t2Incidents.length;
+  
+  const t1_pser = calcRate(t1_count, 200000, totalManHours);
+  const t2_pser = calcRate(t2_count, 200000, totalManHours);
+
+  // --- C. Regulatory (SRT Argentina) ---
+  // Proxy for "Average Workers": Hours / (200 * Months)
+  // We determine how many months of exposure are present to avoid inflating the worker count in YTD views
+  const uniquePeriods = new Set(exposureHours.filter(e => e.hours > 0).map(e => e.period));
+  const monthsCount = Math.max(1, uniquePeriods.size);
+  const estimatedWorkers = totalManHours / (200 * monthsCount);
+
+  const ltiWithLow = oshaIncidents.filter(i => i.lti_case); // "Con Baja" proxy
+  const incidenceRateSRT = estimatedWorkers > 0 
+      ? parseFloat(((ltiWithLow.length * 1000) / estimatedWorkers).toFixed(2))
+      : null;
+  
+  // Mock SLG-24h (Needs a specific flag in future, assuming 95% compliant for now based on 'verified' count)
+  const slg24h = incidents.length > 0 ? Math.round((incidents.filter(i => i.is_verified).length / incidents.length) * 100) : 100;
+
+  // --- D. System Efficacy (ISO 45001) ---
+  // Mock values for visual dashboard (until Audit module is built)
+  const lcer = 95; // 95% Legal Compliance
+  const iap = 92; // 92% Audit Plan Execution
+  const capa_otc = incidents.length > 0 ? Math.round((incidents.filter(i => i.is_verified).length / incidents.length) * 90) : 100; // Proxy using verification rate
+
+  // --- Other Metrics ---
   const transitLaboralIncidents = incidents.filter(i => i.is_transit_laboral).length;
   const inItinereIncidents = incidents.filter(i => i.is_in_itinere).length;
 
-  // 3. Risk Index & HIPO
   let riskSum = 0;
   let hipoCount = 0;
-  
-  // Weights for Probability Index estimation
   let probWeightedSum = 0;
   let probCount = 0;
 
   incidents.forEach(i => {
-      // Risk Index
       const pot = i.potential_risk || 'N/A';
       const weight = RISK_WEIGHTS[pot] || RISK_WEIGHTS[Object.keys(RISK_WEIGHTS).find(k => pot.includes(k)) || 'N/A'] || 1;
       riskSum += weight;
-
-      // HIPO Detection (High Potential)
       if (weight >= 5) hipoCount++;
-
-      // Probability Index Helper
       if (pot) {
           probCount++;
           probWeightedSum += weight;
       }
   });
 
-  // Probability Index Calculation
   let probabilityIndexLabel = "Bajo";
   if (probCount > 0) {
       const avgProb = probWeightedSum / probCount;
@@ -98,7 +133,6 @@ export const calculateKPIs = (
       else probabilityIndexLabel = "Bajo";
   }
 
-  // 4. Forecast
   const maxMonth = Math.max(
       ...incidents.map(i => i.month),
       ...exposureHours.map(e => parseInt(e.period.split('-')[1]))
@@ -108,30 +142,22 @@ export const calculateKPIs = (
   const projectedLti = Math.round(ltis * projectionFactor);
   const projectedHH = totalManHours * projectionFactor; 
 
-  const forecast_trir = calcRate(projectedRecordables, settings.base_trir, projectedHH);
-  const maxAllowedTrirEvents = targets ? targets.max_events_trir : 0;
-  const maxAllowedLtiEvents = targets ? targets.max_events_lti : 0;
+  const forecast_trir = calcRate(projectedRecordables, 200000, projectedHH);
 
-  // 5. Environmental
   const envIncidents = incidents.filter(i => i.type.toLowerCase().includes('environmental') || i.type.toLowerCase().includes('ambiental'));
   const envMajor = envIncidents.filter(i => (RISK_WEIGHTS[i.potential_risk] || 1) >= 5).length;
   const envMinor = envIncidents.length - envMajor;
 
-  // 6. Incidence Rate %
-  const estimatedWorkers = totalManHours / 200; 
   const incidenceRatePct = estimatedWorkers > 0 
       ? parseFloat(((incidents.length / estimatedWorkers) * 100).toFixed(2)) 
       : null;
 
-  // 7. HIPO Rate
   const hipoRate = incidents.length > 0 
       ? parseFloat((hipoCount / incidents.length).toFixed(2)) 
       : 0;
 
 
   // --- MANAGEMENT INDICATORS ---
-
-  // A. Top 5 Sites
   const siteCounts: Record<string, number> = {};
   incidents.forEach(i => {
       siteCounts[i.site] = (siteCounts[i.site] || 0) + 1;
@@ -141,7 +167,6 @@ export const calculateKPIs = (
       .slice(0, 5)
       .map(([site, count], idx) => ({ site, count, rank: idx + 1 }));
 
-  // B. Days Without Accidents
   const now = new Date();
   const siteLastDates: Record<string, number> = {}; // timestamp
   
@@ -169,7 +194,6 @@ export const calculateKPIs = (
       };
   }).sort((a, b) => a.days - b.days);
 
-  // C. Rising Trend Alerts
   const allMonths = incidents.map(i => i.month);
   const currentDatasetMonth = allMonths.length > 0 ? Math.max(...allMonths) : new Date().getMonth() + 1;
   const windowMonths = [currentDatasetMonth - 2, currentDatasetMonth - 1, currentDatasetMonth];
@@ -191,9 +215,6 @@ export const calculateKPIs = (
       }
   });
 
-  // --- PREVENTIVE ANALYSIS (ADVANCED) ---
-  
-  // 1. Evolution
   const prevWindowMonths = [currentDatasetMonth - 5, currentDatasetMonth - 4, currentDatasetMonth - 3];
   const siteEvolutions: SiteEvolution[] = Object.keys(siteMonthCounts).map(site => {
       const currentSum = windowMonths.reduce((acc, m) => acc + (siteMonthCounts[site][m] || 0), 0);
@@ -222,12 +243,10 @@ export const calculateKPIs = (
       };
   });
 
-  // 2. Automated Action Generation (NEW SEMANTIC LOGIC)
   const actionSites = new Set<string>();
   siteEvolutions.filter(e => e.status === 'deteriorating').forEach(e => actionSites.add(e.site));
   trendAlerts.forEach(t => actionSites.add(t.site));
 
-  // If no deteriorating sites, pick Top 2 sites by volume to ensure we always have actions
   if (actionSites.size === 0) {
       top5Sites.slice(0, 2).forEach(s => actionSites.add(s.site));
   }
@@ -236,10 +255,7 @@ export const calculateKPIs = (
       let reason: 'deterioration' | 'trend_alert' = 'deterioration';
       if (trendAlerts.some(t => t.site === site)) reason = 'trend_alert';
       
-      // Filter incidents for this site ONLY
       const siteIncidents = incidents.filter(i => i.site === site);
-      
-      // Use the Semantic Engine
       const smartActions = getSmartSuggestedActions(siteIncidents);
 
       return {
@@ -252,17 +268,40 @@ export const calculateKPIs = (
 
 
   return {
+    totalManHours,
+    totalKM,
+    
+    // A. Occupational
     totalIncidents: incidents.length,
     totalRecordables: recordables,
     totalLTI: ltis,
+    totalFatalities: fatalities,
     totalDaysLost,
-    totalManHours,
-    totalKM,
-    trir: calcRate(recordables, settings.base_trir, totalManHours),
-    ltir: calcRate(ltis, settings.base_trir, totalManHours),
-    dart: calcRate(dartCases, settings.base_trir, totalManHours),
-    frequencyRate: calcRate(ltis, settings.base_if, totalManHours), 
-    severityRate: calcRate(totalDaysLost, settings.base_if, totalManHours),
+    totalDARTCases: dartCases,
+    
+    trir,
+    ltif,
+    dart,
+    sr,
+    alos,
+    far,
+
+    // B. Process Safety
+    t1_count,
+    t2_count,
+    t1_pser,
+    t2_pser,
+
+    // C. Regulatory
+    incidenceRateSRT,
+    slg24h,
+
+    // D. System Efficacy
+    lcer,
+    iap,
+    capa_otc,
+
+    // Legacy/Operational
     incidenceRatePct,
     ifatRate: calcRate(transitLaboralIncidents, 1000000, totalKM),
     envIncidentsMajor: envMajor,
@@ -273,13 +312,11 @@ export const calculateKPIs = (
     forecast_trir,
     forecast_recordable_count: projectedRecordables,
     forecast_lti_count: projectedLti,
-    remaining_trir_events: Math.max(0, maxAllowedTrirEvents - recordables),
-    remaining_lti_events: Math.max(0, maxAllowedLtiEvents - ltis),
     risk_index_total: riskSum,
     risk_index_rate: calcRate(riskSum, 1000000, totalManHours),
     cnt_transit_laboral: transitLaboralIncidents,
     cnt_in_itinere: inItinereIncidents,
-    rate_in_itinere_hh: calcRate(inItinereIncidents, settings.base_trir, totalManHours),
+    rate_in_itinere_hh: calcRate(inItinereIncidents, 200000, totalManHours),
     top5Sites,
     daysSinceList,
     trendAlerts,

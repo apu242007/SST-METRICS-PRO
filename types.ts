@@ -7,7 +7,9 @@ export enum IncidentType {
   PropertyDamage = 'Property Damage',
   NearMiss = 'Near Miss',
   Environmental = 'Environmental',
-  Unspecified = 'Unspecified'
+  Unspecified = 'Unspecified',
+  ProcessSafetyTier1 = 'Process Safety Tier 1',
+  ProcessSafetyTier2 = 'Process Safety Tier 2'
 }
 
 export type BodyZone = 
@@ -80,6 +82,11 @@ export interface Incident {
   days_away: number;
   days_restricted: number;
   job_transfer: boolean;
+
+  // PROCESS SAFETY (API RP 754)
+  is_process_safety_tier_1: boolean;
+  is_process_safety_tier_2: boolean;
+  severity_points_tier1?: number; // For T1 PSESR
   
   // Data Integrity & Meta
   raw_json: string; // JSON string of original excel row
@@ -133,25 +140,36 @@ export interface AppSettings {
 }
 
 export interface KPITargets {
-  // Existing
-  trir: number;
-  ltir: number;
-  if: number; // Índice de Frecuencia
-  ig: number; // Índice de Gravedad
-  ifat_km: number; // IFAT Rate
+  // Occupational Safety
+  trir: number;       // 200k base
+  ltif: number;       // 1M base
+  dart: number;       // 200k base
+  sr: number;         // Severity Rate (1000 base)
+  far: number;        // Fatality Rate (100M base)
+  
+  // Process Safety
+  t1_pser: number;    // Tier 1 Rate (200k)
+  t2_pser: number;    // Tier 2 Rate (200k)
+  
+  // Regulatory / Other
+  ifat_km: number;    // IFAT Rate
+  
+  // System Efficacy
+  lcer: number;       // Legal Compliance %
+  iap: number;        // Internal Audit Performance %
+  capa_otc: number;   // Action Closure %
+
+  // Legacy/Helper targets
   max_events_trir: number;
   max_events_lti: number;
-  
-  // New 2026 / Specifics
-  total_incidents_reduction?: number; // % reduction
-  incidence_rate_pct: number; // Tasa de Incidencia %
+  incidence_rate_pct: number; 
   env_major: number;
   env_minor: number;
-  probability_index_target: string; // 'Bajo' | 'Medio' | 'Alto'
-  hipo_rate_min: number; // Ratio (e.g., 0.2 for 1:5)
+  probability_index_target: string;
+  hipo_rate_min: number;
 }
 
-export type TargetScenarioType = 'Realista' | 'Desafiante' | 'Excelencia' | 'Metas 2026';
+export type TargetScenarioType = 'Realista 2025' | 'Metas 2026';
 
 // --- NEW MANAGEMENT KPI INTERFACES ---
 export interface SiteRanking {
@@ -190,52 +208,64 @@ export interface SuggestedAction {
 }
 
 export interface DashboardMetrics {
-  // Basic Counts
+  // Exposure
+  totalManHours: number;
+  totalKM: number; 
+  
+  // --- A. Occupational Safety (Lagging) ---
   totalIncidents: number;
   totalRecordables: number;
   totalLTI: number;
-  totalDaysLost: number;
-  totalManHours: number;
-  totalKM: number; // Global KM Value
-  
-  // Rates (Actual YTD)
-  trir: number | null;
-  ltir: number | null;
-  dart: number | null;
-  severityRate: number | null; // IG
-  frequencyRate: number | null; // IF (LTI Freq)
-  
-  // New KPIs
-  incidenceRatePct: number | null; // Tasa de Incidencia (%)
+  totalFatalities: number;
+  totalDaysLost: number; // For SR
+  totalDARTCases: number;
+
+  trir: number | null;      // (Recordables * 200k) / H
+  dart: number | null;      // (DART cases * 200k) / H
+  ltif: number | null;      // (LTI * 1M) / H
+  sr: number | null;        // (Days Lost * 1000) / H (ILO Standard)
+  alos: number | null;      // Avg Length of Stay (Days Lost / LTI)
+  far: number | null;       // (Fatalities * 100M) / H
+
+  // --- B. Process Safety (API RP 754) ---
+  t1_count: number;
+  t2_count: number;
+  t1_pser: number | null;   // (T1 * 200k) / H
+  t2_pser: number | null;   // (T2 * 200k) / H
+
+  // --- C. Regulatory (SRT Argentina) ---
+  incidenceRateSRT: number | null; // (Baja cases * 1000) / Workers
+  slg24h: number | null;    // % compliance reporting <= 24h
+
+  // --- D. System Efficacy (ISO 45001) ---
+  lcer: number;     // Legal Compliance % (Mocked/Derived)
+  iap: number;      // Audit Performance % (Mocked/Derived)
+  capa_otc: number; // Actions Closed on Time %
+
+  // Legacy / Operational
+  incidenceRatePct: number | null; // Legacy
   ifatRate: number | null;
   envIncidentsMajor: number;
   envIncidentsMinor: number;
-  probabilityIndexLabel: string; // "Bajo", "Medio", "Alto"
-  hipoRate: number | null; // High Potential / Total Incidents
+  probabilityIndexLabel: string;
+  hipoRate: number | null;
   hipoCount: number;
 
-  // Forecasts (Projections)
   forecast_trir: number | null;
   forecast_lti_count: number;
   forecast_recordable_count: number;
-  remaining_trir_events: number; // Based on Target
-  remaining_lti_events: number;  // Based on Target
   
-  // Risk Index
   risk_index_total: number;
-  risk_index_rate: number | null; // Risk per 1M HH
+  risk_index_rate: number | null;
 
-  // Transit Specific (Separated)
   cnt_transit_laboral: number;
   cnt_in_itinere: number;
-  rate_in_itinere_hh: number | null; // Optional: Itinere rate by HH
+  rate_in_itinere_hh: number | null;
 
-  // --- MANAGEMENT METRICS ---
+  // Management Arrays
   top5Sites: SiteRanking[];
   daysSinceList: SiteDaysSafe[];
   trendAlerts: TrendAlert[];
-
-  // --- PREVENTIVE ANALYSIS ---
   siteEvolutions: SiteEvolution[];
   suggestedActions: SuggestedAction[];
 }

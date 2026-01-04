@@ -17,7 +17,7 @@ import { parseIncidentsExcel, getMissingExposureKeys, getMissingExposureImpact, 
 // REMOVED: checkServerStatus, fetchLocalFile imports
 import { LayoutDashboard, FileText, Layers, Zap, Filter, Upload, Download, X, Search, ChevronRight, RefreshCcw, FileSpreadsheet, PenTool, Workflow, CalendarDays, HardDrive, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { TARGET_SCENARIOS } from './constants';
+import { TARGET_SCENARIOS, MONTHS } from './constants';
 
 const App: React.FC = () => {
   // --- 1. GLOBAL STATE ---
@@ -212,7 +212,7 @@ const App: React.FC = () => {
       return globalKm;
   }, [globalKm, filters.year]);
 
-  const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, filteredExposureHours, exposureKm, settings, TARGET_SCENARIOS.Realista, filteredGlobalKm), [filteredIncidents, filteredExposureHours, exposureKm, settings, filteredGlobalKm]);
+  const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, filteredExposureHours, exposureKm, settings, TARGET_SCENARIOS['Realista 2025'], filteredGlobalKm), [filteredIncidents, filteredExposureHours, exposureKm, settings, filteredGlobalKm]);
   const currentMissingImpact = useMemo(() => getMissingExposureImpact(incidents, exposureHours), [incidents, exposureHours]);
 
   // --- HANDLERS ---
@@ -345,11 +345,15 @@ const App: React.FC = () => {
                         <option value="All">Año: Todos</option>
                         {uniqueValues.years.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
+                    <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.month} onChange={e => setFilters({...filters, month: e.target.value})}>
+                        <option value="All">Mes: Todos</option>
+                        {MONTHS.map((m, idx) => <option key={idx} value={String(idx + 1)}>{m}</option>)}
+                    </select>
                     <div className="relative flex-1 min-w-[200px]">
                         <Search className="w-3.5 h-3.5 absolute left-3 top-2 text-gray-400" />
                         <input type="text" placeholder="Buscar..." className="w-full pl-9 pr-2 py-1.5 text-xs border rounded-md shadow-sm" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
                     </div>
-                    {(filters.site !== 'All' || filters.year !== 'All' || filters.search !== '') && (
+                    {(filters.site !== 'All' || filters.year !== 'All' || filters.month !== 'All' || filters.search !== '') && (
                         <button onClick={() => setFilters({site: 'All', year: 'All', month: 'All', type: 'All', location: 'All', search: '', category: 'All'})} className="text-xs px-2 py-1.5 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-700 flex items-center"><X className="w-3 h-3 mr-1" /> Limpiar</button>
                     )}
                 </div>

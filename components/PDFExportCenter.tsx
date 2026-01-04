@@ -53,7 +53,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
       let targetMissing = missingExposure;
       
       if (isFullReport) {
-          targetMetrics = calculateKPIs(allIncidents, exposureHours, exposureKm, settings, TARGET_SCENARIOS.Realista);
+          targetMetrics = calculateKPIs(allIncidents, exposureHours, exposureKm, settings, TARGET_SCENARIOS['Realista 2025']);
           targetMissing = getMissingExposureImpact(allIncidents, exposureHours);
       }
 
