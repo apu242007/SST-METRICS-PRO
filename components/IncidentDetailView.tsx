@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
-import { Incident, MappingRule } from '../types';
-import { X, Save, ArrowRight, Database, Wand2, Edit3, AlertTriangle, CheckCircle2, FileJson, History, PersonStanding } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Incident, MappingRule, SGIDocument, LinkedDocument } from '../types';
+import { X, Save, ArrowRight, Database, Wand2, Edit3, AlertTriangle, CheckCircle2, FileJson, History, BookOpen, Link, Trash2, Plus } from 'lucide-react';
 import { parseStrictDate } from '../utils/importHelpers';
-import { BodyMap } from './BodyMap';
+import { SEED_DOCUMENTS } from '../utils/seedData';
 
 interface IncidentDetailViewProps {
   incident: Incident;
@@ -16,7 +16,16 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
   const [formData, setFormData] = useState<Incident>(incident);
   const [rawData, setRawData] = useState<Record<string, any>>({});
   const [suggestions, setSuggestions] = useState<any>({});
-  const [activeTab, setActiveTab] = useState<'details' | 'audit'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'audit' | 'docs'>('details');
+
+  // Document Linking State
+  const [docSearch, setDocSearch] = useState('');
+  const [selectedDocForLink, setSelectedDocForLink] = useState<SGIDocument | null>(null);
+  const [linkType, setLinkType] = useState<'NON_COMPLIANCE' | 'REFERENCE' | 'NOT_APPLICABLE'>('NON_COMPLIANCE');
+  const [linkComment, setLinkComment] = useState('');
+
+  // SGI Documents
+  const sgiDocs = SEED_DOCUMENTS; // In a real app, this would come from context/props
 
   // Initialize
   useEffect(() => {
@@ -79,12 +88,47 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
     onClose();
   };
 
+  // --- DOCUMENT LINKING LOGIC ---
+  const handleAddLink = () => {
+      if (!selectedDocForLink) return;
+      
+      const newLink: LinkedDocument = {
+          id: `link-${Date.now()}`,
+          document_code: selectedDocForLink.code,
+          document_title: selectedDocForLink.title,
+          association_type: linkType as any,
+          comments: linkComment,
+          added_at: new Date().toISOString()
+      };
+
+      const updatedLinks = [...(formData.linked_documents || []), newLink];
+      setFormData(prev => ({ ...prev, linked_documents: updatedLinks }));
+      
+      // Reset
+      setSelectedDocForLink(null);
+      setDocSearch('');
+      setLinkComment('');
+  };
+
+  const handleRemoveLink = (linkId: string) => {
+      const updatedLinks = (formData.linked_documents || []).filter(l => l.id !== linkId);
+      setFormData(prev => ({ ...prev, linked_documents: updatedLinks }));
+  };
+
+  const filteredDocs = useMemo(() => {
+      if (!docSearch) return [];
+      return sgiDocs.filter(d => 
+          d.code.toLowerCase().includes(docSearch.toLowerCase()) || 
+          d.title.toLowerCase().includes(docSearch.toLowerCase())
+      ).slice(0, 5);
+  }, [docSearch, sgiDocs]);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-70 z-[60] flex items-start justify-center p-4 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl flex flex-col my-8">
         
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0">
+        <div className="bg-slate-900 text-white p-4 flex justify-between items-center rounded-t-xl">
             <div>
                 <h2 className="text-lg font-bold flex items-center">
                     <Database className="w-5 h-5 mr-2 text-blue-400" />
@@ -94,8 +138,11 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                     <button onClick={() => setActiveTab('details')} className={`text-xs font-medium pb-1 border-b-2 ${activeTab === 'details' ? 'border-blue-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}>
                         Datos Generales
                     </button>
+                    <button onClick={() => setActiveTab('docs')} className={`text-xs font-medium pb-1 border-b-2 ${activeTab === 'docs' ? 'border-blue-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}>
+                        Procedimientos SGI ({formData.linked_documents?.length || 0})
+                    </button>
                     <button onClick={() => setActiveTab('audit')} className={`text-xs font-medium pb-1 border-b-2 ${activeTab === 'audit' ? 'border-blue-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}>
-                        Auditoría y Cambios ({incident.change_log?.length || 0})
+                        Auditoría
                     </button>
                 </div>
             </div>
@@ -105,7 +152,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
         </div>
 
         {activeTab === 'audit' && (
-             <div className="flex-1 bg-gray-50 p-6 overflow-y-auto">
+             <div className="bg-gray-50 p-6 rounded-b-xl min-h-[400px]">
                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                      <History className="w-5 h-5 mr-2" /> Historial de Modificaciones
                  </h3>
@@ -139,16 +186,138 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
              </div>
         )}
 
+        {/* --- DOCUMENTS TAB --- */}
+        {activeTab === 'docs' && (
+            <div className="flex flex-col h-full bg-gray-50 p-6 rounded-b-xl min-h-[500px]">
+                
+                {/* 1. Linking Area */}
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
+                    <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center">
+                        <Link className="w-4 h-4 mr-2 text-blue-600"/> Vincular Documento SGI
+                    </h3>
+                    
+                    <div className="flex flex-col md:flex-row gap-4 items-start">
+                        {/* Search Input */}
+                        <div className="relative flex-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Buscar Procedimiento</label>
+                            <input 
+                                type="text" 
+                                placeholder="Escriba código (ej: PO-SGI) o título..." 
+                                className="w-full border-gray-300 rounded text-sm p-2"
+                                value={docSearch}
+                                onChange={e => { setDocSearch(e.target.value); setSelectedDocForLink(null); }}
+                            />
+                            {/* Autocomplete Dropdown */}
+                            {docSearch && !selectedDocForLink && (
+                                <div className="absolute top-full left-0 w-full bg-white border border-gray-200 shadow-lg rounded-b mt-1 z-10 max-h-48 overflow-y-auto">
+                                    {filteredDocs.map(doc => (
+                                        <div 
+                                            key={doc.code} 
+                                            onClick={() => { setSelectedDocForLink(doc); setDocSearch(doc.code + ' - ' + doc.title); }}
+                                            className="p-2 hover:bg-blue-50 cursor-pointer text-xs border-b border-gray-50"
+                                        >
+                                            <span className="font-bold text-blue-700">{doc.code}</span>
+                                            <span className="text-gray-600 ml-2">{doc.title}</span>
+                                        </div>
+                                    ))}
+                                    {filteredDocs.length === 0 && (
+                                        <div className="p-2 text-xs text-gray-400 italic">No se encontraron documentos.</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Type & Comment */}
+                        <div className="w-48">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Tipo de Asociación</label>
+                            <select 
+                                className="w-full border-gray-300 rounded text-sm p-2"
+                                value={linkType}
+                                onChange={e => setLinkType(e.target.value as any)}
+                            >
+                                <option value="NON_COMPLIANCE">Incumplimiento</option>
+                                <option value="REFERENCE">Referencia / Consulta</option>
+                                <option value="NOT_APPLICABLE">No Aplica (Justificar)</option>
+                            </select>
+                        </div>
+
+                        <div className="flex-1">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Comentario / Evidencia</label>
+                            <input 
+                                type="text" 
+                                placeholder="Ej: No se realizó el checklist previo..."
+                                className="w-full border-gray-300 rounded text-sm p-2"
+                                value={linkComment}
+                                onChange={e => setLinkComment(e.target.value)}
+                            />
+                        </div>
+
+                        <button 
+                            onClick={handleAddLink}
+                            disabled={!selectedDocForLink}
+                            className="mt-6 bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
+                    </div>
+                    {selectedDocForLink && (
+                        <div className="mt-2 text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-100">
+                            <strong>Objetivo:</strong> {selectedDocForLink.objective}
+                        </div>
+                    )}
+                </div>
+
+                {/* 2. Linked List */}
+                <h3 className="text-sm font-bold text-gray-800 mb-3">Documentos Vinculados</h3>
+                {(!formData.linked_documents || formData.linked_documents.length === 0) ? (
+                    <div className="text-center py-10 text-gray-400 bg-white border border-dashed border-gray-300 rounded-xl">
+                        <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No hay documentos vinculados a este incidente.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {formData.linked_documents.map(link => (
+                            <div key={link.id} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex justify-between items-start">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-bold text-blue-700 text-sm">{link.document_code}</span>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                                            link.association_type === 'NON_COMPLIANCE' ? 'bg-red-100 text-red-700' :
+                                            link.association_type === 'REFERENCE' ? 'bg-green-100 text-green-700' :
+                                            'bg-gray-100 text-gray-700'
+                                        }`}>
+                                            {link.association_type === 'NON_COMPLIANCE' ? 'INCUMPLIMIENTO' : link.association_type}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-gray-800 font-medium">{link.document_title}</p>
+                                    {link.comments && (
+                                        <p className="text-xs text-gray-500 mt-1 italic">"{link.comments}"</p>
+                                    )}
+                                </div>
+                                <button 
+                                    onClick={() => handleRemoveLink(link.id)}
+                                    className="text-red-400 hover:text-red-600 p-1"
+                                    title="Desvincular"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        )}
+
         {/* 3-Column Layout (Details Tab) */}
         {activeTab === 'details' && (
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex flex-col lg:flex-row">
             
             {/* COL 1: RAW DATA (Bronze) */}
-            <div className="w-1/3 bg-gray-50 border-r border-gray-200 flex flex-col">
+            <div className="w-full lg:w-1/3 bg-gray-50 border-r border-gray-200 flex flex-col">
                 <div className="p-3 bg-gray-100 border-b border-gray-200 font-semibold text-xs text-gray-500 uppercase tracking-wider flex items-center">
                     <FileJson className="w-4 h-4 mr-2" /> Fuente Original (Excel)
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                <div className="p-4">
                     <div className="space-y-3">
                         {Object.entries(rawData).map(([key, val]) => (
                             <div key={key} className="break-words">
@@ -163,11 +332,11 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
             </div>
 
             {/* COL 2: NORMALIZED / SYSTEM (Silver) */}
-            <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+            <div className="w-full lg:w-1/3 bg-white border-r border-gray-200 flex flex-col">
                 <div className="p-3 bg-blue-50 border-b border-blue-100 font-semibold text-xs text-blue-600 uppercase tracking-wider flex items-center">
                     <Wand2 className="w-4 h-4 mr-2" /> Normalizado y Sugerencias
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+                <div className="p-4 space-y-6">
                     
                     {/* Basic Mapping */}
                     <div>
@@ -185,19 +354,6 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                                 <span className="text-xs text-gray-500">Descripción</span>
                                 <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded mt-1">{incident.description}</div>
                              </div>
-                        </div>
-                    </div>
-
-                    {/* Body Map Visualization */}
-                    <div className="border border-gray-200 rounded-lg p-2 bg-slate-50">
-                        <h4 className="text-xs font-bold text-gray-900 border-b border-gray-200 pb-1 mb-2 flex items-center">
-                            <PersonStanding className="w-3 h-3 mr-1" /> Zona de Lesión Automática
-                        </h4>
-                        <div className="h-64 flex justify-center">
-                            <BodyMap highlightedZones={incident.affected_zones} mode="individual" />
-                        </div>
-                        <div className="mt-2 text-center text-xs text-gray-500">
-                            Texto origen: <span className="font-mono bg-white px-1 border rounded">{incident.body_part_text || "N/A"}</span>
                         </div>
                     </div>
 
@@ -249,13 +405,13 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
             </div>
 
             {/* COL 3: MANUAL EDIT (Gold) */}
-            <div className="w-1/3 bg-white flex flex-col">
+            <div className="w-full lg:w-1/3 bg-white flex flex-col rounded-b-xl">
                 <div className="p-3 bg-yellow-50 border-b border-yellow-100 font-semibold text-xs text-yellow-700 uppercase tracking-wider flex items-center justify-between">
                     <div className="flex items-center"><Edit3 className="w-4 h-4 mr-2" /> Edición Manual (Gold)</div>
                     {!incident.is_verified && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full animate-pulse">Pendiente Revisión</span>}
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
+                <div className="p-4 space-y-4">
                     
                     {/* Date */}
                     <div>
@@ -327,7 +483,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                 </div>
 
                 {/* Footer Action */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50">
+                <div className="p-4 border-t border-gray-200 bg-gray-50 mt-auto rounded-br-xl rounded-bl-lg lg:rounded-bl-none">
                     <button 
                         onClick={handleSave}
                         className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

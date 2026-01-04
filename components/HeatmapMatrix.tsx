@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Incident, HeatmapData } from '../types';
 import { MONTHS } from '../constants';
@@ -109,7 +110,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-full animate-in fade-in duration-500">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col animate-in fade-in duration-500">
       
       {/* Header & Controls */}
       <div className="p-4 border-b border-gray-200 flex flex-wrap gap-4 justify-between items-center bg-gray-50 rounded-t-xl">
@@ -182,11 +183,11 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
       </div>
 
       {/* Matrix Grid */}
-      <div className="flex-1 overflow-auto custom-scrollbar relative bg-gray-50/50">
+      <div className="w-full overflow-x-auto bg-gray-50/50">
           <table className="min-w-full border-collapse text-xs">
-              <thead className="bg-white sticky top-0 z-20 shadow-sm">
+              <thead className="bg-white">
                   <tr>
-                      <th className="sticky left-0 z-30 bg-white p-2 text-left font-bold text-gray-600 border-b border-r border-gray-200 min-w-[150px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                      <th className="bg-white p-2 text-left font-bold text-gray-600 border-b border-r border-gray-200 min-w-[150px]">
                           Sitio \ Mes
                       </th>
                       {MONTHS.map((m, i) => (
@@ -202,7 +203,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
               <tbody>
                   {matrixData.rows.map((row, rIdx) => (
                       <tr key={row.site} className="group hover:bg-gray-50 transition-colors">
-                          <td className="sticky left-0 z-10 p-2 text-left font-medium text-gray-700 border-b border-r border-gray-200 bg-white group-hover:bg-blue-50/30 truncate max-w-[180px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]" title={row.site}>
+                          <td className="p-2 text-left font-medium text-gray-700 border-b border-r border-gray-200 bg-white group-hover:bg-blue-50/30 truncate max-w-[180px]" title={row.site}>
                               {row.site}
                           </td>
                           {row.counts.map((val, mIdx) => {
@@ -235,8 +236,8 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
                   ))}
                   
                   {/* Column Totals Footer */}
-                  <tr className="bg-gray-100 font-bold sticky bottom-0 z-20 shadow-[0_-2px_5px_-2px_rgba(0,0,0,0.1)]">
-                      <td className="sticky left-0 z-30 p-2 text-right text-gray-600 bg-gray-100 border-t border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                  <tr className="bg-gray-100 font-bold">
+                      <td className="p-2 text-right text-gray-600 bg-gray-100 border-t border-r border-gray-200">
                           TOTAL MES
                       </td>
                       {matrixData.colTotals.map((total, idx) => (
@@ -252,11 +253,11 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
           </table>
       </div>
 
-      {/* Drill-down Modal */}
+      {/* Drill-down Modal (Overlay style) */}
       {selectedCell && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh]">
-                  <div className="p-4 bg-gray-900 text-white flex justify-between items-center">
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col my-8">
+                  <div className="p-4 bg-gray-900 text-white flex justify-between items-center rounded-t-xl">
                       <div>
                           <h3 className="font-bold text-lg">{selectedCell.site}</h3>
                           <p className="text-xs text-gray-400">{MONTHS[selectedCell.month-1]} • {selectedCell.count} Incidentes</p>
@@ -264,9 +265,9 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
                       <button onClick={() => setSelectedCell(null)} className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-800"><X className="w-5 h-5"/></button>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto p-0">
+                  <div className="p-0">
                       <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50 sticky top-0">
+                          <thead className="bg-gray-50">
                               <tr>
                                   <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">ID</th>
                                   <th className="px-4 py-2 text-left text-xs font-bold text-gray-500 uppercase">Tipo</th>
@@ -291,7 +292,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
                       </table>
                   </div>
 
-                  <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                  <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-end rounded-b-xl">
                       <button onClick={exportCellData} className="flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded shadow-sm">
                           <Download className="w-3 h-3 mr-2"/> Exportar Lista
                       </button>

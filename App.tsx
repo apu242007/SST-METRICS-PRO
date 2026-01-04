@@ -9,12 +9,13 @@ import { AutomationHub } from './components/AutomationHub';
 import { LabControls } from './components/LabControls';
 import { CalendarView } from './components/CalendarView';
 import { PDFExportCenter } from './components/PDFExportCenter';
-import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, SharePointConfig, SyncLog, ScheduledReport } from './types';
+import { DocumentLibrary } from './components/DocumentLibrary';
+import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, SharePointConfig, SyncLog, ScheduledReport, GlobalKmRecord, SGIDocument } from './types';
 import { calculateKPIs } from './utils/calculations';
 import { loadState, saveState, clearState, upsertIncidents, updateIncidentManual } from './services/storage';
 import { parseIncidentsExcel, getMissingExposureKeys, getMissingExposureImpact, generateAutoExposureRecords } from './utils/importHelpers';
 // REMOVED: checkServerStatus, fetchLocalFile imports
-import { LayoutDashboard, FileText, Layers, Zap, Filter, Upload, Download, X, Search, ChevronRight, RefreshCcw, FileSpreadsheet, PenTool, Workflow, CalendarDays, HardDrive } from 'lucide-react';
+import { LayoutDashboard, FileText, Layers, Zap, Filter, Upload, Download, X, Search, ChevronRight, RefreshCcw, FileSpreadsheet, PenTool, Workflow, CalendarDays, HardDrive, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TARGET_SCENARIOS } from './constants';
 
@@ -23,8 +24,10 @@ const App: React.FC = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [exposureHours, setExposureHours] = useState<ExposureHour[]>([]);
   const [exposureKm, setExposureKm] = useState<ExposureKm[]>([]);
+  const [globalKm, setGlobalKm] = useState<GlobalKmRecord[]>([]); // New Global KM State
   const [settings, setSettings] = useState<AppSettings>({ base_if: 1000000, base_trir: 200000, days_cap: 180 });
   const [rules, setRules] = useState<MappingRule[]>([]);
+  const [sgiDocuments, setSgiDocuments] = useState<SGIDocument[]>([]);
   
   // Automation State (Legacy fields kept for compatibility, but sync logic removed)
   const [sharePointConfig, setSharePointConfig] = useState<SharePointConfig>({ isEnabled: false, tenantId: '', siteUrl: '', libraryName: '', incidentFileName: '', reportFolderPath: '', lastSyncDate: null, lastFileHash: null });
@@ -40,7 +43,7 @@ const App: React.FC = () => {
   const productionSnapshot = useRef<{ incidents: Incident[], exposure: ExposureHour[] } | null>(null);
 
   // --- 2. UX STATE ---
-  const [activeTab, setActiveTab] = useState<'raw' | 'normalized' | 'kpis' | 'pending' | 'automation' | 'calendar'>('automation'); // Default to Source
+  const [activeTab, setActiveTab] = useState<'raw' | 'normalized' | 'kpis' | 'pending' | 'automation' | 'calendar' | 'docs'>('automation'); // Default to Source
   
   const [filters, setFilters] = useState({
     site: 'All',
@@ -62,8 +65,10 @@ const App: React.FC = () => {
     setIncidents(data.incidents);
     setExposureHours(data.exposure_hours);
     setExposureKm(data.exposure_km);
+    setGlobalKm(data.global_km); // Load Global KM
     setSettings(data.settings);
     setRules(data.rules);
+    setSgiDocuments(data.sgi_documents || []);
     if (data.sharepoint_config?.lastSyncDate) setLastAppSync(data.sharepoint_config.lastSyncDate);
     
     setIsLoaded(true);
@@ -72,12 +77,13 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isLoaded && !isSandboxMode) {
       saveState({ 
-          incidents, exposure_hours: exposureHours, exposure_km: exposureKm, settings, rules, load_history: [],
+          incidents, exposure_hours: exposureHours, exposure_km: exposureKm, global_km: globalKm, settings, rules, load_history: [],
           sharepoint_config: { ...sharePointConfig, lastSyncDate: lastAppSync }, 
-          sync_logs: syncLogs, scheduled_reports: scheduledReports
+          sync_logs: syncLogs, scheduled_reports: scheduledReports,
+          sgi_documents: sgiDocuments
       });
     }
-  }, [incidents, exposureHours, exposureKm, settings, rules, isLoaded, sharePointConfig, syncLogs, scheduledReports, isSandboxMode, lastAppSync]);
+  }, [incidents, exposureHours, exposureKm, globalKm, settings, rules, isLoaded, sharePointConfig, syncLogs, scheduledReports, isSandboxMode, lastAppSync, sgiDocuments]);
 
   // --- 4. MANUAL UPLOAD HANDLER (Replaces Auto-Sync) ---
   const handleFileUpload = async (file: File) => {
@@ -178,7 +184,35 @@ const App: React.FC = () => {
     });
   }, [incidents, filters]);
 
-  const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, exposureHours, exposureKm, settings, TARGET_SCENARIOS.Realista), [filteredIncidents, exposureHours, exposureKm, settings]);
+  // Filter Exposure Hours to match incidents (Correct Denominator for Rates)
+  const filteredExposureHours = useMemo(() => {
+      return exposureHours.filter(h => {
+          // Site Filter
+          if (filters.site !== 'All' && h.site !== filters.site) return false;
+          
+          // Year Filter (Exposure period is YYYY-MM)
+          if (filters.year !== 'All' && !h.period.startsWith(`${filters.year}-`)) return false;
+          
+          // Month Filter
+          if (filters.month !== 'All') {
+              const m = String(filters.month).padStart(2, '0');
+              if (!h.period.endsWith(`-${m}`)) return false;
+          }
+          
+          return true;
+      });
+  }, [exposureHours, filters]);
+
+  // Filter Global KM based on Year Filter if active, else pass all (calculations handles default)
+  const filteredGlobalKm = useMemo(() => {
+      if (filters.year !== 'All') {
+          const year = parseInt(filters.year);
+          return globalKm.filter(k => k.year === year);
+      }
+      return globalKm;
+  }, [globalKm, filters.year]);
+
+  const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, filteredExposureHours, exposureKm, settings, TARGET_SCENARIOS.Realista, filteredGlobalKm), [filteredIncidents, filteredExposureHours, exposureKm, settings, filteredGlobalKm]);
   const currentMissingImpact = useMemo(() => getMissingExposureImpact(incidents, exposureHours), [incidents, exposureHours]);
 
   // --- HANDLERS ---
@@ -241,8 +275,9 @@ const App: React.FC = () => {
                         { id: 'raw', label: '2. RAW', icon: FileSpreadsheet },
                         { id: 'normalized', label: '3. Datos', icon: Layers },
                         { id: 'pending', label: '4. Pendientes', icon: Zap },
-                        { id: 'kpis', label: '5. Dashboard', icon: LayoutDashboard },
-                        { id: 'calendar', label: '6. Calendario', icon: CalendarDays },
+                        { id: 'docs', label: '5. SGI Docs', icon: BookOpen },
+                        { id: 'kpis', label: '6. Dashboard', icon: LayoutDashboard },
+                        { id: 'calendar', label: '7. Calendario', icon: CalendarDays },
                     ].map((tab, idx, arr) => {
                         const isActive = activeTab === tab.id;
                         const Icon = tab.icon;
@@ -297,7 +332,7 @@ const App: React.FC = () => {
         </div>
 
         {/* === FILTER BAR === */}
-        {activeTab !== 'calendar' && activeTab !== 'automation' && (
+        {activeTab !== 'calendar' && activeTab !== 'automation' && activeTab !== 'docs' && (
         <div className={`border-t backdrop-blur-sm ${isSandboxMode ? 'bg-slate-800/90 border-slate-700' : 'bg-gray-50/50 border-gray-200'}`}>
             <div className="max-w-7xl mx-auto px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -335,11 +370,15 @@ const App: React.FC = () => {
                 )}
                 {activeTab === 'raw' && <DataExplorer incidents={filteredIncidents} mode="raw" onUpdateIncident={handleUpdateIncident} />}
                 {activeTab === 'normalized' && <DataExplorer incidents={filteredIncidents} mode="normalized" onUpdateIncident={handleUpdateIncident} />}
+                {activeTab === 'docs' && (
+                    <DocumentLibrary documents={sgiDocuments} />
+                )}
                 {activeTab === 'kpis' && (
                     <Dashboard 
                         incidents={filteredIncidents} 
-                        exposureHours={exposureHours} 
+                        exposureHours={filteredExposureHours} 
                         exposureKm={exposureKm} 
+                        globalKmRecords={filteredGlobalKm}
                         settings={settings} 
                         onNavigateToExposure={(site) => { setFocusSite(site); setModalMode('exposure_hh'); }} 
                         onDrillDown={handleDrillDown} 
@@ -367,7 +406,7 @@ const App: React.FC = () => {
                     <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                         <div className="flex items-center">
                             <PenTool className="w-5 h-5 text-blue-600 mr-2" />
-                            <h3 className="font-bold text-gray-800">Carga Manual de Exposición (HH y KM)</h3>
+                            <h3 className="font-bold text-gray-800">Carga Manual de Exposición (HH y KM Globales)</h3>
                         </div>
                         <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
                     </div>
@@ -375,10 +414,11 @@ const App: React.FC = () => {
                         <ExposureManager 
                             exposureHours={exposureHours} 
                             exposureKm={exposureKm} 
+                            globalKmRecords={globalKm}
                             sites={uniqueValues.sites} 
                             missingKeys={getMissingExposureKeys(incidents, exposureHours)} 
                             initialSite={focusSite}
-                            onUpdate={(h, k) => { setExposureHours(h); setExposureKm(k); }} 
+                            onUpdate={(h, k, g) => { setExposureHours(h); setExposureKm(k); setGlobalKm(g); }} 
                         />
                     </div>
                 </div>

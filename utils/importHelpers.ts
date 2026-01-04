@@ -314,6 +314,9 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
     const type = row['Tipo de Incidente'] ? row['Tipo de Incidente'].trim() : 'Unspecified';
     const bodyPartText = row['Datos ART: UBICACIÓN DE LA LESIÓN'] || '';
 
+    // Normalize Site (Trim & Uppercase to prevent duplicates)
+    const siteRaw = row['Sitio'] ? String(row['Sitio']).trim().toUpperCase() : 'SITIO DESCONOCIDO';
+
     // Default base calc
     let daysAway = 0;
     if (fechaSiniestro && fechaAlta) {
@@ -333,7 +336,7 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       incident_id: id,
       name: row['Nombre'] || 'Sin Nombre',
       description: parts.filter(Boolean).join('. ').trim() || 'Sin descripción',
-      site: row['Sitio'] || 'Sitio Desconocido',
+      site: siteRaw,
       fecha_evento: fechaEvento,
       year: parseInt(row['Año']) || new Date(fechaEvento).getFullYear(),
       month: parseInt(row['Mes']) || new Date(fechaEvento).getMonth() + 1,

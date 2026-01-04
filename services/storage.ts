@@ -1,14 +1,17 @@
-import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, ChangeLogEntry, SharePointConfig, SyncLog, ScheduledReport } from "../types";
-import { SEED_INCIDENTS, SEED_EXPOSURE_HOURS, SEED_EXPOSURE_KM, SEED_SETTINGS, SEED_RULES } from "../utils/seedData";
 
-const STORAGE_KEY = 'sst_metrics_db_v5_clean';
+import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, ChangeLogEntry, SharePointConfig, SyncLog, ScheduledReport, GlobalKmRecord, SGIDocument } from "../types";
+import { SEED_INCIDENTS, SEED_EXPOSURE_HOURS, SEED_EXPOSURE_KM, SEED_SETTINGS, SEED_RULES, SEED_DOCUMENTS } from "../utils/seedData";
+
+const STORAGE_KEY = 'sst_metrics_db_v6_global_km';
 
 export interface AppState {
   incidents: Incident[];
   exposure_hours: ExposureHour[];
-  exposure_km: ExposureKm[];
+  exposure_km: ExposureKm[]; // Legacy or unused, keeping for structure stability for now
+  global_km: GlobalKmRecord[]; // NEW: Global KM records
   settings: AppSettings;
   rules: MappingRule[];
+  sgi_documents: SGIDocument[]; // New SGI Master
   load_history: { date: string, filename: string, records_count: number }[];
   
   // Automation State
@@ -28,6 +31,11 @@ const DEFAULT_SHAREPOINT_CONFIG: SharePointConfig = {
     lastFileHash: null
 };
 
+// Default KM for 2025 as per context, but allowing 0 if not set
+const SEED_GLOBAL_KM: GlobalKmRecord[] = [
+    { year: 2025, value: 2741216.83, last_updated: new Date().toISOString() }
+];
+
 export const loadState = (): AppState => {
   try {
     const serializedState = localStorage.getItem(STORAGE_KEY);
@@ -36,8 +44,10 @@ export const loadState = (): AppState => {
         incidents: SEED_INCIDENTS,
         exposure_hours: SEED_EXPOSURE_HOURS,
         exposure_km: SEED_EXPOSURE_KM,
+        global_km: SEED_GLOBAL_KM,
         settings: SEED_SETTINGS,
         rules: SEED_RULES,
+        sgi_documents: SEED_DOCUMENTS, // Seed SGI
         load_history: [],
         sharepoint_config: DEFAULT_SHAREPOINT_CONFIG,
         sync_logs: [],
@@ -51,6 +61,17 @@ export const loadState = (): AppState => {
     if (!parsed.sharepoint_config) parsed.sharepoint_config = DEFAULT_SHAREPOINT_CONFIG;
     if (!parsed.sync_logs) parsed.sync_logs = [];
     if (!parsed.scheduled_reports) parsed.scheduled_reports = [];
+    if (!parsed.global_km) parsed.global_km = SEED_GLOBAL_KM; 
+    
+    // MIGRATION: Ensure SGI Docs exist
+    if (!parsed.sgi_documents || parsed.sgi_documents.length === 0) {
+        parsed.sgi_documents = SEED_DOCUMENTS;
+    }
+    
+    // MIGRATION: Update Base IF to OSHA 200k if it was legacy 1M
+    if (parsed.settings && parsed.settings.base_if === 1000000) {
+        parsed.settings.base_if = 200000;
+    }
     
     return parsed;
   } catch (err) {
@@ -59,8 +80,10 @@ export const loadState = (): AppState => {
       incidents: [],
       exposure_hours: [],
       exposure_km: [],
+      global_km: SEED_GLOBAL_KM,
       settings: SEED_SETTINGS,
       rules: SEED_RULES,
+      sgi_documents: SEED_DOCUMENTS,
       load_history: [],
       sharepoint_config: DEFAULT_SHAREPOINT_CONFIG,
       sync_logs: [],

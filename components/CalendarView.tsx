@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Incident } from '../types';
 import { MONTHS } from '../constants';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Filter, Download, History, MapPin, AlertTriangle, Info, X, Zap, FileText, ChevronDown, ChevronUp, Printer } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Filter, Download, History, MapPin, AlertTriangle, Info, X, Zap, FileText, ChevronDown, ChevronUp, Printer, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generateSafetyTalk, SafetyTalk } from '../utils/safetyTalkGenerator';
 import { exportToPDF } from '../utils/pdfExportService';
@@ -96,12 +96,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
   const totalSlots = Math.ceil((daysInMonth + startOffset) / 7) * 7;
 
   return (
-    <div className="flex flex-col h-full space-y-4 animate-in fade-in duration-500">
+    <div className="flex flex-col space-y-4 animate-in fade-in duration-500">
         
         {/* PDF Options Modal */}
         {showPdfOptions && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-gray-200">
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-gray-200 my-8">
                     <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
                         <Printer className="w-5 h-5 mr-2 text-blue-600" /> Opciones de Exportación PDF
                     </h3>
@@ -158,7 +158,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
             </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-[600px]">
+        <div className="flex flex-col lg:flex-row gap-6">
             {/* GRID */}
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                 <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
@@ -166,11 +166,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                         <div key={d} className="py-2 text-center text-xs font-bold text-gray-500 uppercase">{d}</div>
                     ))}
                 </div>
-                <div className="grid grid-cols-7 flex-1 auto-rows-fr bg-gray-200 gap-px border-b border-gray-200">
+                <div className="grid grid-cols-7 auto-rows-fr bg-gray-200 gap-px border-b border-gray-200">
                     {Array.from({ length: totalSlots }).map((_, idx) => {
                         const dayNumber = idx - startOffset + 1;
                         const isValid = dayNumber > 0 && dayNumber <= daysInMonth;
-                        if (!isValid) return <div key={idx} className="bg-gray-50"></div>;
+                        if (!isValid) return <div key={idx} className="bg-gray-50 min-h-[100px]"></div>;
 
                         const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
                         const dayIncidents = calendarMap[dateKey] || [];
@@ -183,14 +183,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                                 className={`bg-white min-h-[100px] p-2 relative cursor-pointer hover:bg-blue-50 transition-colors flex flex-col ${isSelected ? 'ring-2 ring-inset ring-blue-500 z-10' : ''}`}
                             >
                                 <span className="text-sm font-medium text-gray-700">{dayNumber}</span>
-                                <div className="mt-2 space-y-1 overflow-hidden">
-                                    {dayIncidents.slice(0, 3).map((inc, i) => (
+                                <div className="mt-2 space-y-1">
+                                    {dayIncidents.slice(0, 5).map((inc, i) => (
                                         <div key={inc.incident_id} className="flex items-center">
                                             {showPotential && <div className={`w-1.5 h-1.5 rounded-full mr-1 flex-shrink-0 ${getSeverityColor(inc.potential_risk)}`} />}
                                             <span className="text-[8px] text-gray-500 truncate leading-tight">{inc.type}</span>
                                         </div>
                                     ))}
-                                    {dayIncidents.length > 3 && <span className="text-[8px] text-gray-400">+{dayIncidents.length-3}</span>}
+                                    {dayIncidents.length > 5 && <span className="text-[8px] text-gray-400">+{dayIncidents.length-5}</span>}
                                 </div>
                             </div>
                         );
@@ -198,10 +198,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                 </div>
             </div>
 
-            {/* SIDEBAR */}
+            {/* SIDEBAR - NO INTERNAL SCROLL */}
             <div className="w-full lg:w-[420px] flex flex-col space-y-4">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden">
-                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center rounded-t-xl">
                         <h3 className="font-bold text-gray-800 flex items-center text-sm">
                             <CalIcon className="w-4 h-4 mr-2 text-blue-600" />
                             {selectedDate ? `Resumen ${selectedDate.split('-').reverse().join('/')}` : 'Detalles del día'}
@@ -215,7 +215,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                         )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-4">
+                    <div className="p-4 space-y-4">
                         {!selectedDate ? (
                             <div className="text-center text-gray-400 py-10 flex flex-col items-center">
                                 <MapPin className="w-8 h-8 mb-2 opacity-50" />
@@ -248,9 +248,36 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                                             {isTalkExpanded && (
                                                 <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                                                     <div>
-                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">¿Por qué hoy?</h5>
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Introducción</h5>
                                                         <p className="text-xs leading-relaxed text-blue-50">{generatedTalk.whyToday}</p>
                                                     </div>
+                                                    
+                                                    {generatedTalk.situations && generatedTalk.situations.length > 0 && (
+                                                        <div>
+                                                            <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Situaciones Observadas</h5>
+                                                            <ul className="space-y-1.5">
+                                                                {generatedTalk.situations.map((m, i) => (
+                                                                    <li key={i} className="text-xs leading-tight flex items-start"><span className="mr-2 text-blue-300">•</span> {m}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+
+                                                    {generatedTalk.relatedProcedures && generatedTalk.relatedProcedures.length > 0 && (
+                                                        <div className="bg-red-500/20 p-2 rounded border border-red-400/30">
+                                                            <h5 className="text-[10px] font-bold text-red-200 uppercase mb-1 flex items-center">
+                                                                <BookOpen className="w-3 h-3 mr-1"/> Procedimientos / Desvíos
+                                                            </h5>
+                                                            <ul className="space-y-1">
+                                                                {generatedTalk.relatedProcedures.map((proc, i) => (
+                                                                    <li key={i} className="text-[10px] font-mono text-red-100 flex items-start">
+                                                                        <span className="mr-1">⚠</span> {proc}
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+
                                                     <div>
                                                         <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Mensajes Clave</h5>
                                                         <ul className="space-y-1.5">
@@ -268,7 +295,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                                                         </ul>
                                                     </div>
                                                     <div className="pt-2 border-t border-blue-500 flex justify-between items-center">
-                                                        <span className="text-[9px] text-blue-300 italic">Fuente: {generatedTalk.sourceInfo}</span>
+                                                        <span className="text-[9px] text-blue-300 italic">{generatedTalk.sourceInfo}</span>
                                                         <button onClick={() => setShowPdfOptions(true)} className="flex items-center text-[10px] bg-blue-500 hover:bg-blue-400 px-2 py-1 rounded">
                                                             <FileText className="w-3 h-3 mr-1"/> PDF
                                                         </button>
@@ -285,7 +312,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                                         <h3 className="font-bold text-xs flex items-center text-amber-400"><History className="w-4 h-4 mr-2" /> Un día como hoy...</h3>
                                         <span className="bg-slate-700 px-2 py-1 rounded text-xs font-mono font-bold">{historicalData.count}</span>
                                     </div>
-                                    <div className="max-h-[300px] overflow-y-auto p-4 custom-scrollbar">
+                                    <div className="p-4 space-y-3">
                                         {historicalData.count === 0 ? (
                                             <div className="text-center py-4 text-slate-500 text-xs italic">Sin registros históricos previos.</div>
                                         ) : (

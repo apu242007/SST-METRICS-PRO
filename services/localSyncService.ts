@@ -1,3 +1,1 @@
-// DEPRECATED - Service removed.
-// The application now uses direct client-side Excel upload.
-export {}; 
+export {}; // Deprecated. Use AutomationHub for file uploads.

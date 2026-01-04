@@ -1,26 +1,37 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ExposureHour, ExposureKm, MissingExposureKey } from '../types';
-import { Save, Plus, AlertTriangle, PenTool, Zap, Filter, Info, Lock } from 'lucide-react';
+import { ExposureHour, ExposureKm, MissingExposureKey, GlobalKmRecord } from '../types';
+import { Save, Plus, AlertTriangle, PenTool, Zap, Filter, Info, Lock, Truck } from 'lucide-react';
 import { getAutoHH } from '../utils/importHelpers';
 
 interface ExposureManagerProps {
   exposureHours: ExposureHour[];
   exposureKm: ExposureKm[];
+  globalKmRecords: GlobalKmRecord[];
   sites: string[];
   missingKeys?: MissingExposureKey[];
   initialSite?: string; // Optional site to focus on
-  onUpdate: (hours: ExposureHour[], km: ExposureKm[]) => void;
+  onUpdate: (hours: ExposureHour[], km: ExposureKm[], globalKm: GlobalKmRecord[]) => void;
 }
 
 export const ExposureManager: React.FC<ExposureManagerProps> = ({ 
-    exposureHours, exposureKm, sites, missingKeys = [], initialSite, onUpdate 
+    exposureHours, exposureKm, globalKmRecords, sites, missingKeys = [], initialSite, onUpdate 
 }) => {
   const [newSite, setNewSite] = useState(initialSite || sites[0] || '');
   const [newPeriod, setNewPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   
   const [hoursList, setHoursList] = useState(exposureHours);
   const [kmList, setKmList] = useState(exposureKm);
+  const [globalKmList, setGlobalKmList] = useState<GlobalKmRecord[]>(globalKmRecords);
+
+  // Global KM Edit State
+  const currentYear = new Date().getFullYear();
+  const [currentGlobalKm, setCurrentGlobalKm] = useState(0);
+
+  useEffect(() => {
+      const record = globalKmRecords.find(r => r.year === currentYear);
+      setCurrentGlobalKm(record ? record.value : 0);
+  }, [globalKmRecords, currentYear]);
 
   // Bulk Fill State
   const [bulkSite, setBulkSite] = useState(initialSite || sites[0] || '');
@@ -33,7 +44,8 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
   useEffect(() => {
     setHoursList(exposureHours);
     setKmList(exposureKm);
-  }, [exposureHours, exposureKm]);
+    setGlobalKmList(globalKmRecords);
+  }, [exposureHours, exposureKm, globalKmRecords]);
 
   // Update defaults if initialSite changes (re-opening modal for different site)
   useEffect(() => {
@@ -44,13 +56,10 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
       }
   }, [initialSite]);
 
-  // Note: generateAutoExposureRecords in App.tsx now handles the logic. 
-  // ExposureManager is mostly for Display & Manual Fixes.
-
   const mergedData = useMemo(() => {
     const keys = new Set<string>();
     hoursList.forEach(h => keys.add(`${h.site}|${h.period}`));
-    kmList.forEach(k => keys.add(`${k.site}|${k.period}`));
+    // We ignore kmList for site keys now as IFAT is global
 
     // Also ensure missing keys appear even if not in hoursList yet (though auto logic should have caught them as 0s)
     missingKeys.forEach(mk => keys.add(`${mk.site}|${mk.period}`));
@@ -58,7 +67,6 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
     let data = Array.from(keys).map(key => {
       const [site, period] = key.split('|');
       const hourEntry = hoursList.find(h => h.site === site && h.period === period);
-      const kmEntry = kmList.find(k => k.site === site && k.period === period);
       
       const hoursVal = hourEntry?.hours || 0;
       
@@ -74,9 +82,7 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
         site,
         period,
         hours: hoursVal,
-        km: kmEntry?.km || 0,
         hourId: hourEntry?.id,
-        kmId: kmEntry?.id,
         isMissing,
         isAuto
       };
@@ -93,9 +99,9 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
         if (!a.isMissing && b.isMissing) return 1;
         return b.period.localeCompare(a.period);
     });
-  }, [hoursList, kmList, missingKeys, tableFilterSite]);
+  }, [hoursList, missingKeys, tableFilterSite]);
 
-  const updateVal = (site: string, period: string, type: 'hours' | 'km', val: string) => {
+  const updateVal = (site: string, period: string, type: 'hours', val: string) => {
     const num = parseFloat(val) || 0;
     if (type === 'hours') {
       const exists = hoursList.find(h => h.site === site && h.period === period);
@@ -104,18 +110,21 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
       } else {
         setHoursList(prev => [...prev, { id: `EXP-H-${site}-${period}-${Date.now()}`, site, period, worker_type: 'total', hours: num }]);
       }
-    } else {
-       const exists = kmList.find(k => k.site === site && k.period === period);
-      if (exists) {
-        setKmList(prev => prev.map(k => k.id === exists.id ? {...k, km: num} : k));
-      } else {
-        setKmList(prev => [...prev, { id: `EXP-K-${site}-${period}-${Date.now()}`, site, period, km: num }]);
-      }
     }
   };
 
+  const handleGlobalKmChange = (val: string) => {
+      const num = parseFloat(val) || 0;
+      setCurrentGlobalKm(num);
+      
+      // Update local state list
+      const newRecord: GlobalKmRecord = { year: currentYear, value: num, last_updated: new Date().toISOString() };
+      const others = globalKmList.filter(r => r.year !== currentYear);
+      setGlobalKmList([...others, newRecord]);
+  };
+
   const handleSave = () => {
-    onUpdate(hoursList, kmList);
+    onUpdate(hoursList, kmList, globalKmList);
     // Simple toast fallback
     const btn = document.getElementById('save-btn');
     if(btn) {
@@ -137,31 +146,51 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
       });
       setHoursList(newHours);
       setBulkValue('');
-      // Visual feedback handled by state update
   };
 
   const addNew = () => {
     if (!newSite || !newPeriod) return;
-    const key = `${newSite}|${newPeriod}`;
-    // Check if key exists in master list, not just filtered list
-    const exists = hoursList.some(h => h.site === newSite && h.period === newPeriod) || kmList.some(k => k.site === newSite && k.period === newPeriod);
+    const exists = hoursList.some(h => h.site === newSite && h.period === newPeriod);
     
     if (exists) {
       alert("La entrada ya existe");
       return;
     }
     
-    // Auto-fill HH if rule exists
     const autoHH = getAutoHH(newSite);
     const newId = autoHH > 0 ? `EXP-H-${newSite}-${newPeriod}-AUTO-${Date.now()}` : `EXP-H-${newSite}-${newPeriod}-${Date.now()}`;
     
     setHoursList(prev => [...prev, { id: newId, site: newSite, period: newPeriod, worker_type: 'total', hours: autoHH }]);
-    setKmList(prev => [...prev, { id: `EXP-K-${newSite}-${newPeriod}-${Date.now()}`, site: newSite, period: newPeriod, km: 0 }]);
   };
 
   return (
     <div className="space-y-6">
       
+      {/* GLOBAL KM CONFIG */}
+      <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-lg shadow-sm">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex items-center">
+                  <Truck className="h-6 w-6 text-purple-600 mr-3" />
+                  <div>
+                      <h3 className="text-sm font-bold text-purple-900 uppercase">Configuración Global de Flota (IFAT)</h3>
+                      <p className="text-xs text-purple-700 mt-1">
+                          Defina el total de KM recorridos para el cálculo de IFAT. No requiere desglose por sitio.
+                      </p>
+                  </div>
+              </div>
+              <div className="flex items-center gap-2 bg-white p-2 rounded border border-purple-100">
+                  <span className="text-xs font-bold text-gray-500">KM Totales {currentYear} (YTD):</span>
+                  <input 
+                      type="number" 
+                      value={currentGlobalKm} 
+                      onChange={e => handleGlobalKmChange(e.target.value)}
+                      className="w-32 text-sm font-bold text-purple-700 border-purple-300 rounded shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                  />
+                  <span className="text-xs text-gray-400">km</span>
+              </div>
+          </div>
+      </div>
+
       {/* HEADER WITH BULK TOOL */}
       <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -170,9 +199,9 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
                     <PenTool className="h-5 w-5 text-blue-400" />
                 </div>
                 <div className="ml-3">
-                    <h3 className="text-sm font-bold text-blue-800 uppercase">Gestión de Exposición</h3>
+                    <h3 className="text-sm font-bold text-blue-800 uppercase">Horas Hombre por Sitio</h3>
                     <p className="text-xs text-blue-700 mt-1">
-                        Complete HH y KM. <strong className="text-red-600">Rojo</strong> = Sin configuración (Manual). <strong className="text-green-600">Verde</strong> = Asignado Automáticamente.
+                        <strong className="text-red-600">Rojo</strong> = Sin configuración. <strong className="text-green-600">Verde</strong> = Auto-Asignado.
                     </p>
                 </div>
             </div>
@@ -180,7 +209,7 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
             {/* Bulk Fill Tool */}
             <div className="bg-white p-2 rounded shadow-sm border border-blue-100 flex items-end gap-2">
                 <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Carga Masiva para Sitio</label>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Carga Masiva (HH)</label>
                     <select 
                         value={bulkSite} 
                         onChange={e => setBulkSite(e.target.value)}
@@ -245,28 +274,23 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
         </div>
       </div>
 
-      {/* Data Grid */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[500px]">
+      {/* Data Grid - FULL HEIGHT, NO INTERNAL SCROLL */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-3 border-b border-gray-200 bg-gray-50">
             <h3 className="font-bold text-gray-700 text-sm uppercase tracking-wide">
-                Planilla de Datos {tableFilterSite !== 'ALL' && <span className="text-blue-600 ml-1">({tableFilterSite})</span>}
+                Planilla de Horas Hombre {tableFilterSite !== 'ALL' && <span className="text-blue-600 ml-1">({tableFilterSite})</span>}
             </h3>
-            <div className="flex items-center text-[10px] space-x-3 mr-4">
-                 <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-red-500 mr-1"></span> Sin Configuración (Manual)</span>
-                 <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-green-500 mr-1"></span> Auto-Asignado</span>
-            </div>
             <button id="save-btn" onClick={handleSave} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded text-white bg-green-600 hover:bg-green-700 shadow-sm transition-all">
-                <Save className="w-4 h-4 mr-2"/> Guardar Cambios
+                <Save className="w-4 h-4 mr-2"/> Guardar Todo
             </button>
         </div>
-        <div className="overflow-auto custom-scrollbar flex-1 relative">
+        <div className="w-full overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                <thead className="bg-gray-100">
                     <tr>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Período</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/4">Sitio</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-1/4 bg-blue-50/50">Horas Hombre (HH)</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-1/4 bg-purple-50/50">Kms Recorridos (KM)</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/3">Período</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/3">Sitio</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider w-1/3 bg-blue-50/50">Horas Hombre (HH)</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -297,20 +321,10 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
                                     title={entry.isMissing ? "Ingrese HH Manualmente" : (entry.isAuto ? "Valor Auto-Asignado (Editable)" : "Valor Manual")}
                                 />
                             </td>
-                            <td className="px-6 py-2 bg-purple-50/20">
-                                <input 
-                                    type="number" 
-                                    className="w-full border-gray-300 rounded text-sm font-mono focus:ring-2 focus:ring-purple-500 focus:border-purple-500 p-2 border shadow-sm"
-                                    value={entry.km}
-                                    onFocus={(e) => e.target.select()} // Auto-select for fast entry
-                                    placeholder="0"
-                                    onChange={(e) => updateVal(entry.site, entry.period, 'km', e.target.value)}
-                                />
-                            </td>
                         </tr>
                     ))}
                     {mergedData.length === 0 && (
-                         <tr><td colSpan={4} className="text-center py-8 text-gray-400 italic">No hay datos que mostrar con el filtro actual.</td></tr>
+                         <tr><td colSpan={3} className="text-center py-8 text-gray-400 italic">No hay datos que mostrar con el filtro actual.</td></tr>
                     )}
                 </tbody>
             </table>

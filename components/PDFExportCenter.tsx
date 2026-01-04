@@ -31,6 +31,8 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
   // Sections toggle
   const [sections, setSections] = useState({
       kpis: true,
+      management: true, // New Section Default
+      preventive: true, // Advanced Preventive
       trends: true,
       rawTable: false,
       normalizedTable: false,
@@ -97,6 +99,15 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           generator.addKPISection(targetMetrics, chartImage);
       }
 
+      if (scope === 'FULL_REPORT' || sections.management) {
+          generator.addManagementSection(targetMetrics.top5Sites, targetMetrics.daysSinceList, targetMetrics.trendAlerts);
+      }
+
+      if (scope === 'FULL_REPORT' || sections.preventive) {
+          // Pass only Evolutions and Actions (Objectives removed)
+          generator.addPreventiveAnalysisSection(targetMetrics.siteEvolutions, targetMetrics.suggestedActions);
+      }
+
       if (scope === 'FULL_REPORT' || sections.pendingTasks) {
           generator.addPendingTasksSection(targetMissing);
       }
@@ -131,9 +142,9 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
-            <div className="bg-slate-900 p-4 flex justify-between items-center text-white">
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col my-8">
+            <div className="bg-slate-900 p-4 flex justify-between items-center text-white rounded-t-xl">
                 <div className="flex items-center">
                     <FileText className="w-6 h-6 mr-2 text-red-500" />
                     <div>
@@ -185,10 +196,18 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
 
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Secciones a Incluir</label>
-                        <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-gray-50 rounded border border-gray-200">
+                        <div className="space-y-2 p-2 bg-gray-50 rounded border border-gray-200">
                             <label className="flex items-center space-x-2 text-xs text-gray-700 cursor-pointer">
                                 <input type="checkbox" checked={sections.kpis} onChange={e => setSections({...sections, kpis: e.target.checked})} className="rounded text-blue-600"/>
                                 <span>KPIs y Métricas</span>
+                            </label>
+                            <label className="flex items-center space-x-2 text-xs text-gray-700 cursor-pointer bg-blue-50/50 p-1 rounded">
+                                <input type="checkbox" checked={sections.management} onChange={e => setSections({...sections, management: e.target.checked})} className="rounded text-blue-600"/>
+                                <span className="font-bold text-blue-700">Gestión Operativa</span>
+                            </label>
+                            <label className="flex items-center space-x-2 text-xs text-gray-700 cursor-pointer bg-purple-50/50 p-1 rounded">
+                                <input type="checkbox" checked={sections.preventive} onChange={e => setSections({...sections, preventive: e.target.checked})} className="rounded text-purple-600"/>
+                                <span className="font-bold text-purple-700">Mejora Continua (Nuevo)</span>
                             </label>
                             <label className="flex items-center space-x-2 text-xs text-gray-700 cursor-pointer">
                                 <input type="checkbox" checked={sections.trends} onChange={e => setSections({...sections, trends: e.target.checked})} className="rounded text-blue-600"/>

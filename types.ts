@@ -25,6 +25,27 @@ export interface ChangeLogEntry {
   user: string; // 'System (Import)' | 'User (Manual)'
 }
 
+// --- SGI MODULE TYPES ---
+export interface SGIDocument {
+  code: string;       // PK: e.g., "PO-SGI-002"
+  title: string;      // e.g., "INVESTIGACIÓN DE INCIDENTES"
+  type: string;       // Derived from prefix: PO, PG, IT, MSGI
+  area: string;       // Derived from middle: SGI, FAB, ADM, ING
+  objective?: string; // Content description
+  version?: string;   // e.g., "04"
+  link?: string;      // URL to file (placeholder)
+  tags?: string[];
+}
+
+export interface LinkedDocument {
+  id: string; // UUID for the link
+  document_code: string;
+  document_title: string;
+  association_type: 'NON_COMPLIANCE' | 'REFERENCE' | 'NOT_APPLICABLE' | 'TRAINING_GAP';
+  comments?: string;
+  added_at: string;
+}
+
 export interface Incident {
   // PK
   incident_id: string;
@@ -68,6 +89,9 @@ export interface Incident {
   // Audit
   change_log?: ChangeLogEntry[];
   version?: number;
+
+  // SGI Integration
+  linked_documents?: LinkedDocument[];
 }
 
 export interface ExposureHour {
@@ -78,6 +102,15 @@ export interface ExposureHour {
   hours: number;
 }
 
+// SIMPLIFIED: Global KM Entry (Annual or YTD)
+export interface GlobalKmRecord {
+  year: number;
+  value: number;
+  last_updated: string;
+}
+
+// Deprecated per-site ExposureKm interface kept only if needed for migration, 
+// but logically replaced by GlobalKmRecord for IFAT.
 export interface ExposureKm {
   id: string;
   site: string;
@@ -120,6 +153,42 @@ export interface KPITargets {
 
 export type TargetScenarioType = 'Realista' | 'Desafiante' | 'Excelencia' | 'Metas 2026';
 
+// --- NEW MANAGEMENT KPI INTERFACES ---
+export interface SiteRanking {
+  site: string;
+  count: number;
+  rank: number;
+}
+
+export interface SiteDaysSafe {
+  site: string;
+  days: number;
+  lastDate: string;
+  status: 'critical' | 'warning' | 'safe'; // Critical <=30, Warning 31-90, Safe >90
+}
+
+export interface TrendAlert {
+  site: string;
+  history: { month: number, count: number }[]; // Last 3 months sequence
+  trend: 'increasing';
+}
+
+// --- ADVANCED PREVENTIVE INTERFACES ---
+export interface SiteEvolution {
+  site: string;
+  currentAvg: number; // Last 3 months
+  prevAvg: number; // Previous 3 months
+  variationPct: number;
+  status: 'improving' | 'stable' | 'deteriorating';
+}
+
+export interface SuggestedAction {
+  site: string;
+  reason: 'deterioration' | 'trend_alert';
+  title: string;
+  actions: string[]; // List of 3 specific actions
+}
+
 export interface DashboardMetrics {
   // Basic Counts
   totalIncidents: number;
@@ -127,7 +196,7 @@ export interface DashboardMetrics {
   totalLTI: number;
   totalDaysLost: number;
   totalManHours: number;
-  totalKM: number;
+  totalKM: number; // Global KM Value
   
   // Rates (Actual YTD)
   trir: number | null;
@@ -160,6 +229,15 @@ export interface DashboardMetrics {
   cnt_transit_laboral: number;
   cnt_in_itinere: number;
   rate_in_itinere_hh: number | null; // Optional: Itinere rate by HH
+
+  // --- MANAGEMENT METRICS ---
+  top5Sites: SiteRanking[];
+  daysSinceList: SiteDaysSafe[];
+  trendAlerts: TrendAlert[];
+
+  // --- PREVENTIVE ANALYSIS ---
+  siteEvolutions: SiteEvolution[];
+  suggestedActions: SuggestedAction[];
 }
 
 export interface ParetoData {
@@ -239,6 +317,8 @@ export interface PDFExportConfig {
     calendar: boolean; // Current view calendar or selected date
     pendingTasks: boolean;
     safetyTalk: boolean; // Only if a date is selected or context allows
+    management: boolean; // Top 5, Days Safe
+    preventive: boolean; // Evolution, Actions, Trends
   };
   filters: {
     site: string;

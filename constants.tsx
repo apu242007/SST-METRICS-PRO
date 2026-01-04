@@ -2,7 +2,7 @@
 import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone } from "./types";
 
 export const DEFAULT_KPI_SETTINGS: AppSettings = {
-  base_if: 1000000, // ISO / LatAm Standard for IF (LTI freq)
+  base_if: 200000, // OSHA Standard (adjusted from 1M to 200k for standard consistency)
   base_trir: 200000, // OSHA Standard for TRIR/LTIR
   days_cap: 180,
 };
@@ -21,7 +21,7 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       env_major: 0,
       env_minor: 5,
       probability_index_target: 'Medio',
-      hipo_rate_min: 0.1 // 1 per 10
+      hipo_rate_min: 0.1, // 1 per 10
   },
   'Desafiante': {
       trir: 1.80,        
@@ -35,7 +35,7 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       env_major: 0,
       env_minor: 2,
       probability_index_target: 'Bajo',
-      hipo_rate_min: 0.15 
+      hipo_rate_min: 0.15,
   },
   'Excelencia': {
       trir: 0.50,        
@@ -49,7 +49,7 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       env_major: 0,
       env_minor: 0,
       probability_index_target: 'Bajo',
-      hipo_rate_min: 0.2 // 1 per 5
+      hipo_rate_min: 0.2, // 1 per 5
   },
   'Metas 2026': {
       trir: 1.50,
@@ -64,7 +64,7 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       env_minor: 1,
       probability_index_target: 'Bajo',
       hipo_rate_min: 0.20, // 1 evento por cada 5 incidentes (20%)
-      total_incidents_reduction: 15 // 15% reduction
+      total_incidents_reduction: 15, // 15% reduction
   }
 };
 
@@ -101,6 +101,7 @@ export const SITE_HH_DEFAULTS = [
   { name: "MASE-", hh: 6048 },
   { name: "MASE 01", hh: 6048 },
   { name: "MASE 02", hh: 6048 },
+  { name: "MASE 03", hh: 6048 },
 
   // Cipolletti Variants
   { name: "BASE CIPOLLETTI", hh: 20160 },

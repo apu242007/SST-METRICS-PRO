@@ -158,7 +158,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
   };
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
+    <div className="space-y-4 flex flex-col">
         {/* Detail Modal */}
         {selectedIncident && (
             <IncidentDetailView 
@@ -217,11 +217,11 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
             </div>
         </div>
 
-        {/* Table */}
-        <div className="flex-1 bg-white border border-gray-200 rounded-lg overflow-hidden flex flex-col shadow-sm">
-            <div className="overflow-auto custom-scrollbar flex-1 relative">
+        {/* Table - FULL HEIGHT, NO INTERNAL SCROLL */}
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden flex flex-col shadow-sm">
+            <div className="w-full overflow-x-auto"> 
                 <table className="min-w-full divide-y divide-gray-200 text-xs whitespace-nowrap">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
+                    <thead className="bg-gray-50">
                         <tr>
                             {visibleColumns.map(col => (
                                 <th 
@@ -235,7 +235,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                                     </div>
                                 </th>
                             ))}
-                            <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase border-b border-gray-200 sticky right-0 bg-gray-50">Acción</th>
+                            <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase border-b border-gray-200 bg-gray-50">Acción</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -252,7 +252,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                                         ) : row[col]}
                                     </td>
                                 ))}
-                                <td className="px-4 py-2 text-right sticky right-0 bg-white border-l border-gray-100">
+                                <td className="px-4 py-2 text-right border-l border-gray-100">
                                     <button 
                                         onClick={() => {
                                             const original = incidents.find(inc => inc.incident_id === row._sys_id);

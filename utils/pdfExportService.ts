@@ -1,7 +1,7 @@
 
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
-import { Incident, DashboardMetrics, PDFExportConfig, ExposureHour } from "../types";
+import { Incident, DashboardMetrics, PDFExportConfig, ExposureHour, SiteRanking, SiteDaysSafe, TrendAlert, SiteEvolution, SuggestedAction } from "../types";
 import { generateSafetyTalk, SafetyTalk } from "./safetyTalkGenerator";
 
 // --- THEME & CONSTANTS ---
@@ -196,6 +196,165 @@ export class PDFGenerator {
     }
   }
 
+  public addManagementSection(top5: SiteRanking[], daysSafe: SiteDaysSafe[], trends: TrendAlert[]) {
+      this.checkPageBreak(80);
+      
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(14);
+      this.doc.setTextColor(BRAND_COLOR[0], BRAND_COLOR[1], BRAND_COLOR[2]);
+      this.doc.text("Gestión Operativa y Alertas", MARGIN, this.currentY);
+      this.currentY += 8;
+
+      // 1. Top 5 Sites
+      this.doc.setFontSize(11);
+      this.doc.setTextColor(TEXT_COLOR[0], TEXT_COLOR[1], TEXT_COLOR[2]);
+      this.doc.text("1. Top 5 Sitios por Incidentes (YTD)", MARGIN, this.currentY);
+      this.currentY += 5;
+
+      const top5Body = top5.map(item => [String(item.rank), item.site, String(item.count)]);
+      (this.doc as any).autoTable({
+          startY: this.currentY,
+          head: [['#', 'Sitio', 'Incidentes']],
+          body: top5Body.length > 0 ? top5Body : [['-', 'Sin datos', '-']],
+          theme: 'grid',
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [51, 65, 85] },
+          margin: { left: MARGIN, right: MARGIN },
+      });
+      this.currentY = (this.doc as any).lastAutoTable.finalY + 10;
+
+      // 2. Days Without Accidents
+      this.checkPageBreak(60);
+      this.doc.setFontSize(11);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("2. Días Sin Accidentes", MARGIN, this.currentY);
+      this.currentY += 5;
+
+      const daysBody = daysSafe.slice(0, 15).map(item => {
+          let statusText = "OK";
+          if (item.status === 'critical') statusText = "CRITICO (<=30)";
+          else if (item.status === 'warning') statusText = "ALERTA (31-90)";
+          else statusText = "SEGURO (>90)";
+          return [item.site, String(item.days), item.lastDate, statusText];
+      });
+
+      (this.doc as any).autoTable({
+          startY: this.currentY,
+          head: [['Sitio', 'Días', 'Último Evento', 'Estado']],
+          body: daysBody.length > 0 ? daysBody : [['Sin datos', '-', '-', '-']],
+          theme: 'grid',
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [20, 184, 166] }, // Teal
+          margin: { left: MARGIN, right: MARGIN },
+      });
+      this.currentY = (this.doc as any).lastAutoTable.finalY + 10;
+
+      // 3. Trends
+      if (trends.length > 0) {
+          this.checkPageBreak(50);
+          this.doc.setFontSize(11);
+          this.doc.setFont("helvetica", "bold");
+          this.doc.setTextColor(220, 38, 38); // Red
+          this.doc.text("3. Alertas de Tendencia Creciente (Últimos 3 Meses)", MARGIN, this.currentY);
+          this.currentY += 5;
+          
+          this.doc.setFont("helvetica", "normal");
+          this.doc.setFontSize(9);
+          this.doc.setTextColor(TEXT_COLOR[0], TEXT_COLOR[1], TEXT_COLOR[2]);
+          
+          trends.forEach(t => {
+              const hist = t.history.map(h => h.count).join(" -> ");
+              this.doc.text(`• ${t.site}: Tendencia sostenida [${hist}]`, MARGIN + 5, this.currentY);
+              this.currentY += 5;
+          });
+      } else {
+          this.doc.setFontSize(10);
+          this.doc.setTextColor(SECONDARY_COLOR[0], SECONDARY_COLOR[1], SECONDARY_COLOR[2]);
+          this.doc.text("• No se detectan alertas de tendencia creciente.", MARGIN, this.currentY);
+          this.currentY += 5;
+      }
+      
+      this.currentY += 10;
+  }
+
+  // --- NEW: PREVENTIVE ANALYSIS SECTION ---
+  public addPreventiveAnalysisSection(evolutions: SiteEvolution[], actions: SuggestedAction[]) {
+      this.checkPageBreak(100);
+      
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(14);
+      this.doc.setTextColor(BRAND_COLOR[0], BRAND_COLOR[1], BRAND_COLOR[2]);
+      this.doc.text("Mejora Continua y Tendencias", MARGIN, this.currentY);
+      this.currentY += 8;
+
+      // Disclaimer
+      this.doc.setFont("helvetica", "italic");
+      this.doc.setFontSize(8);
+      this.doc.setTextColor(SECONDARY_COLOR[0], SECONDARY_COLOR[1], SECONDARY_COLOR[2]);
+      this.doc.text("Este informe prioriza la mejora continua y la detección temprana de tendencias, no el cumplimiento de metas numéricas fijas.", MARGIN, this.currentY);
+      this.currentY += 8;
+
+      // 1. Evolution
+      this.checkPageBreak(60);
+      this.doc.setFontSize(11);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setTextColor(TEXT_COLOR[0], TEXT_COLOR[1], TEXT_COLOR[2]);
+      this.doc.text("1. Evolución de Desempeño (Trimestral)", MARGIN, this.currentY);
+      this.currentY += 5;
+
+      const evoBody = evolutions.sort((a,b) => b.variationPct - a.variationPct).map(item => {
+          let statusText = "Estable";
+          if (item.status === 'improving') statusText = "Mejora (>=20%)";
+          if (item.status === 'deteriorating') statusText = "Deterioro (>=20%)";
+          return [item.site, String(item.prevAvg), String(item.currentAvg), `${item.variationPct > 0 ? '+' : ''}${item.variationPct}%`, statusText];
+      });
+
+      (this.doc as any).autoTable({
+          startY: this.currentY,
+          head: [['Sitio', 'Prom. Anterior', 'Prom. Actual', 'Variación', 'Tendencia']],
+          body: evoBody.length > 0 ? evoBody : [['-', '-', '-', '-', '-']],
+          theme: 'grid',
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [147, 51, 234] }, // Purple
+          margin: { left: MARGIN, right: MARGIN },
+      });
+      this.currentY = (this.doc as any).lastAutoTable.finalY + 10;
+
+      // 2. Actions
+      this.checkPageBreak(80);
+      this.doc.setFontSize(11);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.text("2. Acciones Sugeridas Automáticas", MARGIN, this.currentY);
+      this.currentY += 8;
+
+      if (actions.length === 0) {
+          this.doc.setFont("helvetica", "normal");
+          this.doc.setFontSize(10);
+          this.doc.setTextColor(SECONDARY_COLOR[0], SECONDARY_COLOR[1], SECONDARY_COLOR[2]);
+          this.doc.text("• No se requieren acciones correctivas automáticas en este período.", MARGIN, this.currentY);
+          this.currentY += 10;
+      } else {
+          actions.forEach(action => {
+              this.checkPageBreak(30);
+              
+              this.doc.setFont("helvetica", "bold");
+              this.doc.setFontSize(10);
+              this.doc.setTextColor(TEXT_COLOR[0], TEXT_COLOR[1], TEXT_COLOR[2]);
+              const reasonText = action.reason === 'deterioration' ? "Deterioro" : "Tendencia Creciente";
+              this.doc.text(`Sitio: ${action.site} (Motivo: ${reasonText})`, MARGIN, this.currentY);
+              this.currentY += 5;
+
+              this.doc.setFont("helvetica", "normal");
+              this.doc.setFontSize(9);
+              action.actions.forEach(act => {
+                  this.doc.text(`[ ] ${act}`, MARGIN + 5, this.currentY);
+                  this.currentY += 5;
+              });
+              this.currentY += 3;
+          });
+      }
+  }
+
   public addTableSection(title: string, head: string[], body: any[][], isTruncated: boolean) {
     this.checkPageBreak(40);
     this.doc.setFont("helvetica", "bold");
@@ -341,7 +500,9 @@ export const exportToPDF = (
       normalizedTable: false,
       pendingTasks: false,
       safetyTalk: false,
-      calendar: false
+      calendar: false,
+      management: false,
+      preventive: false
     },
     filters: {
         site: options.filters.site,
