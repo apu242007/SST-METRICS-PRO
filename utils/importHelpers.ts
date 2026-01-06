@@ -115,7 +115,7 @@ const applyAutoClassification = (type: string, incident: any) => {
     
     // 1. Primeros Auxilios -> OSHA, Guardar
     if (t.includes('PRIMEROS AUXILIOS')) {
-        incident.recordable_osha = true; 
+        incident.recordable_osha = false; // Usually FA is NOT recordable
         incident.is_verified = true;
         return;
     }
@@ -141,7 +141,8 @@ const applyAutoClassification = (type: string, incident: any) => {
     }
 
     // 5. Evacuación / Atención Médica -> OSHA, Guardar
-    if (t.includes('EVACUACION') || t.includes('ATENCION MEDICA')) {
+    // Atención Médica (MT) is Recordable
+    if (t.includes('EVACUACION') || t.includes('ATENCION MEDICA') || t.includes('MEDICAL TREATMENT')) {
         incident.recordable_osha = true;
         incident.is_verified = true;
         return;
@@ -162,7 +163,7 @@ const applyAutoClassification = (type: string, incident: any) => {
     }
 
     // 8. Accidente con Días Perdidos -> OSHA, LTI, Guardar
-    if (t.includes('DIAS PERDIDOS') || t.includes('CON BAJA')) {
+    if (t.includes('DIAS PERDIDOS') || t.includes('CON BAJA') || t.includes('LOST TIME')) {
         incident.recordable_osha = true;
         incident.lti_case = true;
         incident.is_verified = true;
@@ -171,6 +172,14 @@ const applyAutoClassification = (type: string, incident: any) => {
 
     // 9. Accidente Ambiental -> Guardar
     if (t.includes('AMBIENTAL') || t.includes('ENVIRONMENTAL')) {
+        incident.is_verified = true;
+        return;
+    }
+
+    // 10. DART Cases (Restricted / Transfer) -> OSHA, DART (Job Transfer), Guardar
+    if (t.includes('RESTRING') || t.includes('TRANSFER') || t.includes('TAREA LIVIANA') || t.includes('REUBICACION')) {
+        incident.recordable_osha = true;
+        incident.job_transfer = true;
         incident.is_verified = true;
         return;
     }
@@ -302,13 +311,12 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
     throw new Error(`VIOLACIÓN DE CONTRATO: Faltan columnas requeridas: ${missingColumns.join(', ')}.`);
   }
 
-  const idTracker = new Set<string>();
-
   const incidents = rawData.map((row: any, index) => {
     const id = row['ID'] ? String(row['ID']) : `UNKNOWN-${index}-${Date.now()}`;
     const fechaCarga = parseStrictDate(row['Fecha Carga']) || new Date().toISOString().split('T')[0];
     const fechaSiniestro = parseStrictDate(row['Datos ART: FECHA SINIESTRO']);
     const fechaAlta = parseStrictDate(row['Datos ART: FECHA ALTA MEDICA DEFINITIVA']);
+    const fechaAltaEst = parseStrictDate(row['Datos ART: FECHA ESTIMADA DE ALTA MEDICA']);
     const fechaEvento = fechaSiniestro || fechaCarga;
     
     const type = row['Tipo de Incidente'] ? row['Tipo de Incidente'].trim() : 'Unspecified';
@@ -317,13 +325,25 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
     // Normalize Site (Trim & Uppercase to prevent duplicates)
     const siteRaw = row['Sitio'] ? String(row['Sitio']).trim().toUpperCase() : 'SITIO DESCONOCIDO';
 
-    // Default base calc
+    // --- SR LOGIC: Lost Days Calculation ---
+    // Rule: max(0, daysBetween(siniestro, altaDef ?? altaEst) - 1)
     let daysAway = 0;
-    if (fechaSiniestro && fechaAlta) {
-        const start = new Date(fechaSiniestro).getTime();
-        const end = new Date(fechaAlta).getTime();
-        if (end > start) daysAway = Math.ceil((end - start) / (1000 * 3600 * 24));
+    if (fechaSiniestro) {
+        const fin = fechaAlta || fechaAltaEst;
+        if (fin) {
+            const start = new Date(fechaSiniestro).getTime();
+            const end = new Date(fin).getTime();
+            if (end > start) {
+                const diffDays = Math.ceil((end - start) / (1000 * 3600 * 24));
+                daysAway = Math.max(0, diffDays - 1); // Subtract 1 day to allow for "day of incident" logic
+            }
+        }
     }
+
+    // --- FAR LOGIC: Fatality Detection ---
+    const gravedad = normalize(row['Datos ART: GRAVEDAD'] || '');
+    const potencial = normalize(row['Potencialidad del Incidente'] || '');
+    const isFatal = type.toLowerCase().includes('fatal') || gravedad.includes('FATAL') || gravedad.includes('FALLEC') || potencial.includes('FATAL');
 
     const parts = [
       row['Breve descripcion del Incidente'],
@@ -344,7 +364,7 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       location: row['Ubicación'] || 'General',
       potential_risk: row['Potencialidad del Incidente'] || 'N/A',
       
-      // BODY MAP AUTOMATION (UPDATED)
+      // BODY MAP AUTOMATION
       body_part_text: bodyPartText,
       affected_zones: detectBodyZones(bodyPartText),
 
@@ -355,7 +375,7 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       is_in_itinere: false,
       is_transit: false, 
 
-      fatality: type.toLowerCase().includes('fatal'),
+      fatality: isFatal,
       job_transfer: false,
       days_away: daysAway,
       days_restricted: 0,
@@ -365,7 +385,7 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       is_process_safety_tier_2: false,
 
       // AUTOMATIC CONFIRMATION LOGIC
-      is_verified: false, // Default to false, applyAutoClassification will set to true if rule matches
+      is_verified: false, 
       
       raw_json: JSON.stringify(row),
       updated_at: new Date().toISOString()

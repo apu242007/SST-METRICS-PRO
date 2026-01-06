@@ -1,28 +1,34 @@
 
 import React, { useState, useMemo } from 'react';
-import { Incident, HeatmapData } from '../types';
+import { Incident, HeatmapData, ExposureHour } from '../types';
 import { MONTHS } from '../constants';
-import { Filter, ArrowDown, ArrowUp, Eye, EyeOff, X, Download } from 'lucide-react';
+import { Filter, ArrowDown, ArrowUp, Eye, EyeOff, X, Download, RefreshCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface HeatmapMatrixProps {
   incidents: Incident[];
+  exposureHours: ExposureHour[];
 }
 
 interface RowData {
     site: string;
     counts: number[];
+    hours: number[]; // Accumulated hours per month (can span years if no filter)
+    rates: number[]; // TRIR (200k)
     total: number;
     lastMonthIndex: number;
 }
 
-export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
+export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents, exposureHours }) => {
   // --- STATE ---
   const [showValues, setShowValues] = useState(true);
   const [sortBy, setSortBy] = useState<'total' | 'alpha' | 'recent'>('total');
   const [hideZeroRows, setHideZeroRows] = useState(false);
   const [limit, setLimit] = useState(15); // Top N
   const [selectedCell, setSelectedCell] = useState<{site: string, month: number, count: number, incidents: Incident[]} | null>(null);
+  
+  // New Toggle: Count vs Rate
+  const [mode, setMode] = useState<'count' | 'rate'>('count');
 
   // --- DATA PROCESSING (Memoized) ---
   const matrixData = useMemo(() => {
@@ -32,8 +38,11 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
     let rows: RowData[] = sites.map(site => {
         const siteIncidents = incidents.filter(i => i.site === site);
         const monthlyCounts = Array(12).fill(0);
+        const monthlyHours = Array(12).fill(0);
+        const monthlyRates = Array(12).fill(0);
         let lastMonthIndex = -1;
         
+        // Aggregate Counts
         siteIncidents.forEach(inc => {
             if(inc.month >= 1 && inc.month <= 12) {
                 monthlyCounts[inc.month - 1]++;
@@ -41,10 +50,32 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
             }
         });
 
+        // Aggregate Hours (Handle multiple years if present in filter)
+        // We iterate through exposure records and sum based on month index
+        const siteExposure = exposureHours.filter(e => e.site === site);
+        siteExposure.forEach(exp => {
+            const month = parseInt(exp.period.split('-')[1]);
+            if (!isNaN(month) && month >= 1 && month <= 12) {
+                monthlyHours[month - 1] += (exp.hours || 0);
+            }
+        });
+
+        // Calculate Rates (TRIR 200k base)
+        for (let i = 0; i < 12; i++) {
+            if (monthlyHours[i] > 0) {
+                const rate = (monthlyCounts[i] * 200000) / monthlyHours[i];
+                monthlyRates[i] = parseFloat(rate.toFixed(2));
+            } else {
+                monthlyRates[i] = 0; // Or null to indicate missing data? Keeping 0 for matrix simplicity
+            }
+        }
+
         const total = monthlyCounts.reduce((a, b) => a + b, 0);
         return {
             site,
             counts: monthlyCounts,
+            hours: monthlyHours,
+            rates: monthlyRates,
             total,
             lastMonthIndex
         };
@@ -74,25 +105,36 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
     });
     const grandTotal = colTotals.reduce((a, b) => a + b, 0);
 
-    // 6. Calculate Max for Color Scale
+    // 6. Calculate Max for Color Scale (Dynamic based on Mode)
     let maxVal = 0;
-    rows.forEach(r => r.counts.forEach(v => { if(v > maxVal) maxVal = v; }));
+    if (mode === 'count') {
+        rows.forEach(r => r.counts.forEach(v => { if(v > maxVal) maxVal = v; }));
+    } else {
+        rows.forEach(r => r.rates.forEach(v => { if(v > maxVal) maxVal = v; }));
+    }
 
     return { rows, colTotals, grandTotal, maxVal };
-  }, [incidents, hideZeroRows, sortBy, limit]);
+  }, [incidents, exposureHours, hideZeroRows, sortBy, limit, mode]);
 
   // --- HELPERS ---
   const getColor = (value: number, max: number) => {
-      if (value === 0) return 'bg-white text-transparent'; // Hide zero text if desired, or lighter gray
+      if (value === 0) return 'bg-white text-transparent';
       
-      // Simple Sequential Blue Scale
-      // We map 1..max to a set of classes or dynamic opacity
-      // Using Tailwind classes for predictability
-      if (value === 1) return 'bg-blue-100 text-blue-800';
-      if (value === 2) return 'bg-blue-200 text-blue-900';
-      if (value <= 4) return 'bg-blue-400 text-white';
-      if (value <= 6) return 'bg-blue-600 text-white';
-      return 'bg-blue-800 text-white font-bold';
+      if (mode === 'count') {
+          // Count logic (Integers)
+          if (value === 1) return 'bg-blue-100 text-blue-800';
+          if (value === 2) return 'bg-blue-200 text-blue-900';
+          if (value <= 4) return 'bg-blue-400 text-white';
+          if (value <= 6) return 'bg-blue-600 text-white';
+          return 'bg-blue-800 text-white font-bold';
+      } else {
+          // Rate Logic (Decimals, TRIR)
+          // < 1 (Excellent), < 2.5 (Target), < 5 (Warning), > 5 (High)
+          if (value < 1) return 'bg-green-100 text-green-800';
+          if (value < 2.5) return 'bg-yellow-100 text-yellow-800';
+          if (value < 5) return 'bg-orange-300 text-white';
+          return 'bg-red-500 text-white font-bold';
+      }
   };
 
   const exportCellData = () => {
@@ -115,11 +157,29 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
       {/* Header & Controls */}
       <div className="p-4 border-b border-gray-200 flex flex-wrap gap-4 justify-between items-center bg-gray-50 rounded-t-xl">
           <div>
-              <h3 className="font-bold text-gray-800 text-lg">Mapa de Calor</h3>
-              <p className="text-xs text-gray-500">Incidentes por Sitio/Mes</p>
+              <h3 className="font-bold text-gray-800 text-lg">Mapa de Calor y Frecuencia</h3>
+              <p className="text-xs text-gray-500">
+                  {mode === 'count' ? 'Incidentes Totales por Sitio/Mes' : 'Tasa de Frecuencia (TRIR - Base 200k) por Sitio/Mes'}
+              </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+              {/* Main Toggle */}
+              <div className="flex bg-gray-200 rounded-lg p-1">
+                  <button 
+                    onClick={() => setMode('count')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'count' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                      Cant. Eventos
+                  </button>
+                  <button 
+                    onClick={() => setMode('rate')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'rate' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                      Tasa (TRIR)
+                  </button>
+              </div>
+
               {/* Toggles */}
               <div className="flex items-center space-x-2 bg-white border border-gray-200 rounded-md p-1">
                   <button 
@@ -127,7 +187,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
                     className={`text-xs px-2 py-1 rounded transition-colors ${hideZeroRows ? 'bg-blue-100 text-blue-700 font-bold' : 'text-gray-600 hover:bg-gray-100'}`}
                     title="Ocultar sitios sin incidentes"
                   >
-                      {hideZeroRows ? 'Con Incidentes' : 'Todos'}
+                      {hideZeroRows ? 'Con Data' : 'Todos'}
                   </button>
                   <div className="w-px h-4 bg-gray-200"></div>
                   <button 
@@ -141,7 +201,6 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
 
               {/* Sorter */}
               <div className="flex items-center">
-                  <span className="text-xs text-gray-500 mr-2 font-medium">Orden:</span>
                   <select 
                     value={sortBy} 
                     onChange={(e) => setSortBy(e.target.value as any)}
@@ -155,7 +214,6 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
 
               {/* Limiter */}
               <div className="flex items-center space-x-2">
-                   <span className="text-xs text-gray-500 font-medium">Top:</span>
                    <div className="flex bg-white border border-gray-200 rounded-md">
                        {[10, 20, 50, 0].map(val => (
                            <button 
@@ -172,14 +230,25 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
       </div>
 
       {/* Legend */}
-      <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-end text-xs gap-2">
+      <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-end text-xs gap-3">
           <span className="text-gray-400 font-medium">Escala:</span>
-          <span className="flex items-center"><span className="w-3 h-3 bg-white border border-gray-200 mr-1"></span> 0</span>
-          <span className="flex items-center"><span className="w-3 h-3 bg-blue-100 mr-1"></span> 1</span>
-          <span className="flex items-center"><span className="w-3 h-3 bg-blue-200 mr-1"></span> 2</span>
-          <span className="flex items-center"><span className="w-3 h-3 bg-blue-400 mr-1"></span> 3-4</span>
-          <span className="flex items-center"><span className="w-3 h-3 bg-blue-600 mr-1"></span> 5-6</span>
-          <span className="flex items-center"><span className="w-3 h-3 bg-blue-800 mr-1"></span> 7+</span>
+          {mode === 'count' ? (
+              <>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-white border border-gray-200 mr-1"></span> 0</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-blue-100 mr-1"></span> 1</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-blue-200 mr-1"></span> 2</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-blue-400 mr-1"></span> 3-4</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-blue-600 mr-1"></span> 5+</span>
+              </>
+          ) : (
+              <>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-white border border-gray-200 mr-1"></span> 0</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-green-100 mr-1"></span> &lt; 1</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-yellow-100 mr-1"></span> 1 - 2.5</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-orange-300 mr-1"></span> 2.5 - 5</span>
+                  <span className="flex items-center"><span className="w-3 h-3 bg-red-500 mr-1"></span> &gt; 5</span>
+              </>
+          )}
       </div>
 
       {/* Matrix Grid */}
@@ -206,25 +275,32 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
                           <td className="p-2 text-left font-medium text-gray-700 border-b border-r border-gray-200 bg-white group-hover:bg-blue-50/30 truncate max-w-[180px]" title={row.site}>
                               {row.site}
                           </td>
-                          {row.counts.map((val, mIdx) => {
-                              const cellColor = getColor(val, matrixData.maxVal);
+                          {row.counts.map((countVal, mIdx) => {
+                              // Determine value based on mode
+                              const displayVal = mode === 'count' ? countVal : row.rates[mIdx];
+                              const cellColor = getColor(displayVal, matrixData.maxVal);
+                              
+                              // Tooltip info
+                              const rateInfo = row.hours[mIdx] > 0 ? `${row.rates[mIdx]} (TRIR)` : 'N/A (Sin Horas)';
+                              const tooltip = `${row.site} - ${MONTHS[mIdx]}\nEventos: ${countVal}\nHoras: ${row.hours[mIdx]}\nTasa: ${rateInfo}`;
+
                               return (
                                   <td 
                                     key={mIdx} 
                                     className={`border-b border-gray-100 p-0.5 relative h-8 w-10 text-center cursor-pointer hover:ring-2 hover:ring-blue-400 hover:z-10 transition-all duration-75`}
                                     onClick={() => {
-                                        if (val > 0) {
+                                        if (countVal > 0) {
                                             const month = mIdx + 1;
                                             const cellIncidents = incidents.filter(i => i.site === row.site && i.month === month);
-                                            setSelectedCell({ site: row.site, month, count: val, incidents: cellIncidents });
+                                            setSelectedCell({ site: row.site, month, count: countVal, incidents: cellIncidents });
                                         }
                                     }}
+                                    title={tooltip}
                                   >
                                       <div 
-                                        className={`w-full h-full flex items-center justify-center rounded-sm text-[10px] ${cellColor} ${!showValues && val > 0 ? 'text-transparent' : ''}`}
-                                        title={`${row.site} - ${MONTHS[mIdx]}: ${val} incidentes (${Math.round((val/row.total)*100)}% del sitio)`}
+                                        className={`w-full h-full flex items-center justify-center rounded-sm text-[10px] ${cellColor} ${!showValues && displayVal > 0 ? 'text-transparent' : ''}`}
                                       >
-                                          {val > 0 ? val : ''}
+                                          {displayVal > 0 ? displayVal : ''}
                                       </div>
                                   </td>
                               );
@@ -235,7 +311,7 @@ export const HeatmapMatrix: React.FC<HeatmapMatrixProps> = ({ incidents }) => {
                       </tr>
                   ))}
                   
-                  {/* Column Totals Footer */}
+                  {/* Column Totals Footer (Only sensible for Counts) */}
                   <tr className="bg-gray-100 font-bold">
                       <td className="p-2 text-right text-gray-600 bg-gray-100 border-t border-r border-gray-200">
                           TOTAL MES

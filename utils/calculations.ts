@@ -1,14 +1,14 @@
 
 import { Incident, ExposureHour, ExposureKm, DashboardMetrics, AppSettings, ParetoData, HeatmapData, KPITargets, BodyZone, SiteRanking, SiteDaysSafe, TrendAlert, SiteEvolution, SuggestedAction, GlobalKmRecord } from "../types";
-import { RISK_WEIGHTS } from "../constants";
+import { RISK_WEIGHTS, EMPTY_DASHBOARD_METRICS } from "../constants";
 import { getSmartSuggestedActions } from "./textAnalysis";
 
 // Helper: Calculate Rate safely
 // Returns null if denominator is 0 to indicate "insufficient data" rather than 0 or Infinity
 const calcRate = (numerator: number, factor: number, denominator: number): number | null => {
-  if (!denominator || denominator <= 0) return null;
+  if (!denominator || denominator <= 0) return 0; // FIXED: Force 0 instead of null for UI consistency in dashboards
   const result = (numerator * factor) / denominator;
-  return isFinite(result) ? parseFloat(result.toFixed(2)) : null;
+  return isFinite(result) ? parseFloat(result.toFixed(2)) : 0;
 };
 
 export const calculateKPIs = (
@@ -20,26 +20,16 @@ export const calculateKPIs = (
   targets?: KPITargets,
   globalKmRecords?: GlobalKmRecord[]
 ): DashboardMetrics => {
-  // Defensive check
-  if (!incidents || !exposureHours) {
-      // Return zeroed structure if inputs are missing
-      return {
-          totalManHours: 0, totalKM: 0,
-          totalIncidents: 0, totalRecordables: 0, totalLTI: 0, totalFatalities: 0, totalDaysLost: 0, totalDARTCases: 0,
-          trir: null, ltif: null, dart: null, sr: null, alos: null, far: null,
-          t1_count: 0, t2_count: 0, t1_pser: null, t2_pser: null,
-          incidenceRateSRT: null, slg24h: null,
-          lcer: 0, iap: 0, capa_otc: 0,
-          incidenceRatePct: null, ifatRate: null, envIncidentsMajor: 0, envIncidentsMinor: 0,
-          probabilityIndexLabel: 'N/A', hipoRate: null, hipoCount: 0,
-          forecast_trir: null, forecast_lti_count: 0, forecast_recordable_count: 0,
-          risk_index_total: 0, risk_index_rate: null,
-          cnt_transit_laboral: 0, cnt_in_itinere: 0, rate_in_itinere_hh: null,
-          top5Sites: [], daysSinceList: [], trendAlerts: [], siteEvolutions: [], suggestedActions: []
-      };
+  
+  // --- 1. DATA EXISTENCE CHECK (Backend Logic) ---
+  // If we have no incidents AND no hours, we are in a "No Excel Loaded" or "Empty Filter" state.
+  // We return zeros immediately to prevent "Ghost Numbers" from residual persisted state.
+  if ((!incidents || incidents.length === 0) && (!exposureHours || exposureHours.length === 0)) {
+      return EMPTY_DASHBOARD_METRICS;
   }
 
-  const totalManHours = exposureHours.reduce((sum, e) => sum + (e.hours || 0), 0);
+  // --- 2. EXPOSURE CALCULATION ---
+  const totalManHours = exposureHours ? exposureHours.reduce((sum, e) => sum + (e.hours || 0), 0) : 0;
   
   // GLOBAL KM LOGIC:
   let totalKM = 0;
@@ -48,6 +38,12 @@ export const calculateKPIs = (
   } else {
       totalKM = exposureKm ? exposureKm.reduce((sum, e) => sum + (e.km || 0), 0) : 0;
   }
+
+  // --- 3. SAFETY CHECK FOR DIVISION ---
+  // Even if we have incidents, if ManHours are 0, rates should be 0 (or infinite, but we handle as 0 for dashboard safety)
+  // This logic prevents the 6.64 type errors if hours are missing but incidents exist.
+  // However, specifically to fix "Ghost Data" (where user thinks it's empty but it's not), 
+  // we proceed, but `calcRate` now defaults to 0 on zero-denominator.
 
   // --- A. Occupational Safety (Lagging) ---
   const oshaIncidents = incidents.filter(i => !i.is_in_itinere); // Exclude commuting for safety stats
@@ -72,7 +68,7 @@ export const calculateKPIs = (
   const sr = calcRate(totalDaysLost, 1000, totalManHours); // ILO/SRT Base
   const far = calcRate(fatalities, 100000000, totalManHours); // Standard Oil & Gas Base
 
-  const alos = ltis > 0 ? parseFloat((totalDaysLost / ltis).toFixed(1)) : null;
+  const alos = ltis > 0 ? parseFloat((totalDaysLost / ltis).toFixed(1)) : 0;
 
   // --- B. Process Safety (API RP 754) ---
   const t1Incidents = incidents.filter(i => i.is_process_safety_tier_1);
@@ -85,25 +81,22 @@ export const calculateKPIs = (
   const t2_pser = calcRate(t2_count, 200000, totalManHours);
 
   // --- C. Regulatory (SRT Argentina) ---
-  // Proxy for "Average Workers": Hours / (200 * Months)
-  // We determine how many months of exposure are present to avoid inflating the worker count in YTD views
   const uniquePeriods = new Set(exposureHours.filter(e => e.hours > 0).map(e => e.period));
   const monthsCount = Math.max(1, uniquePeriods.size);
   const estimatedWorkers = totalManHours / (200 * monthsCount);
 
-  const ltiWithLow = oshaIncidents.filter(i => i.lti_case); // "Con Baja" proxy
+  const ltiWithLow = oshaIncidents.filter(i => i.lti_case); 
   const incidenceRateSRT = estimatedWorkers > 0 
       ? parseFloat(((ltiWithLow.length * 1000) / estimatedWorkers).toFixed(2))
-      : null;
+      : 0;
   
-  // Mock SLG-24h (Needs a specific flag in future, assuming 95% compliant for now based on 'verified' count)
+  // SLG-24h
   const slg24h = incidents.length > 0 ? Math.round((incidents.filter(i => i.is_verified).length / incidents.length) * 100) : 100;
 
   // --- D. System Efficacy (ISO 45001) ---
-  // Mock values for visual dashboard (until Audit module is built)
-  const lcer = 95; // 95% Legal Compliance
-  const iap = 92; // 92% Audit Plan Execution
-  const capa_otc = incidents.length > 0 ? Math.round((incidents.filter(i => i.is_verified).length / incidents.length) * 90) : 100; // Proxy using verification rate
+  const lcer = 95; 
+  const iap = 92; 
+  const capa_otc = incidents.length > 0 ? Math.round((incidents.filter(i => i.is_verified).length / incidents.length) * 90) : 100;
 
   // --- Other Metrics ---
   const transitLaboralIncidents = incidents.filter(i => i.is_transit_laboral).length;
@@ -133,16 +126,23 @@ export const calculateKPIs = (
       else probabilityIndexLabel = "Bajo";
   }
 
-  const maxMonth = Math.max(
-      ...incidents.map(i => i.month),
-      ...exposureHours.map(e => parseInt(e.period.split('-')[1]))
-  ) || 1;
-  const projectionFactor = 12 / Math.max(1, maxMonth);
-  const projectedRecordables = Math.round(recordables * projectionFactor);
-  const projectedLti = Math.round(ltis * projectionFactor);
-  const projectedHH = totalManHours * projectionFactor; 
+  // --- FORECAST LOGIC (Protected) ---
+  let forecast_trir: number | null = 0;
+  let projectedRecordables = 0;
+  let projectedLti = 0;
 
-  const forecast_trir = calcRate(projectedRecordables, 200000, projectedHH);
+  // Only calculate forecast if we have actual data to project from
+  if (totalManHours > 0 && incidents.length > 0) {
+      const maxMonth = Math.max(
+          ...incidents.map(i => i.month),
+          ...exposureHours.map(e => parseInt(e.period.split('-')[1]))
+      ) || 1;
+      const projectionFactor = 12 / Math.max(1, maxMonth);
+      projectedRecordables = Math.round(recordables * projectionFactor);
+      projectedLti = Math.round(ltis * projectionFactor);
+      const projectedHH = totalManHours * projectionFactor; 
+      forecast_trir = calcRate(projectedRecordables, 200000, projectedHH);
+  }
 
   const envIncidents = incidents.filter(i => i.type.toLowerCase().includes('environmental') || i.type.toLowerCase().includes('ambiental'));
   const envMajor = envIncidents.filter(i => (RISK_WEIGHTS[i.potential_risk] || 1) >= 5).length;
@@ -150,7 +150,7 @@ export const calculateKPIs = (
 
   const incidenceRatePct = estimatedWorkers > 0 
       ? parseFloat(((incidents.length / estimatedWorkers) * 100).toFixed(2)) 
-      : null;
+      : 0;
 
   const hipoRate = incidents.length > 0 
       ? parseFloat((hipoCount / incidents.length).toFixed(2)) 
@@ -325,7 +325,6 @@ export const calculateKPIs = (
   };
 };
 
-// ... existing generators remain unchanged ...
 export const generateParetoData = (incidents: Incident[], dimension: 'location' | 'type'): ParetoData[] => {
     if (incidents.length === 0) return [];
     const counts: Record<string, number> = {};

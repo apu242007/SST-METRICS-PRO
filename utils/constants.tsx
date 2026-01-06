@@ -1,3 +1,4 @@
+
 import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone, DashboardMetrics } from "./types";
 
 export const DEFAULT_KPI_SETTINGS: AppSettings = {

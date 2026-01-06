@@ -8,7 +8,7 @@ import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, Gl
 import { calculateKPIs, generateParetoData } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingKmKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, Zap, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, ListChecks, Flame, FileCheck, CheckSquare, HeartPulse, Calculator, X } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, Zap, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, ListChecks, Flame, FileCheck, CheckSquare, HeartPulse, Calculator, X, CheckCircle2 } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
 interface DashboardProps {
@@ -18,6 +18,7 @@ interface DashboardProps {
   globalKmRecords: GlobalKmRecord[];
   settings: AppSettings;
   onNavigateToExposure?: (site?: string) => void;
+  onOpenKmModal?: () => void; // NEW PROP for dedicated KM modal
   onDrillDown?: (criteria: { type?: string, period?: string, category?: 'LTI' | 'Recordable' | 'Transit' }) => void;
 }
 
@@ -135,7 +136,7 @@ const MetricDetailModal = ({ detail, onClose }: { detail: any, onClose: () => vo
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
     incidents, exposureHours, exposureKm, globalKmRecords, settings, 
-    onNavigateToExposure, onDrillDown 
+    onNavigateToExposure, onOpenKmModal, onDrillDown 
 }) => {
   const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
   const [paretoView, setParetoView] = useState<'location' | 'type'>('type');
@@ -189,6 +190,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           });
       }
   };
+
+  // Dynamic Status Logic for Process Safety
+  const isT1Good = metrics.t1_pser !== null && metrics.t1_pser <= targets.t1_pser;
+  const isT2Good = metrics.t2_pser !== null && metrics.t2_pser <= targets.t2_pser;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -313,9 +318,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   title="T1 PSER (Tier 1)" 
                   value={metrics.t1_pser} 
                   target={targets.t1_pser}
-                  icon={AlertTriangle}
-                  colorClass="bg-red-100 text-red-700"
-                  borderClass="border-red-600"
+                  icon={isT1Good ? CheckCircle2 : AlertTriangle}
+                  colorClass={isT1Good ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}
+                  borderClass={isT1Good ? "border-green-600" : "border-red-600"}
                   subtext={`${metrics.t1_count} eventos mayores`}
                   blocked={isRatesBlocked}
                   onClick={() => handleCardClick('t1_pser', metrics.t1_pser, metrics.t1_count, metrics.totalManHours)}
@@ -324,9 +329,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   title="T2 PSER (Tier 2)" 
                   value={metrics.t2_pser} 
                   target={targets.t2_pser}
-                  icon={AlertTriangle}
-                  colorClass="bg-orange-100 text-orange-700"
-                  borderClass="border-orange-500"
+                  icon={isT2Good ? CheckCircle2 : AlertTriangle}
+                  colorClass={isT2Good ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}
+                  borderClass={isT2Good ? "border-green-500" : "border-orange-500"}
                   subtext={`${metrics.t2_count} eventos menores`}
                   blocked={isRatesBlocked}
                   onClick={() => handleCardClick('t2_pser', metrics.t2_pser, metrics.t2_count, metrics.totalManHours)}
@@ -488,7 +493,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* 7. HEATMAP & TRANSIT */}
       <div className="min-w-0">
           <div className="min-h-[500px] w-full">
-              <HeatmapMatrix incidents={incidents} />
+              <HeatmapMatrix incidents={incidents} exposureHours={exposureHours} />
           </div>
       </div>
       
@@ -513,7 +518,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {isIfatBlocked && (
                       <div className="mt-2">
                           <p className="text-[10px] text-red-600 font-bold mb-1">Faltan KM recorridos para calcular IFAT.</p>
-                          <button onClick={() => onNavigateToExposure && onNavigateToExposure()} className="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold">Cargar KM</button>
+                          <button onClick={() => onOpenKmModal ? onOpenKmModal() : (onNavigateToExposure && onNavigateToExposure())} className="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold">Cargar KM</button>
                       </div>
                   )}
               </div>

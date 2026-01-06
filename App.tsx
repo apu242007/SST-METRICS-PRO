@@ -384,7 +384,8 @@ const App: React.FC = () => {
                         exposureKm={exposureKm} 
                         globalKmRecords={filteredGlobalKm}
                         settings={settings} 
-                        onNavigateToExposure={(site) => { setFocusSite(site); setModalMode('exposure_hh'); }} 
+                        onNavigateToExposure={(site) => { setFocusSite(site); setModalMode('exposure_hh'); }}
+                        onOpenKmModal={() => setModalMode('exposure_km')} 
                         onDrillDown={handleDrillDown} 
                     />
                 )}
@@ -422,7 +423,34 @@ const App: React.FC = () => {
                             sites={uniqueValues.sites} 
                             missingKeys={getMissingExposureKeys(incidents, exposureHours)} 
                             initialSite={focusSite}
+                            viewMode="full"
                             onUpdate={(h, k, g) => { setExposureHours(h); setExposureKm(k); setGlobalKm(g); }} 
+                        />
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* --- NEW KM ONLY MODAL --- */}
+        {modalMode === 'exposure_km' && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+                    <div className="p-4 border-b flex justify-between items-center bg-purple-50">
+                        <div className="flex items-center">
+                            <PenTool className="w-5 h-5 text-purple-600 mr-2" />
+                            <h3 className="font-bold text-purple-900">Actualización de Flota (KM)</h3>
+                        </div>
+                        <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                    </div>
+                    <div className="p-6">
+                        <ExposureManager 
+                            exposureHours={exposureHours} 
+                            exposureKm={exposureKm} 
+                            globalKmRecords={globalKm}
+                            sites={uniqueValues.sites} 
+                            initialSite={undefined}
+                            viewMode="km_only"
+                            onUpdate={(h, k, g) => { setExposureHours(h); setExposureKm(k); setGlobalKm(g); setModalMode(null); }} 
                         />
                     </div>
                 </div>
