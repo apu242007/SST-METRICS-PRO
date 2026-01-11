@@ -8,7 +8,7 @@ import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, Gl
 import { calculateKPIs, generateParetoData } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
 interface DashboardProps {
@@ -21,6 +21,18 @@ interface DashboardProps {
   onOpenKmModal?: () => void; // NEW PROP
   onDrillDown?: (criteria: { type?: string, period?: string, category?: 'LTI' | 'Recordable' | 'Transit' }) => void;
 }
+
+// Data for the Target Evolution Table
+const TARGET_COMPARISON_DATA = [
+  { label: 'TRIR (OSHA)', m25: '2.5', m26: '1.2', var: '↓ 52%' },
+  { label: 'LTIF (IOGP)', m25: '5.0', m26: '2.5', var: '↓ 50%' },
+  { label: 'DART (OSHA)', m25: '1.2', m26: '0.6', var: '↓ 50%' },
+  { label: 'SR (Severidad)', m25: '0.20', m26: '0.15', var: '↓ 25%' },
+  { label: 'FAR (Fatalidad)', m25: '2', m26: '0', var: '↓ 100% (objetivo “cero”)' },
+  { label: 'T1 PSER (Tier 1)', m25: '0.5', m26: '0.1', var: '↓ 80%' },
+  { label: 'T2 PSER (Tier 2)', m25: '1.5', m26: '1.0', var: '↓ 33%' },
+  { label: 'SLG-24H', m25: '100%', m26: '100%', var: '= (sin cambios)' },
+];
 
 // Helper Card Component
 const KPICard = ({ title, value, target, subtext, icon: Icon, colorClass, borderClass, onClick, tooltip, footer, blocked, reverseLogic, unit }: any) => {
@@ -141,6 +153,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
   const [paretoView, setParetoView] = useState<'location' | 'type'>('type');
   const [selectedMetric, setSelectedMetric] = useState<any | null>(null);
+  const [showTargetsTable, setShowTargetsTable] = useState(false);
   
   const targets = TARGET_SCENARIOS[selectedScenario];
   
@@ -213,6 +226,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
            </div>
            
            <div className="flex items-center space-x-4">
+                <button 
+                    onClick={() => setShowTargetsTable(!showTargetsTable)}
+                    className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${showTargetsTable ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                >
+                    <TableIcon className="w-4 h-4 mr-2" />
+                    {showTargetsTable ? 'Ocultar Evolución' : 'Ver Plan Evolución'}
+                    {showTargetsTable ? <ChevronUp className="w-3 h-3 ml-2"/> : <ChevronDown className="w-3 h-3 ml-2"/>}
+                </button>
+
                 <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1.5">
                     <span className="text-xs font-bold text-gray-500 mx-2 uppercase flex items-center">
                         <Target className="w-4 h-4 mr-1 text-yellow-500" /> Metas:
@@ -228,6 +250,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
            </div>
       </div>
+
+      {/* COMPARISON TABLE COLLAPSIBLE */}
+      {showTargetsTable && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in slide-in-from-top-2 duration-300">
+              <div className="p-4 bg-slate-50 border-b border-gray-200 flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase flex items-center">
+                      <TrendingDown className="w-4 h-4 mr-2 text-green-600"/> Evolución de Metas Corporativas (2025 vs 2026)
+                  </h3>
+              </div>
+              <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                          <tr>
+                              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Indicador</th>
+                              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Meta 2025</th>
+                              <th className="px-6 py-3 text-right text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50/50">Meta 2026</th>
+                              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Variación</th>
+                          </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                          {TARGET_COMPARISON_DATA.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-3 text-gray-900 font-bold">{row.label}</td>
+                                  <td className="px-6 py-3 text-right text-gray-600 font-mono">{row.m25}</td>
+                                  <td className="px-6 py-3 text-right text-blue-700 font-mono font-bold bg-blue-50/30">{row.m26}</td>
+                                  <td className={`px-6 py-3 text-right font-bold text-xs ${row.var.includes('↓') ? 'text-green-600' : 'text-gray-400'}`}>
+                                      {row.var}
+                                  </td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      )}
 
       {/* MISSING HH ALERTS */}
       {isRatesBlocked && (
