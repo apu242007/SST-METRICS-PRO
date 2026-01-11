@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Incident } from '../types';
 import { MONTHS } from '../constants';
@@ -19,6 +18,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
   // Filters
   const [filterSite, setFilterSite] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
+  const [filterComCliente, setFilterComCliente] = useState<'All' | 'SI' | 'NO'>('All'); // NEW FILTER
   const [showPotential, setShowPotential] = useState(true);
   
   // Feature State
@@ -42,6 +42,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
       return incidents.filter(i => {
           if (filterSite !== 'ALL' && i.site !== filterSite) return false;
           if (filterType !== 'ALL' && i.type !== filterType) return false;
+          // Note: comCliente filter here is mostly for the Talk generation context, 
+          // but we can also filter the view if desired. For now, we keep the view broader
+          // and use the filter specifically for the Talk logic as requested.
           return true;
       });
   }, [incidents, filterSite, filterType]);
@@ -66,7 +69,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
 
   const handleGenerateTalk = () => {
     if (!selectedDate) return;
-    const talk = generateSafetyTalk(selectedDate, calendarMap[selectedDate] || [], historicalData.incidents);
+    // Pass the comCliente filter to the generator
+    const talk = generateSafetyTalk(
+        selectedDate, 
+        calendarMap[selectedDate] || [], 
+        historicalData.incidents,
+        filterComCliente
+    );
     setGeneratedTalk(talk);
     setIsTalkExpanded(true);
   };
@@ -151,7 +160,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                     <option value="ALL">Todos los Tipos</option>
                     {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-                <label className="flex items-center space-x-2 text-xs cursor-pointer select-none">
+                
+                {/* COM. CLIENTE FILTER FOR TALK */}
+                <select 
+                    value={filterComCliente} 
+                    onChange={e => setFilterComCliente(e.target.value as any)} 
+                    className="text-xs border-gray-300 rounded shadow-sm py-1.5 pl-2 pr-6 bg-yellow-50 text-yellow-900 border-yellow-200 font-medium"
+                    title="Afecta el contenido de la Charla de Seguridad"
+                >
+                    <option value="All">Com. Cliente: Indiferente</option>
+                    <option value="SI">Com. Cliente: SI (Incluir)</option>
+                    <option value="NO">Com. Cliente: NO (Omitir)</option>
+                </select>
+
+                <label className="flex items-center space-x-2 text-xs cursor-pointer select-none ml-2">
                     <input type="checkbox" checked={showPotential} onChange={e => setShowPotential(e.target.checked)} className="rounded text-blue-600"/>
                     <span>Ver Severidad</span>
                 </label>
@@ -230,7 +252,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                                     </h4>
                                     {!generatedTalk ? (
                                         <>
-                                            <p className="text-xs text-blue-100 mb-4 leading-relaxed">Analice los patrones históricos para generar una charla preventiva de alto impacto.</p>
+                                            <p className="text-xs text-blue-100 mb-4 leading-relaxed">
+                                                Genere una charla de 5 minutos basada en los incidentes recientes y el filtro de cliente seleccionado.
+                                            </p>
                                             <button onClick={handleGenerateTalk} className="w-full bg-white text-blue-700 font-bold py-2 rounded-md hover:bg-blue-50 transition-colors text-sm">Generar charla de 5 minutos</button>
                                         </>
                                     ) : (
@@ -247,14 +271,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                                             
                                             {isTalkExpanded && (
                                                 <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                                                    {/* Apertura */}
                                                     <div>
-                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Introducción</h5>
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">[0:00-0:30] Apertura</h5>
                                                         <p className="text-xs leading-relaxed text-blue-50">{generatedTalk.whyToday}</p>
                                                     </div>
                                                     
+                                                    {/* Riesgos (Situaciones) */}
                                                     {generatedTalk.situations && generatedTalk.situations.length > 0 && (
                                                         <div>
-                                                            <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Situaciones Observadas</h5>
+                                                            <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">[0:30-2:00] Qué estamos evitando</h5>
                                                             <ul className="space-y-1.5">
                                                                 {generatedTalk.situations.map((m, i) => (
                                                                     <li key={i} className="text-xs leading-tight flex items-start"><span className="mr-2 text-blue-300">•</span> {m}</li>
@@ -263,39 +289,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                                                         </div>
                                                     )}
 
-                                                    {generatedTalk.relatedProcedures && generatedTalk.relatedProcedures.length > 0 && (
-                                                        <div className="bg-red-500/20 p-2 rounded border border-red-400/30">
-                                                            <h5 className="text-[10px] font-bold text-red-200 uppercase mb-1 flex items-center">
-                                                                <BookOpen className="w-3 h-3 mr-1"/> Procedimientos / Desvíos
-                                                            </h5>
-                                                            <ul className="space-y-1">
-                                                                {generatedTalk.relatedProcedures.map((proc, i) => (
-                                                                    <li key={i} className="text-[10px] font-mono text-red-100 flex items-start">
-                                                                        <span className="mr-1">⚠</span> {proc}
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                    )}
-
+                                                    {/* Controles (Keys) */}
                                                     <div>
-                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Mensajes Clave</h5>
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">[2:00-4:30] Controles Críticos</h5>
                                                         <ul className="space-y-1.5">
                                                             {generatedTalk.keyMessages.map((m, i) => (
                                                                 <li key={i} className="text-xs leading-tight flex items-start"><span className="mr-2 text-blue-300">•</span> {m}</li>
                                                             ))}
                                                         </ul>
                                                     </div>
+
+                                                    {/* Procedimientos / Acciones / Com Cliente */}
                                                     <div>
-                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Acciones</h5>
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">Procedimientos y Comunicación</h5>
                                                         <ul className="space-y-1.5">
                                                             {generatedTalk.actions.map((a, i) => (
                                                                 <li key={i} className="text-xs leading-tight flex items-start"><span className="mr-2 text-green-300">✓</span> {a}</li>
                                                             ))}
                                                         </ul>
                                                     </div>
-                                                    <div className="pt-2 border-t border-blue-500 flex justify-between items-center">
-                                                        <span className="text-[9px] text-blue-300 italic">{generatedTalk.sourceInfo}</span>
+
+                                                    {/* Cierre */}
+                                                    <div className="pt-2 border-t border-blue-500">
+                                                        <h5 className="text-[10px] font-bold text-yellow-300 uppercase mb-1">[4:30-5:00] Cierre</h5>
+                                                        <p className="text-xs leading-relaxed text-blue-50">{generatedTalk.closing}</p>
+                                                    </div>
+
+                                                    <div className="pt-2 flex justify-end">
                                                         <button onClick={() => setShowPdfOptions(true)} className="flex items-center text-[10px] bg-blue-500 hover:bg-blue-400 px-2 py-1 rounded">
                                                             <FileText className="w-3 h-3 mr-1"/> PDF
                                                         </button>

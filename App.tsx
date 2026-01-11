@@ -49,6 +49,7 @@ const App: React.FC = () => {
     month: 'All',
     type: 'All',
     location: 'All',
+    comCliente: 'All' as 'All' | 'SI' | 'NO', // Updated to Uppercase SI/NO
     search: '',
     category: 'All' as 'All' | 'LTI' | 'Recordable' | 'Transit'
   });
@@ -172,7 +173,20 @@ const App: React.FC = () => {
   // --- DATA PROCESSING ---
   const uniqueValues = useMemo(() => {
     const sites = Array.from(new Set(incidents.map(i => i.site))).sort();
-    const years = Array.from(new Set(incidents.map(i => Number(i.year)))).sort((a: number, b: number) => b - a); // Force Number sort
+    
+    // YEAR FIX: Ensure 2026 and surrounding years are always available options
+    const yearsSet = new Set<number>(incidents.map(i => Number(i.year)));
+    const currentYear = new Date().getFullYear();
+    yearsSet.add(currentYear);
+    yearsSet.add(currentYear + 1); // 2026 (if current is 2025)
+    yearsSet.add(2026); // Explicit 2026 requirement
+    yearsSet.add(2025); // Ensure baseline years
+    yearsSet.add(2024);
+
+    const years = Array.from(yearsSet)
+        .filter((y: number) => !isNaN(y) && y > 2000 && y < 2100) // Sanity check
+        .sort((a: number, b: number) => b - a); // Descending sort (2026 first)
+    
     return { sites, years };
   }, [incidents]);
 
@@ -187,6 +201,14 @@ const App: React.FC = () => {
         if (filters.category === 'LTI' && !i.lti_case) return false;
         if (filters.category === 'Recordable' && !i.recordable_osha) return false;
         if (filters.category === 'Transit' && !i.is_transit) return false;
+        
+        // Com. Cliente Filter (Strict SI/NO logic mapped to boolean data)
+        if (filters.comCliente !== 'All') {
+            const wantTrue = filters.comCliente === 'SI';
+            // We check the boolean field `com_cliente` populated by importHelpers
+            if (i.com_cliente !== wantTrue) return false;
+        }
+
         if (filters.search) {
             const term = filters.search.toLowerCase();
             return (
@@ -346,12 +368,21 @@ const App: React.FC = () => {
                         <option value="All">Mes: Todos</option>
                         {MONTHS.map((m, idx) => <option key={idx} value={String(idx + 1)}>{m}</option>)}
                     </select>
+                    <select 
+                        className="text-xs border rounded-md shadow-sm py-1.5 px-2" 
+                        value={filters.comCliente} 
+                        onChange={(e) => setFilters(prev => ({...prev, comCliente: e.target.value as 'All' | 'SI' | 'NO'}))}
+                    >
+                        <option value="All">Com. Cliente: Todos</option>
+                        <option value="SI">Com. Cliente: SI</option>
+                        <option value="NO">Com. Cliente: NO</option>
+                    </select>
                     <div className="relative flex-1 min-w-[200px]">
                         <Search className="w-3.5 h-3.5 absolute left-3 top-2 text-gray-400" />
                         <input type="text" placeholder="Buscar..." className="w-full pl-9 pr-2 py-1.5 text-xs border rounded-md shadow-sm" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
                     </div>
-                    {(filters.site !== 'All' || filters.year !== 'All' || filters.month !== 'All' || filters.search !== '') && (
-                        <button onClick={() => setFilters({site: 'All', year: 'All', month: 'All', type: 'All', location: 'All', search: '', category: 'All'})} className="text-xs px-2 py-1.5 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-700 flex items-center"><X className="w-3 h-3 mr-1" /> Limpiar</button>
+                    {(filters.site !== 'All' || filters.year !== 'All' || filters.month !== 'All' || filters.search !== '' || filters.comCliente !== 'All') && (
+                        <button onClick={() => setFilters({site: 'All', year: 'All', month: 'All', type: 'All', location: 'All', search: '', category: 'All', comCliente: 'All'})} className="text-xs px-2 py-1.5 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-700 flex items-center"><X className="w-3 h-3 mr-1" /> Limpiar</button>
                     )}
                 </div>
             </div>

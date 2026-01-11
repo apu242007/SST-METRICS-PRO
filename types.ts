@@ -1,4 +1,3 @@
-
 export enum IncidentType {
   FirstAid = 'First Aid',
   MedicalTreatment = 'Medical Treatment',
@@ -79,6 +78,9 @@ export interface Incident {
   is_in_itinere: boolean; // "Accidente In Itinere" (Excluded from IFAT)
   is_transit: boolean; // Legacy/General flag (Union of above)
   
+  // NEW: Client Communication Flag
+  com_cliente: boolean;
+
   fatality: boolean;
   
   days_away: number;

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Incident } from '../types';
 import { Download, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Eye, Settings, AlertCircle, Zap, CheckCircle2 } from 'lucide-react';
@@ -41,6 +40,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
             "fecha_evento", "fecha_evento_sugerida", 
             "recordable", "lti", 
             "transito_laboral", "in_itinere",
+            "com_cliente",
             "days_away", "needs_review"
         ];
       }
@@ -48,7 +48,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
 
   // Initialize Visible Columns once
   useEffect(() => {
-      setVisibleColumns(allColumns.slice(0, 9)); 
+      setVisibleColumns(allColumns.slice(0, 10)); 
   }, [mode, allColumns.length]);
 
   // --- PERFORMANCE OPTIMIZATION: SLICE-THEN-MAP ---
@@ -67,6 +67,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                else if (key === 'anio') { aVal = a.year; bVal = b.year; }
                else if (key === 'tipo_incidente') { aVal = a.type; bVal = b.type; }
                else if (key === 'incident_id') { aVal = a.incident_id; bVal = b.incident_id; }
+               else if (key === 'com_cliente') { aVal = a.com_cliente ? 1 : 0; bVal = b.com_cliente ? 1 : 0; }
                else { aVal = ''; bVal = ''; }
           } else {
               aVal = a.incident_id; bVal = b.incident_id;
@@ -118,6 +119,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                 lti: i.lti_case ? 'Sí' : 'No',
                 transito_laboral: i.is_transit_laboral ? 'Sí (IFAT)' : 'No',
                 in_itinere: i.is_in_itinere ? 'Sí' : 'No',
+                com_cliente: i.com_cliente ? 'SI' : 'NO',
                 days_away: i.days_away,
                 days_away_sugerido: suggestedDays,
                 needs_review: !i.is_verified ? 'SIN LÓGICA AUTO' : 'Auto-Confirmado',
@@ -148,6 +150,7 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                Fecha: i.fecha_evento,
                'Tránsito Laboral': i.is_transit_laboral ? 'SI' : 'NO',
                'In Itinere': i.is_in_itinere ? 'SI' : 'NO',
+               'Com. Cliente': i.com_cliente ? 'SI' : 'NO',
                'Confirmado Automático': i.is_verified ? 'SI' : 'NO'
            };
       });

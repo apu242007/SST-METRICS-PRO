@@ -1,4 +1,3 @@
-
 import { Incident } from "../types";
 import { getSafetyTalkContent } from "./textAnalysis";
 
@@ -17,14 +16,15 @@ export interface SafetyTalk {
 export const generateSafetyTalk = (
   selectedDate: string, 
   dayIncidents: Incident[], 
-  historicalIncidents: Incident[]
+  historicalIncidents: Incident[],
+  comClienteFilter: 'All' | 'SI' | 'NO' = 'All' // NEW PARAMETER
 ): SafetyTalk => {
   // Combine all relevant incidents for semantic analysis to get the best pattern match
   // We prioritize historical, but if day incidents exist (today's logic), we include them.
   const pool = [...historicalIncidents, ...dayIncidents];
   
-  // Use the new Semantic Engine
-  const content = getSafetyTalkContent(pool, selectedDate);
+  // Use the new Semantic Engine with the Client Communication Rule
+  const content = getSafetyTalkContent(pool, selectedDate, comClienteFilter);
 
   return {
     title: content.title,

@@ -52,6 +52,13 @@ const normalizeForClassification = (str: string) => {
               .toUpperCase();
 };
 
+// Helper para parsear booleano flexible
+const parseBoolean = (val: any): boolean => {
+    if (val === undefined || val === null) return false;
+    const s = String(val).trim().toLowerCase();
+    return ['si', 'sí', 'yes', 's', 'y', '1', 'true', 'ok'].includes(s);
+};
+
 // --- NORMALIZACIÓN STRICTA PARA MAPEO CORPORAL (NUEVO REQUISITO) ---
 const normalizeBodyPart = (text: string) => {
   if (!text) return "";
@@ -419,6 +426,11 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       row['Nombre y Apellido Involucrado'] ? `Involucrado: ${row['Nombre y Apellido Involucrado']}` : null
     ];
 
+    // --- PARSE CLIENT COMMUNICATION ---
+    // ADDED: Explicit checks for 'Com.Cliente' (with dot) and 'Com Cliente' to handle Excel variations robustly
+    const comKey = findColumn(row, ["Comunicación Cliente", "Comunicacion Cliente", "Com. Cliente", "Com.Cliente", "Com Cliente", "Reportado al Cliente"]) || "Comunicación Cliente";
+    const comCliente = parseBoolean(row[comKey]);
+
     // Initial Object
     const incidentObj: Incident = {
       incident_id: id,
@@ -442,6 +454,9 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       is_transit_laboral: false,
       is_in_itinere: false,
       is_transit: false, 
+      
+      // New Field
+      com_cliente: comCliente,
 
       fatality: isFatal,
       job_transfer: false,

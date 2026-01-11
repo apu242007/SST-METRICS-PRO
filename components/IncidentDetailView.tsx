@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Incident, MappingRule, SGIDocument, LinkedDocument } from '../types';
 import { X, Save, ArrowRight, Database, Wand2, Edit3, AlertTriangle, CheckCircle2, FileJson, History, BookOpen, Link, Trash2, Plus } from 'lucide-react';
@@ -449,6 +448,11 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                          <label className="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer group">
                              <span className="text-sm font-medium text-gray-700">Fatalidad</span>
                              <input type="checkbox" checked={formData.fatality} onChange={e => handleChange('fatality', e.target.checked)} className="h-5 w-5 text-gray-900 rounded border-gray-300"/>
+                        </label>
+
+                        <label className="flex items-center justify-between p-2 border rounded hover:bg-gray-50 cursor-pointer group">
+                             <span className="text-sm font-medium text-gray-700">Comunicado al Cliente</span>
+                             <input type="checkbox" checked={formData.com_cliente} onChange={e => handleChange('com_cliente', e.target.checked)} className="h-5 w-5 text-teal-600 rounded border-gray-300"/>
                         </label>
                     </div>
 

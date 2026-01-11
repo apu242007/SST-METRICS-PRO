@@ -211,7 +211,7 @@ export class PDFGenerator {
       this.currentY += 5;
 
       const top5Body = top5.map(item => [String(item.rank), item.site, String(item.count)]);
-      (this.doc as any).autoTable({
+      autoTable(this.doc, {
           startY: this.currentY,
           head: [['#', 'Sitio', 'Incidentes']],
           body: top5Body.length > 0 ? top5Body : [['-', 'Sin datos', '-']],
@@ -237,7 +237,7 @@ export class PDFGenerator {
           return [item.site, String(item.days), item.lastDate, statusText];
       });
 
-      (this.doc as any).autoTable({
+      autoTable(this.doc, {
           startY: this.currentY,
           head: [['Sitio', 'Días', 'Último Evento', 'Estado']],
           body: daysBody.length > 0 ? daysBody : [['Sin datos', '-', '-', '-']],
@@ -307,7 +307,7 @@ export class PDFGenerator {
           return [item.site, String(item.prevAvg), String(item.currentAvg), `${item.variationPct > 0 ? '+' : ''}${item.variationPct}%`, statusText];
       });
 
-      (this.doc as any).autoTable({
+      autoTable(this.doc, {
           startY: this.currentY,
           head: [['Sitio', 'Prom. Anterior', 'Prom. Actual', 'Variación', 'Tendencia']],
           body: evoBody.length > 0 ? evoBody : [['-', '-', '-', '-', '-']],
@@ -369,7 +369,7 @@ export class PDFGenerator {
         this.currentY += 5;
     }
 
-    (this.doc as any).autoTable({
+    autoTable(this.doc, {
         startY: this.currentY,
         head: [head],
         body: body,
