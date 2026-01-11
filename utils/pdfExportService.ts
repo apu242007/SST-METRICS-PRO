@@ -1,8 +1,7 @@
-
-import { jsPDF } from "jspdf";
-import "jspdf-autotable";
-import { Incident, DashboardMetrics, PDFExportConfig, ExposureHour, SiteRanking, SiteDaysSafe, TrendAlert, SiteEvolution, SuggestedAction } from "../types";
+import { Incident, DashboardMetrics, PDFExportConfig, SiteRanking, SiteDaysSafe, TrendAlert, SiteEvolution, SuggestedAction, MissingExposureImpact } from "../types";
 import { generateSafetyTalk, SafetyTalk } from "./safetyTalkGenerator";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // --- THEME & CONSTANTS ---
 const BRAND_COLOR = [239, 68, 68]; // #EF4444 (Red-500)
@@ -12,14 +11,14 @@ const MARGIN = 15;
 
 // --- CORE CLASS ---
 export class PDFGenerator {
-  private doc: jsPDF;
+  private doc: any;
   private pageWidth: number;
   private pageHeight: number;
   private config: PDFExportConfig;
   private currentY: number;
 
-  constructor(config: PDFExportConfig) {
-    this.doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  constructor(doc: any, config: PDFExportConfig) {
+    this.doc = doc;
     this.pageWidth = this.doc.internal.pageSize.getWidth();
     this.pageHeight = this.doc.internal.pageSize.getHeight();
     this.config = config;
@@ -277,7 +276,6 @@ export class PDFGenerator {
       this.currentY += 10;
   }
 
-  // --- NEW: PREVENTIVE ANALYSIS SECTION ---
   public addPreventiveAnalysisSection(evolutions: SiteEvolution[], actions: SuggestedAction[]) {
       this.checkPageBreak(100);
       
@@ -488,18 +486,22 @@ export const exportToPDF = (
     includeTalk: boolean;
     includeFilters: boolean;
     filters: { site: string, type: string };
-  }
+  },
+  exportConfig?: PDFExportConfig,
+  metrics?: DashboardMetrics,
+  missing?: MissingExposureImpact[],
+  chartImage?: string
 ) => {
-  const config: PDFExportConfig = {
+  const config: PDFExportConfig = exportConfig || {
     scope: 'CURRENT_VIEW',
     detailLevel: 'SUMMARY',
     sections: {
       kpis: false,
       trends: false,
-      rawTable: false,
+      rawTable: true, // Default if simple export
       normalizedTable: false,
       pendingTasks: false,
-      safetyTalk: false,
+      safetyTalk: options.includeTalk,
       calendar: false,
       management: false,
       preventive: false
@@ -516,36 +518,69 @@ export const exportToPDF = (
     }
   };
 
-  const gen = new PDFGenerator(config);
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+  const gen = new PDFGenerator(doc, config);
   
   gen.addCoverPage(); 
 
-  if (options.include2026Table && dayIncidents.length > 0) {
-      const body = dayIncidents.map(i => [
-          i.incident_id, i.site, i.type, i.potential_risk, i.description
-      ]);
-      gen.addTableSection(
-          `Incidentes del Día: ${date}`,
-          ['ID', 'Sitio', 'Tipo', 'Severidad', 'Descripción'],
-          body,
-          false
-      );
-  }
+  // Full Dashboard PDF Logic (via export center)
+  if (exportConfig && metrics) {
+      if (exportConfig.scope === 'FULL_REPORT' || exportConfig.sections.kpis) {
+          gen.addKPISection(metrics, chartImage);
+      }
+      if (exportConfig.scope === 'FULL_REPORT' || exportConfig.sections.management) {
+          gen.addManagementSection(metrics.top5Sites, metrics.daysSinceList, metrics.trendAlerts);
+      }
+      if (exportConfig.scope === 'FULL_REPORT' || exportConfig.sections.preventive) {
+          gen.addPreventiveAnalysisSection(metrics.siteEvolutions, metrics.suggestedActions);
+      }
+      if (exportConfig.scope === 'FULL_REPORT' || exportConfig.sections.pendingTasks) {
+          gen.addPendingTasksSection(missing || []);
+      }
+      if (exportConfig.scope === 'FULL_REPORT' || exportConfig.sections.rawTable) {
+          const limit = exportConfig.detailLevel === 'FULL_APPENDIX' ? dayIncidents.length : 15;
+          const rows = dayIncidents.slice(0, limit).map(i => [
+              i.incident_id, i.fecha_evento, i.site, i.type, i.potential_risk, i.recordable_osha ? 'SI' : 'NO'
+          ]);
+          gen.addTableSection(
+              "Listado de Incidentes", 
+              ['ID', 'Fecha', 'Sitio', 'Tipo', 'Severidad', 'Recordable'], 
+              rows, 
+              exportConfig.detailLevel === 'SUMMARY' && dayIncidents.length > 15
+          );
+      }
+      if (exportConfig.sections.safetyTalk && talk) {
+          gen.addSafetyTalkSection(date, dayIncidents, historyIncidents);
+      }
+  } else {
+      // Simple Daily Export Logic (via Calendar)
+      if (options.include2026Table && dayIncidents.length > 0) {
+          const body = dayIncidents.map(i => [
+              i.incident_id, i.site, i.type, i.potential_risk, i.description
+          ]);
+          gen.addTableSection(
+              `Incidentes del Día: ${date}`,
+              ['ID', 'Sitio', 'Tipo', 'Severidad', 'Descripción'],
+              body,
+              false
+          );
+      }
 
-  if (options.includeHistoryTable && historyIncidents.length > 0) {
-      const body = historyIncidents.map(i => [
-          String(i.year), i.site, i.type, i.potential_risk, i.description
-      ]);
-      gen.addTableSection(
-          `Histórico (Un día como hoy)`,
-          ['Año', 'Sitio', 'Tipo', 'Severidad', 'Descripción'],
-          body,
-          false
-      );
-  }
+      if (options.includeHistoryTable && historyIncidents.length > 0) {
+          const body = historyIncidents.map(i => [
+              String(i.year), i.site, i.type, i.potential_risk, i.description
+          ]);
+          gen.addTableSection(
+              `Histórico (Un día como hoy)`,
+              ['Año', 'Sitio', 'Tipo', 'Severidad', 'Descripción'],
+              body,
+              false
+          );
+      }
 
-  if (options.includeTalk && talk) {
-      gen.addSafetyTalkSection(date, dayIncidents, historyIncidents);
+      if (options.includeTalk && talk) {
+          gen.addSafetyTalkSection(date, dayIncidents, historyIncidents);
+      }
   }
 
   gen.finalSave(config.meta.fileName);

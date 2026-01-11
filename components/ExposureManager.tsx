@@ -58,7 +58,7 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
   }, [initialSite]);
 
   const mergedData = useMemo(() => {
-    if (viewMode === 'km_only') return []; // Optimize
+    if (viewMode === 'km_only') return []; // Optimize: Don't calculate grid data in KM mode
 
     const keys = new Set<string>();
     hoursList.forEach(h => keys.add(`${h.site}|${h.period}`));
@@ -129,12 +129,20 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
   };
 
   const handleSave = () => {
-    onUpdate(hoursList, kmList, globalKmList);
-    // Simple toast fallback
-    const btn = document.getElementById('save-btn');
+    // When saving in km_only mode, we ensure the current global KM is pushed to the parent
+    // The parent state update logic will handle merging.
+    
+    // Ensure the current typed value is in the list being saved
+    const record: GlobalKmRecord = { year: currentYear, value: currentGlobalKm, last_updated: new Date().toISOString() };
+    const finalGlobalKmList = [...globalKmList.filter(r => r.year !== currentYear), record];
+
+    onUpdate(hoursList, kmList, finalGlobalKmList);
+    
+    // Simple toast fallback or UI feedback
+    const btn = document.getElementById('save-btn-km') || document.getElementById('save-btn');
     if(btn) {
         const originalText = btn.innerText;
-        btn.innerText = "¡Datos Guardados!";
+        btn.innerText = "¡Guardado!";
         setTimeout(() => btn.innerText = originalText, 2000);
     }
   };
@@ -197,9 +205,10 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
                     />
                     <span className="text-sm font-bold text-gray-400">km</span>
                   </div>
+                  {/* Dedicated Save Button for KM Only Mode */}
                   {viewMode === 'km_only' && (
                       <button 
-                        id="save-btn" 
+                        id="save-btn-km" 
                         onClick={handleSave} 
                         className="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded shadow-sm transition-colors flex items-center justify-center"
                       >
@@ -210,7 +219,7 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
           </div>
       </div>
 
-      {/* HOURS SECTION (Hidden in km_only mode) */}
+      {/* HOURS SECTION (Visible only in 'full' mode) */}
       {viewMode === 'full' && (
       <>
         {/* HEADER WITH BULK TOOL */}

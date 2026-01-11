@@ -34,6 +34,8 @@ export interface SGIDocument {
   type: string;       // Derived from prefix: PO, PG, IT, MSGI
   area: string;       // Derived from middle: SGI, FAB, ADM, ING
   objective?: string; // Content description
+  scope?: string;     // New: "ALCANCE" from CSV
+  associatedDocs?: string; // New: "DOCUMENTOS ASOCIADOS"
   version?: string;   // e.g., "04"
   link?: string;      // URL to file (placeholder)
   tags?: string[];

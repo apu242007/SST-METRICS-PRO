@@ -18,7 +18,7 @@ interface DashboardProps {
   globalKmRecords: GlobalKmRecord[];
   settings: AppSettings;
   onNavigateToExposure?: (site?: string) => void;
-  onOpenKmModal?: () => void; // NEW PROP for dedicated KM modal
+  onOpenKmModal?: () => void; // NEW PROP
   onDrillDown?: (criteria: { type?: string, period?: string, category?: 'LTI' | 'Recordable' | 'Transit' }) => void;
 }
 
@@ -518,7 +518,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {isIfatBlocked && (
                       <div className="mt-2">
                           <p className="text-[10px] text-red-600 font-bold mb-1">Faltan KM recorridos para calcular IFAT.</p>
-                          <button onClick={() => onOpenKmModal ? onOpenKmModal() : (onNavigateToExposure && onNavigateToExposure())} className="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold">Cargar KM</button>
+                          <button 
+                            onClick={() => onOpenKmModal ? onOpenKmModal() : (onNavigateToExposure && onNavigateToExposure())} 
+                            className="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold"
+                          >
+                            Cargar KM
+                          </button>
                       </div>
                   )}
               </div>

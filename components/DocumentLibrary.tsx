@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { SGIDocument } from '../types';
-import { Search, FileText, Filter, BookOpen } from 'lucide-react';
+import { Search, FileText, Filter, BookOpen, X, Eye, File, Calendar } from 'lucide-react';
 
 interface DocumentLibraryProps {
   documents: SGIDocument[];
@@ -11,6 +11,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({ documents }) =
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterArea, setFilterArea] = useState('ALL');
+  const [selectedDoc, setSelectedDoc] = useState<SGIDocument | null>(null);
 
   // Filters
   const uniqueTypes = useMemo(() => Array.from(new Set(documents.map(d => d.type))).sort(), [documents]);
@@ -31,7 +32,7 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({ documents }) =
   }, [documents, searchTerm, filterType, filterArea]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6">
       
       {/* Header */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -99,26 +100,103 @@ export const DocumentLibrary: React.FC<DocumentLibraryProps> = ({ documents }) =
                           }`}>
                               {doc.code}
                           </span>
-                          <div className="mt-2 text-[10px] text-gray-400 font-mono">Rev. {doc.version || '00'}</div>
+                          <div className="mt-2 text-[10px] text-gray-400 font-mono flex items-center">
+                              <Calendar className="w-3 h-3 mr-1" />
+                              Rev. {doc.version || '00'}
+                          </div>
                       </div>
                       
                       <div className="flex-1">
                           <h3 className="text-sm font-bold text-gray-800">{doc.title}</h3>
                           <p className="text-xs text-gray-600 mt-1 line-clamp-2">{doc.objective}</p>
                           <div className="mt-2 flex gap-2">
-                              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Área: {doc.area}</span>
+                              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200">Área: {doc.area}</span>
                           </div>
                       </div>
 
                       <div className="flex items-center">
-                          <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="Ver Detalle (Próximamente)">
-                              <FileText className="w-5 h-5" />
+                          <button 
+                            onClick={() => setSelectedDoc(doc)}
+                            className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-full transition-colors flex items-center" 
+                            title="Ver Detalle Completo"
+                          >
+                              <Eye className="w-5 h-5" />
                           </button>
                       </div>
                   </div>
               ))
           )}
       </div>
+
+      {/* Detail Modal */}
+      {selectedDoc && (
+          <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity duration-300">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] transition-transform duration-300 scale-100">
+                  <div className="p-4 bg-slate-900 text-white flex justify-between items-start">
+                      <div>
+                          <div className="flex items-center gap-3 mb-1">
+                              <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-mono">{selectedDoc.code}</span>
+                              <span className="text-xs text-slate-300">Rev. {selectedDoc.version || '00'}</span>
+                          </div>
+                          <h3 className="text-lg font-bold leading-tight">{selectedDoc.title}</h3>
+                      </div>
+                      <button onClick={() => setSelectedDoc(null)} className="text-slate-400 hover:text-white p-1 rounded hover:bg-white/10 transition">
+                          <X className="w-6 h-6" />
+                      </button>
+                  </div>
+                  
+                  <div className="p-6 overflow-y-auto space-y-6">
+                      
+                      <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-blue-600 uppercase flex items-center">
+                              <FileText className="w-4 h-4 mr-2" /> Objetivo
+                          </h4>
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm text-gray-700 leading-relaxed">
+                              {selectedDoc.objective || 'Sin objetivo definido.'}
+                          </div>
+                      </div>
+
+                      <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-purple-600 uppercase flex items-center">
+                              <Filter className="w-4 h-4 mr-2" /> Alcance
+                          </h4>
+                          <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 text-sm text-gray-700 leading-relaxed">
+                              {selectedDoc.scope || 'Sin alcance definido.'}
+                          </div>
+                      </div>
+
+                      <div className="space-y-2">
+                          <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center">
+                              <File className="w-4 h-4 mr-2" /> Documentos Asociados / Referencias
+                          </h4>
+                          <div className="bg-white p-3 rounded-lg border border-gray-200 text-xs text-gray-600">
+                              {selectedDoc.associatedDocs ? (
+                                  <ul className="list-disc ml-4 space-y-1">
+                                      {selectedDoc.associatedDocs.split(/;|•|\n/).map((doc, i) => {
+                                          const clean = doc.trim();
+                                          if(!clean) return null;
+                                          return <li key={i}>{clean}</li>
+                                      })}
+                                  </ul>
+                              ) : (
+                                  <span className="italic text-gray-400">No hay documentos asociados registrados.</span>
+                              )}
+                          </div>
+                      </div>
+
+                  </div>
+
+                  <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+                      <button 
+                        onClick={() => setSelectedDoc(null)}
+                        className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-100 transition shadow-sm text-sm"
+                      >
+                          Cerrar
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
 
     </div>
   );

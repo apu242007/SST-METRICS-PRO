@@ -1,4 +1,3 @@
-
 import { Incident, ExposureHour, ExposureKm, DashboardMetrics, AppSettings, ParetoData, HeatmapData, KPITargets, BodyZone, SiteRanking, SiteDaysSafe, TrendAlert, SiteEvolution, SuggestedAction, GlobalKmRecord } from "../types";
 import { RISK_WEIGHTS, EMPTY_DASHBOARD_METRICS } from "../constants";
 import { getSmartSuggestedActions } from "./textAnalysis";
@@ -133,11 +132,18 @@ export const calculateKPIs = (
 
   // Only calculate forecast if we have actual data to project from
   if (totalManHours > 0 && incidents.length > 0) {
-      const maxMonth = Math.max(
-          ...incidents.map(i => i.month),
-          ...exposureHours.map(e => parseInt(e.period.split('-')[1]))
-      ) || 1;
-      const projectionFactor = 12 / Math.max(1, maxMonth);
+      // Find the LATEST period in the dataset (e.g. 2026-03)
+      const allPeriods = incidents.map(i => `${i.year}-${String(i.month).padStart(2,'0')}`);
+      allPeriods.push(...exposureHours.map(e => e.period));
+      const sortedPeriods = Array.from(new Set(allPeriods)).sort();
+      const lastPeriod = sortedPeriods[sortedPeriods.length - 1]; // e.g. "2026-03"
+      
+      const [lastYear, lastMonth] = lastPeriod.split('-').map(Number);
+      
+      // If we have full year data, projection is actual. If partial year, project.
+      const currentYear = new Date().getFullYear();
+      const projectionFactor = (lastYear === currentYear) ? (12 / Math.max(1, lastMonth)) : 1;
+
       projectedRecordables = Math.round(recordables * projectionFactor);
       projectedLti = Math.round(ltis * projectionFactor);
       const projectedHH = totalManHours * projectionFactor; 
@@ -194,34 +200,48 @@ export const calculateKPIs = (
       };
   }).sort((a, b) => a.days - b.days);
 
-  const allMonths = incidents.map(i => i.month);
-  const currentDatasetMonth = allMonths.length > 0 ? Math.max(...allMonths) : new Date().getMonth() + 1;
-  const windowMonths = [currentDatasetMonth - 2, currentDatasetMonth - 1, currentDatasetMonth];
-  const trendAlerts: TrendAlert[] = [];
-  const siteMonthCounts: Record<string, Record<number, number>> = {};
+  // --- TREND LOGIC (TIME BASED) ---
+  // Fix: Aggregate by YYYY-MM, not just Month number, to support multi-year views correctly.
+  
+  const sitePeriodCounts: Record<string, Record<string, number>> = {};
+  const allPeriodsSet = new Set<string>();
+  
   incidents.forEach(i => {
-      if (!siteMonthCounts[i.site]) siteMonthCounts[i.site] = {};
-      siteMonthCounts[i.site][i.month] = (siteMonthCounts[i.site][i.month] || 0) + 1;
+      const period = `${i.year}-${String(i.month).padStart(2, '0')}`;
+      allPeriodsSet.add(period);
+      if (!sitePeriodCounts[i.site]) sitePeriodCounts[i.site] = {};
+      sitePeriodCounts[i.site][period] = (sitePeriodCounts[i.site][period] || 0) + 1;
   });
 
-  Object.keys(siteMonthCounts).forEach(site => {
-      const counts = windowMonths.map(m => siteMonthCounts[site][m] || 0);
-      if (counts[2] > 0 && counts[0] < counts[1] && counts[1] < counts[2]) {
-          trendAlerts.push({
-              site,
-              history: windowMonths.map((m, i) => ({ month: m, count: counts[i] })),
-              trend: 'increasing'
-          });
-      }
-  });
+  const sortedPeriods = Array.from(allPeriodsSet).sort();
+  const last3Periods = sortedPeriods.slice(-3); // Get last 3 months of available data
+  
+  const trendAlerts: TrendAlert[] = [];
+  
+  if (last3Periods.length >= 3) {
+      Object.keys(sitePeriodCounts).forEach(site => {
+          const counts = last3Periods.map(p => sitePeriodCounts[site][p] || 0);
+          // Strict increasing trend: 1 < 2 < 3
+          if (counts[2] > 0 && counts[0] < counts[1] && counts[1] < counts[2]) {
+              trendAlerts.push({
+                  site,
+                  history: last3Periods.map((p, i) => ({ month: parseInt(p.split('-')[1]), count: counts[i] })), // Keep simplified interface for UI
+                  trend: 'increasing'
+              });
+          }
+      });
+  }
 
-  const prevWindowMonths = [currentDatasetMonth - 5, currentDatasetMonth - 4, currentDatasetMonth - 3];
-  const siteEvolutions: SiteEvolution[] = Object.keys(siteMonthCounts).map(site => {
-      const currentSum = windowMonths.reduce((acc, m) => acc + (siteMonthCounts[site][m] || 0), 0);
-      const prevSum = prevWindowMonths.reduce((acc, m) => acc + (siteMonthCounts[site][m] || 0), 0);
+  // --- EVOLUTION LOGIC (Current 3 vs Prev 3) ---
+  const currentWindow = sortedPeriods.slice(-3);
+  const prevWindow = sortedPeriods.slice(-6, -3);
+  
+  const siteEvolutions: SiteEvolution[] = Object.keys(sitePeriodCounts).map(site => {
+      const currentSum = currentWindow.reduce((acc, p) => acc + (sitePeriodCounts[site][p] || 0), 0);
+      const prevSum = prevWindow.reduce((acc, p) => acc + (sitePeriodCounts[site][p] || 0), 0);
       
-      const currentAvg = currentSum / 3;
-      const prevAvg = prevSum / 3;
+      const currentAvg = currentWindow.length > 0 ? currentSum / currentWindow.length : 0;
+      const prevAvg = prevWindow.length > 0 ? prevSum / prevWindow.length : 0;
       
       let variationPct = 0;
       if (prevAvg > 0) {

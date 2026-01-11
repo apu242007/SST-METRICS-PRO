@@ -1,12 +1,11 @@
-
 import React, { useState } from 'react';
 import { PDFExportConfig, Incident, DashboardMetrics, ExposureHour, MissingExposureImpact, ExposureKm, AppSettings } from '../types';
-import { PDFGenerator } from '../utils/pdfExportService';
-import { FileText, CheckCircle2, X, Image as ImageIcon, Layout, List } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { FileText, CheckCircle2, X, Image as ImageIcon, Layout, List, Loader2 } from 'lucide-react';
 import { calculateKPIs } from '../utils/calculations';
 import { getMissingExposureImpact } from '../utils/importHelpers';
 import { TARGET_SCENARIOS } from '../constants';
+import { exportToPDF } from '../utils/pdfExportService';
+import html2canvas from 'html2canvas';
 
 interface PDFExportCenterProps {
   onClose: () => void;
@@ -44,101 +43,80 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
   const handleGenerate = async () => {
       setIsGenerating(true);
       
-      // Determine Dataset to use
-      const isFullReport = scope === 'FULL_REPORT';
-      const targetIncidents = isFullReport ? allIncidents : incidents;
-      
-      // Recalculate Metrics if Full Report needed (independent of UI filters)
-      let targetMetrics = metrics;
-      let targetMissing = missingExposure;
-      
-      if (isFullReport) {
-          targetMetrics = calculateKPIs(allIncidents, exposureHours, exposureKm, settings, TARGET_SCENARIOS['Realista 2025']);
-          targetMissing = getMissingExposureImpact(allIncidents, exposureHours);
-      }
+      try {
+          // Determine Dataset to use
+          const isFullReport = scope === 'FULL_REPORT';
+          const targetIncidents = isFullReport ? allIncidents : incidents;
+          
+          // Recalculate Metrics if Full Report needed (independent of UI filters)
+          let targetMetrics = metrics;
+          let targetMissing = missingExposure;
+          
+          if (isFullReport) {
+              targetMetrics = calculateKPIs(allIncidents, exposureHours, exposureKm, settings, TARGET_SCENARIOS['Realista 2025']);
+              targetMissing = getMissingExposureImpact(allIncidents, exposureHours);
+          }
 
-      // 1. Capture Charts (Only valid if CURRENT_VIEW, otherwise charts in DOM don't match data)
-      let chartImage = undefined;
-      if (!isFullReport && (sections.trends || sections.kpis)) {
-          const chartElement = document.getElementById('dashboard-charts-container');
-          if (chartElement) {
-              try {
-                  const canvas = await html2canvas(chartElement, { scale: 2 });
-                  chartImage = canvas.toDataURL('image/png');
-              } catch (e) {
-                  console.warn("Could not capture charts", e);
+          // 1. Capture Charts (Only valid if CURRENT_VIEW, otherwise charts in DOM don't match data)
+          let chartImage = undefined;
+          if (!isFullReport && (sections.trends || sections.kpis)) {
+              const chartElement = document.getElementById('dashboard-charts-container');
+              if (chartElement) {
+                  try {
+                      const canvas = await html2canvas(chartElement, { scale: 2 });
+                      chartImage = canvas.toDataURL('image/png');
+                  } catch (e) {
+                      console.warn("Could not capture charts", e);
+                  }
               }
           }
-      }
 
-      // 2. Prepare Config
-      const config: PDFExportConfig = {
-          scope,
-          detailLevel: detail,
-          sections,
-          filters: isFullReport ? {
-              site: 'TODOS (Global)',
-              year: 'TODOS',
-              month: 'TODOS',
-              type: 'TODOS'
-          } : {
-              site: filters.site || 'Todos',
-              year: filters.year || 'Todos',
-              month: filters.month || 'Todos',
-              type: filters.type || 'Todos'
-          },
-          meta: { fileName: `SST_Reporte_${scope}_${new Date().getTime()}.pdf`, generatedBy: 'SST Metrics Pro' }
-      };
+          // 2. Prepare Config
+          const config: PDFExportConfig = {
+              scope,
+              detailLevel: detail,
+              sections,
+              filters: isFullReport ? {
+                  site: 'TODOS (Global)',
+                  year: 'TODOS',
+                  month: 'TODOS',
+                  type: 'TODOS'
+              } : {
+                  site: filters.site || 'Todos',
+                  year: filters.year || 'Todos',
+                  month: filters.month || 'Todos',
+                  type: filters.type || 'Todos'
+              },
+              meta: { fileName: `SST_Reporte_${scope}_${new Date().getTime()}.pdf`, generatedBy: 'SST Metrics Pro' }
+          };
 
-      // 3. Init Generator
-      const generator = new PDFGenerator(config);
-      generator.addCoverPage();
-
-      // 4. Build Sections with Correct Data
-      if (scope === 'FULL_REPORT' || sections.kpis) {
-          generator.addKPISection(targetMetrics, chartImage);
-      }
-
-      if (scope === 'FULL_REPORT' || sections.management) {
-          generator.addManagementSection(targetMetrics.top5Sites, targetMetrics.daysSinceList, targetMetrics.trendAlerts);
-      }
-
-      if (scope === 'FULL_REPORT' || sections.preventive) {
-          // Pass only Evolutions and Actions (Objectives removed)
-          generator.addPreventiveAnalysisSection(targetMetrics.siteEvolutions, targetMetrics.suggestedActions);
-      }
-
-      if (scope === 'FULL_REPORT' || sections.pendingTasks) {
-          generator.addPendingTasksSection(targetMissing);
-      }
-
-      if (scope === 'FULL_REPORT' || sections.rawTable || sections.normalizedTable) {
-          // Prepare data
-          // Force Full list if Full Appendix is selected, otherwise stick to Summary
-          const limit = detail === 'FULL_APPENDIX' ? targetIncidents.length : 15;
-          
-          const rows = targetIncidents.slice(0, limit).map(i => [
-              i.incident_id, i.fecha_evento, i.site, i.type, i.potential_risk, i.recordable_osha ? 'SI' : 'NO'
-          ]);
-          
-          generator.addTableSection(
-              "Listado de Incidentes", 
-              ['ID', 'Fecha', 'Sitio', 'Tipo', 'Severidad', 'Recordable'], 
-              rows, 
-              detail === 'SUMMARY' && targetIncidents.length > 15
+          // 3. Export using service
+          exportToPDF(
+              new Date().toISOString().split('T')[0],
+              targetIncidents,
+              [],
+              null,
+              {
+                  include2026Table: false,
+                  includeHistoryTable: false,
+                  includeTalk: false,
+                  includeFilters: true,
+                  filters: config.filters
+              },
+              config,
+              targetMetrics,
+              targetMissing,
+              chartImage
           );
-      }
 
-      if (sections.safetyTalk) {
-          // Safety talk uses today as reference if filters are broad
-          const date = new Date().toISOString().split('T')[0];
-          generator.addSafetyTalkSection(date, targetIncidents, targetIncidents); 
-      }
+          onClose();
 
-      // 5. Save
-      generator.finalSave(config.meta.fileName);
-      setIsGenerating(false);
-      onClose();
+      } catch (err) {
+          console.error("PDF Generation failed", err);
+          alert("Error generando PDF. Revise la consola.");
+      } finally {
+          setIsGenerating(false);
+      }
   };
 
   return (
@@ -251,7 +229,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
                             className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-lg flex justify-center items-center transition-all disabled:opacity-50"
                         >
                             {isGenerating ? (
-                                <>Generando PDF...</>
+                                <><Loader2 className="w-5 h-5 mr-2 animate-spin"/> Generando PDF...</>
                             ) : (
                                 <>
                                     <FileText className="w-5 h-5 mr-2"/> Generar PDF

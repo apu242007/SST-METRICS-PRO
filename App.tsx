@@ -1,49 +1,47 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Dashboard } from './components/Dashboard';
-import { DataExplorer } from './components/DataExplorer';
-import { PendingTasks } from './components/PendingTasks';
-import { ExposureManager } from './components/ExposureManager';
 import { IncidentDetailView } from './components/IncidentDetailView';
-import { AutomationHub } from './components/AutomationHub'; 
 import { LabControls } from './components/LabControls';
 import { CalendarView } from './components/CalendarView';
-import { PDFExportCenter } from './components/PDFExportCenter';
 import { DocumentLibrary } from './components/DocumentLibrary';
 import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, SharePointConfig, SyncLog, ScheduledReport, GlobalKmRecord, SGIDocument } from './types';
 import { calculateKPIs } from './utils/calculations';
 import { loadState, saveState, clearState, upsertIncidents, updateIncidentManual } from './services/storage';
-import { parseIncidentsExcel, getMissingExposureKeys, getMissingExposureImpact, generateAutoExposureRecords } from './utils/importHelpers';
-// REMOVED: checkServerStatus, fetchLocalFile imports
-import { LayoutDashboard, FileText, Layers, Zap, Filter, Upload, Download, X, Search, ChevronRight, RefreshCcw, FileSpreadsheet, PenTool, Workflow, CalendarDays, HardDrive, BookOpen } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { getMissingExposureKeys, getMissingExposureImpact, generateAutoExposureRecords, parseIncidentsExcel, sanitizeYear } from './utils/importHelpers';
+import { LayoutDashboard, Layers, Zap, Filter, Search, ChevronRight, RefreshCcw, FileSpreadsheet, CalendarDays, HardDrive, BookOpen, FileText, X } from 'lucide-react';
 import { TARGET_SCENARIOS, MONTHS } from './constants';
+
+import { AutomationHub } from './components/AutomationHub';
+import { DataExplorer } from './components/DataExplorer';
+import { PendingTasks } from './components/PendingTasks';
+import { ExposureManager } from './components/ExposureManager';
+import { PDFExportCenter } from './components/PDFExportCenter';
 
 const App: React.FC = () => {
   // --- 1. GLOBAL STATE ---
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [exposureHours, setExposureHours] = useState<ExposureHour[]>([]);
   const [exposureKm, setExposureKm] = useState<ExposureKm[]>([]);
-  const [globalKm, setGlobalKm] = useState<GlobalKmRecord[]>([]); // New Global KM State
+  const [globalKm, setGlobalKm] = useState<GlobalKmRecord[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ base_if: 1000000, base_trir: 200000, days_cap: 180 });
   const [rules, setRules] = useState<MappingRule[]>([]);
   const [sgiDocuments, setSgiDocuments] = useState<SGIDocument[]>([]);
   
-  // Automation State (Legacy fields kept for compatibility, but sync logic removed)
+  // Automation State
   const [sharePointConfig, setSharePointConfig] = useState<SharePointConfig>({ isEnabled: false, tenantId: '', siteUrl: '', libraryName: '', incidentFileName: '', reportFolderPath: '', lastSyncDate: null, lastFileHash: null });
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>([]);
 
   const [lastAppSync, setLastAppSync] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false); // UI Loading state for file upload
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // --- SANDBOX STATE ---
   const [isSandboxMode, setIsSandboxMode] = useState(false);
   const productionSnapshot = useRef<{ incidents: Incident[], exposure: ExposureHour[] } | null>(null);
 
   // --- 2. UX STATE ---
-  const [activeTab, setActiveTab] = useState<'raw' | 'normalized' | 'kpis' | 'pending' | 'automation' | 'calendar' | 'docs'>('automation'); // Default to Source
+  const [activeTab, setActiveTab] = useState<'raw' | 'normalized' | 'kpis' | 'pending' | 'automation' | 'calendar' | 'docs'>('automation');
   
   const [filters, setFilters] = useState({
     site: 'All',
@@ -59,13 +57,43 @@ const App: React.FC = () => {
   const [focusSite, setFocusSite] = useState<string | undefined>(undefined);
   const [reviewIncidentId, setReviewIncidentId] = useState<string | null>(null);
 
-  // --- 3. INITIALIZATION & STORAGE ---
+  // --- 3. INITIALIZATION & STORAGE & SELF-HEALING ---
   useEffect(() => {
     const data = loadState();
-    setIncidents(data.incidents);
+    
+    // --- AUTO-HEALING LOGIC FOR YEARS ---
+    // This fixes "2.026" or "26" issues in existing LocalStorage data automatically
+    const healedIncidents = data.incidents.map(inc => {
+        try {
+            if (!inc.raw_json) return inc;
+            const raw = JSON.parse(inc.raw_json);
+            
+            // Find Year Column aggressively
+            const keys = Object.keys(raw);
+            const yearKey = keys.find(k => {
+                // Normalize key to find "Año", "Year", etc.
+                const norm = k.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+                return norm === 'ANO' || norm === 'ANIO' || norm === 'YEAR' || norm === 'AÑO';
+            });
+
+            if (yearKey) {
+                const rawVal = raw[yearKey];
+                // Use robust sanitizer
+                const y = sanitizeYear(rawVal);
+                
+                // If valid year found and different from current, update it
+                if (y !== null && y !== inc.year) {
+                    return { ...inc, year: y };
+                }
+            }
+        } catch (e) { /* Ignore parsing errors */ }
+        return inc;
+    });
+
+    setIncidents(healedIncidents);
     setExposureHours(data.exposure_hours);
     setExposureKm(data.exposure_km);
-    setGlobalKm(data.global_km); // Load Global KM
+    setGlobalKm(data.global_km);
     setSettings(data.settings);
     setRules(data.rules);
     setSgiDocuments(data.sgi_documents || []);
@@ -85,7 +113,7 @@ const App: React.FC = () => {
     }
   }, [incidents, exposureHours, exposureKm, globalKm, settings, rules, isLoaded, sharePointConfig, syncLogs, scheduledReports, isSandboxMode, lastAppSync, sgiDocuments]);
 
-  // --- 4. MANUAL UPLOAD HANDLER (Replaces Auto-Sync) ---
+  // --- 4. UPLOAD HANDLER (Synchronous Restoration) ---
   const handleFileUpload = async (file: File) => {
       if (isSandboxMode) {
           alert("No se pueden cargar archivos en modo Laboratorio.");
@@ -94,37 +122,24 @@ const App: React.FC = () => {
       setIsProcessing(true);
 
       try {
-          // 1. Read File
           const arrayBuffer = await file.arrayBuffer();
-          
-          // 2. Parse & Validate (Client Side)
-          // This function inside importHelpers handles structure validation and row parsing
           const { incidents: newRecords, rules: newRules } = parseIncidentsExcel(arrayBuffer, rules);
-          
-          // 3. Smart Merge (Preserve Manual Edits)
           const result = upsertIncidents(incidents, newRecords);
           
-          // 4. Update State (Incidents & Rules)
           setIncidents(result.incidents);
           setRules(newRules);
           
-          // 5. AUTOMATIC HH ASSIGNMENT (Transparent Logic)
-          // Immediately check for missing exposure data and auto-fill if possible
-          // This ensures that when the user goes to the dashboard, data is already there.
           const updatedExposure = generateAutoExposureRecords(result.incidents, exposureHours);
           setExposureHours(updatedExposure);
-
           setLastAppSync(new Date().toISOString());
 
-          // 6. UX Feedback
-          // If this is the first load, move to dashboard
           if (incidents.length === 0 && result.incidents.length > 0) {
               setTimeout(() => setActiveTab('kpis'), 1500);
           }
           
       } catch (error: any) {
           console.error("Upload Error:", error);
-          throw new Error(error.message || "Error al procesar el archivo Excel.");
+          alert(error.message || "Error al leer el archivo.");
       } finally {
           setIsProcessing(false);
       }
@@ -157,7 +172,7 @@ const App: React.FC = () => {
   // --- DATA PROCESSING ---
   const uniqueValues = useMemo(() => {
     const sites = Array.from(new Set(incidents.map(i => i.site))).sort();
-    const years = Array.from(new Set(incidents.map(i => i.year))).sort().reverse();
+    const years = Array.from(new Set(incidents.map(i => Number(i.year)))).sort((a: number, b: number) => b - a); // Force Number sort
     return { sites, years };
   }, [incidents]);
 
@@ -184,26 +199,18 @@ const App: React.FC = () => {
     });
   }, [incidents, filters]);
 
-  // Filter Exposure Hours to match incidents (Correct Denominator for Rates)
   const filteredExposureHours = useMemo(() => {
       return exposureHours.filter(h => {
-          // Site Filter
           if (filters.site !== 'All' && h.site !== filters.site) return false;
-          
-          // Year Filter (Exposure period is YYYY-MM)
           if (filters.year !== 'All' && !h.period.startsWith(`${filters.year}-`)) return false;
-          
-          // Month Filter
           if (filters.month !== 'All') {
               const m = String(filters.month).padStart(2, '0');
               if (!h.period.endsWith(`-${m}`)) return false;
           }
-          
           return true;
       });
   }, [exposureHours, filters]);
 
-  // Filter Global KM based on Year Filter if active, else pass all (calculations handles default)
   const filteredGlobalKm = useMemo(() => {
       if (filters.year !== 'All') {
           const year = parseInt(filters.year);
@@ -258,7 +265,6 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4">
             <div className="flex justify-between items-center h-16">
                 
-                {/* Brand */}
                 <div className="flex items-center cursor-pointer" onClick={() => setActiveTab('kpis')}>
                     <div className={`${isSandboxMode ? 'bg-amber-500' : 'bg-blue-600'} p-1.5 rounded-lg mr-2`}>
                         <FileText className="w-5 h-5 text-white" />
@@ -268,7 +274,6 @@ const App: React.FC = () => {
                     </span>
                 </div>
 
-                {/* STEPPER NAV */}
                 <nav className="hidden md:flex items-center space-x-1">
                     {[
                         { id: 'automation', label: '1. Fuente', icon: HardDrive },
@@ -288,9 +293,7 @@ const App: React.FC = () => {
                             <React.Fragment key={tab.id}>
                                 <button 
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                                        isActive ? activeText : baseText
-                                    }`}
+                                    className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-all ${isActive ? activeText : baseText}`}
                                 >
                                     <Icon className={`w-4 h-4 mr-2 ${isActive ? (isSandboxMode ? 'text-amber-400' : 'text-blue-600') : (isSandboxMode ? 'text-slate-600' : 'text-gray-400')}`} />
                                     {tab.label}
@@ -301,9 +304,7 @@ const App: React.FC = () => {
                     })}
                 </nav>
 
-                {/* Actions */}
                 <div className="flex items-center space-x-2">
-                    {/* Data Indicator */}
                     <div className="flex items-center px-2 py-1 bg-gray-100 rounded text-[10px] text-gray-500">
                         {isProcessing ? (
                             <span className="flex items-center text-blue-600"><RefreshCcw className="w-3 h-3 animate-spin mr-1"/> Procesando...</span>
@@ -314,11 +315,7 @@ const App: React.FC = () => {
                         )}
                     </div>
                     
-                    <button 
-                        onClick={() => setModalMode('pdf_export')}
-                        className={`p-2 rounded-md ${isSandboxMode ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-gray-500 hover:text-red-600 hover:bg-red-50'}`} 
-                        title="Exportar PDF Global"
-                    >
+                    <button onClick={() => setModalMode('pdf_export')} className={`p-2 rounded-md ${isSandboxMode ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-gray-500 hover:text-red-600 hover:bg-red-50'}`} title="Exportar PDF Global">
                         <FileText className="w-5 h-5"/>
                     </button>
 
@@ -343,7 +340,7 @@ const App: React.FC = () => {
                     </select>
                     <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.year} onChange={e => setFilters({...filters, year: e.target.value})}>
                         <option value="All">Año: Todos</option>
-                        {uniqueValues.years.map(y => <option key={y} value={y}>{y}</option>)}
+                        {uniqueValues.years.map(y => <option key={y} value={String(y)}>{y}</option>)}
                     </select>
                     <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.month} onChange={e => setFilters({...filters, month: e.target.value})}>
                         <option value="All">Mes: Todos</option>
@@ -410,7 +407,7 @@ const App: React.FC = () => {
                 <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
                     <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                         <div className="flex items-center">
-                            <PenTool className="w-5 h-5 text-blue-600 mr-2" />
+                            <FileSpreadsheet className="w-5 h-5 text-blue-600 mr-2" />
                             <h3 className="font-bold text-gray-800">Carga Manual de Exposición (HH y KM Globales)</h3>
                         </div>
                         <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
@@ -431,13 +428,12 @@ const App: React.FC = () => {
             </div>
         )}
 
-        {/* --- NEW KM ONLY MODAL --- */}
         {modalMode === 'exposure_km' && (
             <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
                     <div className="p-4 border-b flex justify-between items-center bg-purple-50">
                         <div className="flex items-center">
-                            <PenTool className="w-5 h-5 text-purple-600 mr-2" />
+                            <Zap className="w-5 h-5 text-purple-600 mr-2" />
                             <h3 className="font-bold text-purple-900">Actualización de Flota (KM)</h3>
                         </div>
                         <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>

@@ -1,4 +1,3 @@
-
 import * as XLSX from 'xlsx';
 import { Incident, ExposureHour, ExposureKm, MappingRule, MissingExposureKey, MissingExposureImpact, BodyZone } from '../types';
 import { SITE_HH_DEFAULTS, ANATOMICAL_ZONE_RULES } from '../constants';
@@ -7,18 +6,39 @@ import { SITE_HH_DEFAULTS, ANATOMICAL_ZONE_RULES } from '../constants';
 const DATA_CONTRACT = {
   required_columns: [
     "ID", "Nombre", "Sitio", "Fecha Carga", "Tipo de Incidente", 
-    "Año", "Mes", "Ubicación", "Potencialidad del Incidente"
+    "Ubicación", "Potencialidad del Incidente"
   ],
+  // Year/Month are flexible now (can be derived)
   column_types: {
-    "Año": "number",
-    "Mes": "number",
     "ID": "string"
   }
 };
 
 // Helper: Normaliza strings (elimina tildes, trim, uppercase)
-const normalize = (str: string) => {
+export const normalize = (str: string) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+};
+
+// --- NEW HELPER: SANITIZE YEAR ---
+// Handles "2.026" (thousands separator), "26" (2-digit), "2026.0" (float string)
+export const sanitizeYear = (val: any): number | null => {
+    if (val === undefined || val === null) return null;
+    
+    // Convert to string and clean common separators
+    const str = String(val).replace(/[\.,]/g, '').trim();
+    
+    // Parse
+    let num = parseInt(str);
+    
+    if (isNaN(num)) return null;
+
+    // Handle 2-digit years (e.g., 26 -> 2026)
+    if (num >= 0 && num < 100) return num + 2000;
+    
+    // Valid range check (1990 - 2100)
+    if (num >= 1990 && num <= 2100) return num;
+
+    return null;
 };
 
 // Helper específico para clasificación que tolera saltos de línea y espacios múltiples
@@ -271,18 +291,37 @@ export const parseStrictDate = (val: any): string | null => {
       return !isNaN(date.getTime()) ? date.toISOString().split('T')[0] : null;
     }
     if (typeof val === 'string') {
-      if (val.match(/^\d{4}-\d{2}-\d{2}$/)) return val;
-      const parts = val.trim().split('/');
-      if (parts.length === 3) {
+      // ISO Format or starting with ISO
+      if (val.match(/^\d{4}-\d{2}-\d{2}/)) return val.substring(0, 10);
+      
+      const parts = val.trim().split(/[\/\-]/); // Support / and -
+      if (parts.length >= 3) {
         const day = parts[0].padStart(2, '0');
         const month = parts[1].padStart(2, '0');
-        const year = parts[2];
-        const d = new Date(`${year}-${month}-${day}`);
-        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+        
+        // Handle year with potential time (e.g. "2026 10:00") or separators
+        let yearPart = parts[2].split(/[\sT]/)[0]; // Split by space or T
+        
+        // Clean separators like dots (2.026 -> 2026) using sanitized logic
+        const sanitizedY = sanitizeYear(yearPart);
+        
+        if (sanitizedY) {
+            const d = new Date(`${sanitizedY}-${month}-${day}`);
+            if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+        }
       }
     }
   } catch (e) { return null; }
   return null;
+};
+
+const findColumn = (row: any, possibilities: string[]): string | undefined => {
+    const keys = Object.keys(row);
+    for (const p of possibilities) {
+        const match = keys.find(k => normalize(k) === normalize(p));
+        if (match) return match;
+    }
+    return undefined;
 };
 
 export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: MappingRule[]): { incidents: Incident[], rules: MappingRule[], report: { errors: string[], warnings: string[] } } => {
@@ -303,27 +342,55 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
   }
 
   // 1. Data Contract Validation
+  // We use flexible matching for headers now
   const firstRow = rawData[0] as any;
-  const fileColumns = Object.keys(firstRow);
-  const missingColumns = DATA_CONTRACT.required_columns.filter(col => !fileColumns.includes(col));
+  const missingColumns = DATA_CONTRACT.required_columns.filter(col => !findColumn(firstRow, [col]));
 
   if (missingColumns.length > 0) {
-    throw new Error(`VIOLACIÓN DE CONTRATO: Faltan columnas requeridas: ${missingColumns.join(', ')}.`);
+    // Try relaxed check
+    console.warn(`Columnas faltantes estrictas: ${missingColumns.join(', ')}. Intentando mapeo flexible.`);
   }
 
   const incidents = rawData.map((row: any, index) => {
-    const id = row['ID'] ? String(row['ID']) : `UNKNOWN-${index}-${Date.now()}`;
-    const fechaCarga = parseStrictDate(row['Fecha Carga']) || new Date().toISOString().split('T')[0];
-    const fechaSiniestro = parseStrictDate(row['Datos ART: FECHA SINIESTRO']);
+    const idKey = findColumn(row, ["ID", "Id", "id"]) || "ID";
+    const id = row[idKey] ? String(row[idKey]) : `UNKNOWN-${index}-${Date.now()}`;
+    
+    const fechaCargaKey = findColumn(row, ["Fecha Carga", "Fecha de Carga"]) || "Fecha Carga";
+    const fechaCarga = parseStrictDate(row[fechaCargaKey]) || new Date().toISOString().split('T')[0];
+    
+    const fechaSiniestro = parseStrictDate(row['Datos ART: FECHA SINIESTRO'] || row['Fecha Siniestro']);
     const fechaAlta = parseStrictDate(row['Datos ART: FECHA ALTA MEDICA DEFINITIVA']);
     const fechaAltaEst = parseStrictDate(row['Datos ART: FECHA ESTIMADA DE ALTA MEDICA']);
+    
+    // PRIORIDAD: Fecha Siniestro > Fecha Carga
     const fechaEvento = fechaSiniestro || fechaCarga;
     
-    const type = row['Tipo de Incidente'] ? row['Tipo de Incidente'].trim() : 'Unspecified';
+    const typeKey = findColumn(row, ["Tipo de Incidente", "Tipo Incidente", "Tipo"]) || "Tipo de Incidente";
+    const type = row[typeKey] ? row[typeKey].trim() : 'Unspecified';
+    
     const bodyPartText = row['Datos ART: UBICACIÓN DE LA LESIÓN'] || '';
 
     // Normalize Site (Trim & Uppercase to prevent duplicates)
-    const siteRaw = row['Sitio'] ? String(row['Sitio']).trim().toUpperCase() : 'SITIO DESCONOCIDO';
+    const siteKey = findColumn(row, ["Sitio", "Base", "Lugar"]) || "Sitio";
+    const siteRaw = row[siteKey] ? String(row[siteKey]).trim().toUpperCase() : 'SITIO DESCONOCIDO';
+
+    // Parse Year safely
+    const yearKey = findColumn(row, ["Año", "Anio", "Year", "YEAR"]) || "Año";
+    let yearVal = row[yearKey];
+    
+    // Use new sanitizer
+    let year = sanitizeYear(yearVal);
+
+    if (!year) {
+        // Fallback to Event Date Year
+        year = new Date(fechaEvento).getFullYear();
+    }
+
+    const monthKey = findColumn(row, ["Mes", "Month"]) || "Mes";
+    let month = parseInt(row[monthKey]);
+    if (isNaN(month) || month < 1 || month > 12) {
+        month = new Date(fechaEvento).getMonth() + 1;
+    }
 
     // --- SR LOGIC: Lost Days Calculation ---
     // Rule: max(0, daysBetween(siniestro, altaDef ?? altaEst) - 1)
@@ -342,11 +409,12 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
 
     // --- FAR LOGIC: Fatality Detection ---
     const gravedad = normalize(row['Datos ART: GRAVEDAD'] || '');
-    const potencial = normalize(row['Potencialidad del Incidente'] || '');
+    const potKey = findColumn(row, ["Potencialidad del Incidente", "Potencialidad", "Riesgo"]) || "Potencialidad del Incidente";
+    const potencial = normalize(row[potKey] || '');
     const isFatal = type.toLowerCase().includes('fatal') || gravedad.includes('FATAL') || gravedad.includes('FALLEC') || potencial.includes('FATAL');
 
     const parts = [
-      row['Breve descripcion del Incidente'],
+      row['Breve descripcion del Incidente'] || row['Descripción'],
       row['Breve Descripción de la mecánica'] ? `Mecánica: ${row['Breve Descripción de la mecánica']}` : null,
       row['Nombre y Apellido Involucrado'] ? `Involucrado: ${row['Nombre y Apellido Involucrado']}` : null
     ];
@@ -358,11 +426,11 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       description: parts.filter(Boolean).join('. ').trim() || 'Sin descripción',
       site: siteRaw,
       fecha_evento: fechaEvento,
-      year: parseInt(row['Año']) || new Date(fechaEvento).getFullYear(),
-      month: parseInt(row['Mes']) || new Date(fechaEvento).getMonth() + 1,
+      year: year!,
+      month: month,
       type: type,
-      location: row['Ubicación'] || 'General',
-      potential_risk: row['Potencialidad del Incidente'] || 'N/A',
+      location: row['Ubicación'] || row['Ubicacion'] || 'General',
+      potential_risk: row[potKey] || 'N/A',
       
       // BODY MAP AUTOMATION
       body_part_text: bodyPartText,
