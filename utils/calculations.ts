@@ -1,3 +1,4 @@
+
 import { Incident, ExposureHour, ExposureKm, DashboardMetrics, AppSettings, ParetoData, HeatmapData, KPITargets, BodyZone, SiteRanking, SiteDaysSafe, TrendAlert, SiteEvolution, SuggestedAction, GlobalKmRecord } from "../types";
 import { RISK_WEIGHTS, EMPTY_DASHBOARD_METRICS } from "../constants";
 import { getSmartSuggestedActions } from "./textAnalysis";
@@ -91,11 +92,6 @@ export const calculateKPIs = (
   
   // SLG-24h
   const slg24h = incidents.length > 0 ? Math.round((incidents.filter(i => i.is_verified).length / incidents.length) * 100) : 100;
-
-  // --- D. System Efficacy (ISO 45001) ---
-  const lcer = 95; 
-  const iap = 92; 
-  const capa_otc = incidents.length > 0 ? Math.round((incidents.filter(i => i.is_verified).length / incidents.length) * 90) : 100;
 
   // --- Other Metrics ---
   const transitLaboralIncidents = incidents.filter(i => i.is_transit_laboral).length;
@@ -315,11 +311,6 @@ export const calculateKPIs = (
     // C. Regulatory
     incidenceRateSRT,
     slg24h,
-
-    // D. System Efficacy
-    lcer,
-    iap,
-    capa_otc,
 
     // Legacy/Operational
     incidenceRatePct,

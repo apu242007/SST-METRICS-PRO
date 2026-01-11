@@ -1,3 +1,4 @@
+
 import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone, DashboardMetrics } from "./types";
 
 export const DEFAULT_KPI_SETTINGS: AppSettings = {
@@ -28,9 +29,6 @@ export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
   t2_pser: 0,
   incidenceRateSRT: 0,
   slg24h: 0,
-  lcer: 0,
-  iap: 0,
-  capa_otc: 0,
   incidenceRatePct: 0,
   ifatRate: 0,
   envIncidentsMajor: 0,
@@ -127,30 +125,6 @@ export const KPI_DEFINITIONS = {
         denominatorLabel: "Total Denunciables",
         factor: 100
     },
-    lcer: {
-        title: "LCER (Legal Compliance Evaluation Rate)",
-        description: "Porcentaje de cumplimiento de requisitos legales aplicables en materia de HSE.",
-        formula: "( Requisitos Cumplidos / Requisitos Totales ) * 100",
-        numeratorLabel: "Req. Cumplidos",
-        denominatorLabel: "Req. Totales",
-        factor: 100
-    },
-    iap: {
-        title: "IAP (Internal Audit Performance)",
-        description: "Porcentaje de avance del plan anual de auditorías internas.",
-        formula: "( Auditorías Ejecutadas / Auditorías Planificadas ) * 100",
-        numeratorLabel: "Ejecutadas",
-        denominatorLabel: "Planificadas",
-        factor: 100
-    },
-    capa_otc: {
-        title: "CAPA OTC (On Time Closure)",
-        description: "Porcentaje de acciones correctivas y preventivas cerradas en tiempo y forma.",
-        formula: "( Acciones Cerradas a Tiempo / Acciones Totales Vencidas ) * 100",
-        numeratorLabel: "Cerradas OK",
-        denominatorLabel: "Total Comprometido",
-        factor: 100
-    },
     ifatRate: {
         title: "IFAT (Índice de Frecuencia de Accidentes de Tránsito)",
         description: "Frecuencia de accidentes viales laborales por millón de kilómetros recorridos.",
@@ -173,10 +147,6 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       t1_pser: 0.50,     // 200k
       t2_pser: 1.50,     // 200k
       
-      lcer: 90,          // Legal Compliance %
-      iap: 85,           // Audit Performance %
-      capa_otc: 80,      // Action Closure %
-      
       ifat_km: 3.00,     
       max_events_trir: 25,
       max_events_lti: 10,
@@ -195,10 +165,6 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
 
       t1_pser: 0.10,
       t2_pser: 1.00,
-
-      lcer: 98,
-      iap: 98,
-      capa_otc: 95,
 
       ifat_km: 2.00,
       max_events_trir: 15,

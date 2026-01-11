@@ -6,9 +6,9 @@ import {
 } from 'recharts';
 import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, GlobalKmRecord } from '../types';
 import { calculateKPIs, generateParetoData } from '../utils/calculations';
-import { getMissingExposureImpact, getMissingKmKeys } from '../utils/importHelpers';
+import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, Zap, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, ListChecks, Flame, FileCheck, CheckSquare, HeartPulse, Calculator, X, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2 } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
 interface DashboardProps {
@@ -348,15 +348,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
       </div>
 
-      {/* C & D. REGULATORY & MANAGEMENT */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* C & D. REGULATORY (MODIFIED GRID) */}
+      <div className="grid grid-cols-1 gap-8">
           
           {/* C. Regulatory */}
           <div className="space-y-4">
                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
                   <Scale className="w-4 h-4 mr-2" /> Regulatorio (SRT Argentina)
               </h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <KPICard 
                       title="Ind. Incidencia" 
                       value={metrics.incidenceRateSRT} 
@@ -382,51 +382,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   />
               </div>
           </div>
-
-          {/* D. System Efficacy */}
-          <div className="space-y-4">
-               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
-                  <CheckSquare className="w-4 h-4 mr-2" /> Eficacia del Sistema (ISO 45001)
-              </h3>
-              <div className="grid grid-cols-3 gap-4">
-                  <KPICard 
-                      title="Legal (LCER)" 
-                      value={`${metrics.lcer}%`} 
-                      target={`${targets.lcer}%`}
-                      icon={Scale}
-                      colorClass="bg-purple-100 text-purple-600"
-                      borderClass="border-purple-400"
-                      subtext="Cumplimiento"
-                      reverseLogic={true}
-                      blocked={false}
-                      onClick={() => handleCardClick('lcer', metrics.lcer, metrics.lcer, 100)}
-                  />
-                  <KPICard 
-                      title="Auditoría (IAP)" 
-                      value={`${metrics.iap}%`} 
-                      target={`${targets.iap}%`}
-                      icon={ListChecks}
-                      colorClass="bg-blue-100 text-blue-600"
-                      borderClass="border-blue-400"
-                      subtext="Ejecución Plan"
-                      reverseLogic={true}
-                      blocked={false}
-                      onClick={() => handleCardClick('iap', metrics.iap, metrics.iap, 100)}
-                  />
-                  <KPICard 
-                      title="Acciones (CAPA)" 
-                      value={`${metrics.capa_otc}%`} 
-                      target={`${targets.capa_otc}%`}
-                      icon={Zap}
-                      colorClass="bg-yellow-100 text-yellow-600"
-                      borderClass="border-yellow-400"
-                      subtext="Cierre en Tiempo"
-                      reverseLogic={true}
-                      blocked={false}
-                      onClick={() => handleCardClick('capa_otc', metrics.capa_otc, metrics.capa_otc, 100)}
-                  />
-              </div>
-          </div>
+          
+          {/* Section D (System Efficacy) removed as per request */}
       </div>
 
       {/* 6. CHARTS ROW (Risk Trend & Pareto) */}

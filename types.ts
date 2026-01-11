@@ -1,3 +1,4 @@
+
 export enum IncidentType {
   FirstAid = 'First Aid',
   MedicalTreatment = 'Medical Treatment',
@@ -158,11 +159,6 @@ export interface KPITargets {
   // Regulatory / Other
   ifat_km: number;    // IFAT Rate
   
-  // System Efficacy
-  lcer: number;       // Legal Compliance %
-  iap: number;        // Internal Audit Performance %
-  capa_otc: number;   // Action Closure %
-
   // Legacy/Helper targets
   max_events_trir: number;
   max_events_lti: number;
@@ -240,11 +236,6 @@ export interface DashboardMetrics {
   // --- C. Regulatory (SRT Argentina) ---
   incidenceRateSRT: number | null; // (Baja cases * 1000) / Workers
   slg24h: number | null;    // % compliance reporting <= 24h
-
-  // --- D. System Efficacy (ISO 45001) ---
-  lcer: number;     // Legal Compliance % (Mocked/Derived)
-  iap: number;      // Audit Performance % (Mocked/Derived)
-  capa_otc: number; // Actions Closed on Time %
 
   // Legacy / Operational
   incidenceRatePct: number | null; // Legacy
