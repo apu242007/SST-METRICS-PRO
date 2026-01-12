@@ -1,4 +1,5 @@
 
+
 export enum IncidentType {
   FirstAid = 'First Aid',
   MedicalTreatment = 'Medical Treatment',
@@ -24,25 +25,24 @@ export interface ChangeLogEntry {
   field: string;
   old_value: any;
   new_value: any;
-  user: string; // 'System (Import)' | 'User (Manual)'
+  user: string;
 }
 
-// --- SGI MODULE TYPES ---
 export interface SGIDocument {
-  code: string;       // PK: e.g., "PO-SGI-002"
-  title: string;      // e.g., "INVESTIGACIÓN DE INCIDENTES"
-  type: string;       // Derived from prefix: PO, PG, IT, MSGI
-  area: string;       // Derived from middle: SGI, FAB, ADM, ING
-  objective?: string; // Content description
-  scope?: string;     // New: "ALCANCE" from CSV
-  associatedDocs?: string; // New: "DOCUMENTOS ASOCIADOS"
-  version?: string;   // e.g., "04"
-  link?: string;      // URL to file (placeholder)
+  code: string;
+  title: string;
+  type: string;
+  area: string;
+  objective?: string;
+  scope?: string;
+  associatedDocs?: string;
+  version?: string;
+  link?: string;
   tags?: string[];
 }
 
 export interface LinkedDocument {
-  id: string; // UUID for the link
+  id: string;
   document_code: string;
   document_title: string;
   association_type: 'NON_COMPLIANCE' | 'REFERENCE' | 'NOT_APPLICABLE' | 'TRAINING_GAP';
@@ -51,82 +51,57 @@ export interface LinkedDocument {
 }
 
 export interface Incident {
-  // PK
   incident_id: string;
-
-  // Imported Fields (Source: Excel)
   name: string;
   description: string;
   site: string;
   type: string;
   location: string;
-  potential_risk: string; // "Potencialidad del Incidente" (Alta/Media/Baja)
-  
-  // Body Map Fields (New)
-  body_part_text: string; // Raw text from "Datos ART: UBICACIÓN DE LA LESIÓN"
-  affected_zones: BodyZone[]; // Parsed zones
-  
-  // Manual / Calculated Fields (Source: User / Defaults)
-  fecha_evento: string; // YYYY-MM-DD
+  potential_risk: string;
+  body_part_text: string;
+  affected_zones: BodyZone[];
+  fecha_evento: string;
   year: number;
   month: number;
-  
   recordable_osha: boolean;
   lti_case: boolean;
-  
-  // Classification Flags
-  is_transit_laboral: boolean; // "Accidente Vehicular/Tránsito" (Included in IFAT)
-  is_in_itinere: boolean; // "Accidente In Itinere" (Excluded from IFAT)
-  is_transit: boolean; // Legacy/General flag (Union of above)
-  
-  // NEW: Client Communication Flag
+  is_transit_laboral: boolean;
+  is_in_itinere: boolean;
+  is_transit: boolean;
   com_cliente: boolean;
-
   fatality: boolean;
-  
   days_away: number;
   days_restricted: number;
   job_transfer: boolean;
-
-  // PROCESS SAFETY (API RP 754)
   is_process_safety_tier_1: boolean;
   is_process_safety_tier_2: boolean;
-  severity_points_tier1?: number; // For T1 PSESR
-  
-  // Data Integrity & Meta
-  raw_json: string; // JSON string of original excel row
+  severity_points_tier1?: number;
+  raw_json: string;
   is_verified: boolean;
   updated_at: string;
-  
-  // Audit
   change_log?: ChangeLogEntry[];
   version?: number;
-
-  // SGI Integration
   linked_documents?: LinkedDocument[];
 }
 
 export interface ExposureHour {
   id: string;
   site: string;
-  period: string; // YYYY-MM
+  period: string;
   worker_type: 'total' | 'own' | 'contractor';
   hours: number;
 }
 
-// SIMPLIFIED: Global KM Entry (Annual or YTD)
 export interface GlobalKmRecord {
   year: number;
   value: number;
   last_updated: string;
 }
 
-// Deprecated per-site ExposureKm interface kept only if needed for migration, 
-// but logically replaced by GlobalKmRecord for IFAT.
 export interface ExposureKm {
   id: string;
   site: string;
-  period: string; // YYYY-MM
+  period: string;
   km: number;
 }
 
@@ -145,21 +120,14 @@ export interface AppSettings {
 }
 
 export interface KPITargets {
-  // Occupational Safety
-  trir: number;       // 200k base
-  ltif: number;       // 1M base
-  dart: number;       // 200k base
-  sr: number;         // Severity Rate (1000 base)
-  far: number;        // Fatality Rate (100M base)
-  
-  // Process Safety
-  t1_pser: number;    // Tier 1 Rate (200k)
-  t2_pser: number;    // Tier 2 Rate (200k)
-  
-  // Regulatory / Other
-  ifat_km: number;    // IFAT Rate
-  
-  // Legacy/Helper targets
+  trir: number;
+  ltif: number;
+  dart: number;
+  sr: number;
+  far: number;
+  t1_pser: number;
+  t2_pser: number;
+  ifat_km: number;
   max_events_trir: number;
   max_events_lti: number;
   incidence_rate_pct: number; 
@@ -171,7 +139,6 @@ export interface KPITargets {
 
 export type TargetScenarioType = 'Realista 2025' | 'Metas 2026';
 
-// --- NEW MANAGEMENT KPI INTERFACES ---
 export interface SiteRanking {
   site: string;
   count: number;
@@ -182,20 +149,19 @@ export interface SiteDaysSafe {
   site: string;
   days: number;
   lastDate: string;
-  status: 'critical' | 'warning' | 'safe'; // Critical <=30, Warning 31-90, Safe >90
+  status: 'critical' | 'warning' | 'safe';
 }
 
 export interface TrendAlert {
   site: string;
-  history: { month: number, count: number }[]; // Last 3 months sequence
+  history: { month: number, count: number }[];
   trend: 'increasing';
 }
 
-// --- ADVANCED PREVENTIVE INTERFACES ---
 export interface SiteEvolution {
   site: string;
-  currentAvg: number; // Last 3 months
-  prevAvg: number; // Previous 3 months
+  currentAvg: number;
+  prevAvg: number;
   variationPct: number;
   status: 'improving' | 'stable' | 'deteriorating';
 }
@@ -204,60 +170,45 @@ export interface SuggestedAction {
   site: string;
   reason: 'deterioration' | 'trend_alert';
   title: string;
-  actions: string[]; // List of 3 specific actions
+  actions: string[];
 }
 
 export interface DashboardMetrics {
-  // Exposure
   totalManHours: number;
   totalKM: number; 
-  
-  // --- A. Occupational Safety (Lagging) ---
   totalIncidents: number;
   totalRecordables: number;
   totalLTI: number;
   totalFatalities: number;
-  totalDaysLost: number; // For SR
+  totalDaysLost: number;
   totalDARTCases: number;
-
-  trir: number | null;      // (Recordables * 200k) / H
-  dart: number | null;      // (DART cases * 200k) / H
-  ltif: number | null;      // (LTI * 1M) / H
-  sr: number | null;        // (Days Lost * 1000) / H (ILO Standard)
-  alos: number | null;      // Avg Length of Stay (Days Lost / LTI)
-  far: number | null;       // (Fatalities * 100M) / H
-
-  // --- B. Process Safety (API RP 754) ---
+  trir: number | null;
+  dart: number | null;
+  ltif: number | null;
+  sr: number | null;
+  alos: number | null;
+  far: number | null;
   t1_count: number;
   t2_count: number;
-  t1_pser: number | null;   // (T1 * 200k) / H
-  t2_pser: number | null;   // (T2 * 200k) / H
-
-  // --- C. Regulatory (SRT Argentina) ---
-  incidenceRateSRT: number | null; // (Baja cases * 1000) / Workers
-  slg24h: number | null;    // % compliance reporting <= 24h
-
-  // Legacy / Operational
-  incidenceRatePct: number | null; // Legacy
+  t1_pser: number | null;
+  t2_pser: number | null;
+  incidenceRateSRT: number | null;
+  slg24h: number | null;
+  incidenceRatePct: number | null;
   ifatRate: number | null;
   envIncidentsMajor: number;
   envIncidentsMinor: number;
   probabilityIndexLabel: string;
   hipoRate: number | null;
   hipoCount: number;
-
   forecast_trir: number | null;
   forecast_lti_count: number;
   forecast_recordable_count: number;
-  
   risk_index_total: number;
   risk_index_rate: number | null;
-
   cnt_transit_laboral: number;
   cnt_in_itinere: number;
   rate_in_itinere_hh: number | null;
-
-  // Management Arrays
   top5Sites: SiteRanking[];
   daysSinceList: SiteDaysSafe[];
   trendAlerts: TrendAlert[];
@@ -274,19 +225,21 @@ export interface ParetoData {
 export interface HeatmapData {
   site: string;
   month: number;
-  value: number; // Count or Risk
+  value: number;
 }
 
-// ... Automation Types remain same ...
 export interface SharePointConfig {
   isEnabled: boolean;
   tenantId: string;
+  clientId: string;
   siteUrl: string;
   libraryName: string; 
   incidentFileName: string; 
-  reportFolderPath: string; 
+  authStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
   lastSyncDate: string | null;
   lastFileHash: string | null;
+  // Added reportFolderPath to resolve "Object literal may only specify known properties" error in storage.ts
+  reportFolderPath?: string;
 }
 
 export interface SyncLog {
@@ -325,25 +278,24 @@ export interface SiteQualityScore {
 
 export interface MissingExposureImpact {
   site: string;
-  missingPeriods: string[]; // YYYY-MM
+  missingPeriods: string[];
   affectedIncidentsCount: number;
-  affectedSevereCount: number; // Recordable or LTI
+  affectedSevereCount: number;
 }
 
-// --- PDF EXPORT TYPES ---
 export interface PDFExportConfig {
   scope: 'CURRENT_VIEW' | 'FULL_REPORT';
   detailLevel: 'SUMMARY' | 'FULL_APPENDIX';
   sections: {
     kpis: boolean;
-    trends: boolean; // Includes pareto and risk trend
+    trends: boolean;
     rawTable: boolean;
     normalizedTable: boolean;
-    calendar: boolean; // Current view calendar or selected date
+    calendar: boolean;
     pendingTasks: boolean;
-    safetyTalk: boolean; // Only if a date is selected or context allows
-    management: boolean; // Top 5, Days Safe
-    preventive: boolean; // Evolution, Actions, Trends
+    safetyTalk: boolean;
+    management: boolean;
+    preventive: boolean;
   };
   filters: {
     site: string;
@@ -357,13 +309,12 @@ export interface PDFExportConfig {
   }
 }
 
-// --- SERVER SYNC TYPES (NEW) ---
 export interface ServerSyncStatus {
   online: boolean;
   path: string;
   source: 'ENV' | 'DEFAULT' | 'UNKNOWN';
-  lastModifiedFile: string | null; // ISO Date from OS
-  lastModifiedApp: string | null; // ISO Date of last successful ingest
+  lastModifiedFile: string | null;
+  lastModifiedApp: string | null;
   status: 'OK' | 'NO_FILE' | 'FILE_LOCKED' | 'INVALID_FORMAT' | 'ERROR' | 'SYNCING';
   message: string;
   recordsCount?: number;

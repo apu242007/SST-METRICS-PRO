@@ -1,15 +1,16 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Dashboard } from './components/Dashboard';
-import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, GlobalKmRecord, SGIDocument } from './types';
+import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, GlobalKmRecord, SGIDocument, SharePointConfig } from './types';
 import { calculateKPIs } from './utils/calculations';
 import { loadState, saveState, clearState, upsertIncidents, updateIncidentManual } from './services/storage';
-import { parseIncidentsExcel, generateAutoExposureRecords, getMissingExposureImpact } from './utils/importHelpers';
+import { parseIncidentsExcel, generateAutoExposureRecords } from './utils/importHelpers';
+import { fetchFileFromSharePoint } from './services/sharepointService';
 import { 
   LayoutDashboard, Layers, Zap, 
   HardDrive, BookOpen, CalendarDays, 
   Settings2, Search, Bell, RefreshCcw, FileText, X, Sparkles
 } from 'lucide-react';
-import { TARGET_SCENARIOS } from './constants';
 
 import { AutomationHub } from './components/AutomationHub';
 import { DataExplorer } from './components/DataExplorer';
@@ -21,12 +22,23 @@ const App: React.FC = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [exposureHours, setExposureHours] = useState<ExposureHour[]>([]);
   const [globalKm, setGlobalKm] = useState<GlobalKmRecord[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ base_if: 1000000, base_trir: 200000, days_cap: 180 });
+  const [settings, setSettings] = useState<AppSettings>({ base_if: 1000, base_trir: 200000, days_cap: 180 });
   const [rules, setRules] = useState<MappingRule[]>([]);
   const [sgiDocuments, setSgiDocuments] = useState<SGIDocument[]>([]);
+  const [sharepointConfig, setSharepointConfig] = useState<SharePointConfig>({
+      isEnabled: false,
+      tenantId: '',
+      clientId: '',
+      siteUrl: 'https://tackersrl505.sharepoint.com/sites/QHSE',
+      libraryName: 'Repo Incidentes iAuditor',
+      incidentFileName: 'basedatosincidentes.xlsx',
+      authStatus: 'DISCONNECTED',
+      lastSyncDate: null,
+      lastFileHash: null
+  });
+  
   const [activeTab, setActiveTab] = useState<'kpis' | 'automation' | 'raw' | 'pending' | 'docs' | 'calendar'>('automation');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastAppSync, setLastAppSync] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -37,7 +49,7 @@ const App: React.FC = () => {
     setSettings(data.settings);
     setRules(data.rules);
     setSgiDocuments(data.sgi_documents || []);
-    if (data.sharepoint_config?.lastSyncDate) setLastAppSync(data.sharepoint_config.lastSyncDate);
+    if (data.sharepoint_config) setSharepointConfig(data.sharepoint_config);
     setIsLoaded(true);
   }, []);
 
@@ -45,25 +57,46 @@ const App: React.FC = () => {
     if (isLoaded) {
       saveState({ 
           incidents, exposure_hours: exposureHours, exposure_km: [], global_km: globalKm, settings, rules, load_history: [],
-          sharepoint_config: { isEnabled: false, tenantId: '', siteUrl: '', libraryName: '', incidentFileName: '', reportFolderPath: '', lastSyncDate: lastAppSync, lastFileHash: null }, 
+          sharepoint_config: sharepointConfig, 
           sync_logs: [], scheduled_reports: [], sgi_documents: sgiDocuments
       });
     }
-  }, [incidents, exposureHours, globalKm, settings, rules, isLoaded, lastAppSync, sgiDocuments]);
+  }, [incidents, exposureHours, globalKm, settings, rules, isLoaded, sharepointConfig, sgiDocuments]);
 
-  const handleFileUpload = async (file: File) => {
+  const processExcelData = async (arrayBuffer: ArrayBuffer) => {
       setIsProcessing(true);
       try {
-          const arrayBuffer = await file.arrayBuffer();
           const { incidents: newRecords, rules: newRules } = parseIncidentsExcel(arrayBuffer, rules);
           const result = upsertIncidents(incidents, newRecords);
           setIncidents(result.incidents);
           setRules(newRules);
           setExposureHours(generateAutoExposureRecords(result.incidents, exposureHours));
-          setLastAppSync(new Date().toISOString());
+          
+          if (sharepointConfig.authStatus === 'CONNECTED') {
+              setSharepointConfig(prev => ({ ...prev, lastSyncDate: new Date().toISOString() }));
+          }
+          
           setTimeout(() => setActiveTab('kpis'), 800);
       } catch (error: any) {
-          alert(error.message || "Error al leer el archivo.");
+          alert(error.message || "Error al procesar los datos.");
+      } finally {
+          setIsProcessing(false);
+      }
+  };
+
+  const handleFileUpload = async (file: File) => {
+      const arrayBuffer = await file.arrayBuffer();
+      await processExcelData(arrayBuffer);
+  };
+
+  const handleSharePointSync = async () => {
+      setIsProcessing(true);
+      try {
+          const { arrayBuffer, hash } = await fetchFileFromSharePoint(sharepointConfig);
+          await processExcelData(arrayBuffer);
+          setSharepointConfig(prev => ({ ...prev, lastFileHash: hash }));
+      } catch (e: any) {
+          alert("Sincronización fallida: " + e.message);
       } finally {
           setIsProcessing(false);
       }
@@ -73,8 +106,6 @@ const App: React.FC = () => {
 
   return (
     <div className="premium-canvas no-scrollbar">
-      
-      {/* 1. SIDEBAR FLOTANTE (ESTILO SAAS 2025) */}
       <aside className="sidebar-saas">
           <div className="w-16 h-16 bg-gradient-to-tr from-indigo-600 to-violet-600 rounded-[1.5rem] flex items-center justify-center shadow-2xl shadow-indigo-200 mb-4 group cursor-pointer" onClick={() => setActiveTab('kpis')}>
               <Sparkles className="w-8 h-8 text-white transition-transform group-hover:rotate-12" />
@@ -95,10 +126,7 @@ const App: React.FC = () => {
           </div>
       </aside>
 
-      {/* 2. MAIN VIEWPORT */}
       <main className="flex-1 flex flex-col gap-6 overflow-hidden">
-          
-          {/* HEADER MINIMALISTA */}
           <header className="flex justify-between items-end h-24 px-4 pb-4">
               <div>
                   <h1 className="text-4xl font-black text-slate-900 tracking-tighter">
@@ -121,11 +149,20 @@ const App: React.FC = () => {
               </div>
           </header>
 
-          {/* CONTENIDO (CANVAS) */}
           <div className="flex-1 overflow-y-auto no-scrollbar pr-4">
               <div className="animate-entrance stagger-1">
-                {activeTab === 'automation' && <AutomationHub incidents={incidents} lastUpdate={lastAppSync} onFileUpload={handleFileUpload} isProcessing={isProcessing} />}
-                {activeTab === 'kpis' && <Dashboard incidents={incidents} exposureHours={exposureHours} exposureKm={[]} globalKmRecords={globalKm} settings={settings} />}
+                {activeTab === 'automation' && (
+                    <AutomationHub 
+                        incidents={incidents} 
+                        lastUpdate={sharepointConfig.lastSyncDate} 
+                        onFileUpload={handleFileUpload} 
+                        isProcessing={isProcessing} 
+                        sharepointConfig={sharepointConfig}
+                        onUpdateSharePoint={setSharepointConfig}
+                        onTriggerSync={handleSharePointSync}
+                    />
+                )}
+                {activeTab === 'kpis' && <Dashboard incidents={incidents} exposureHours={exposureHours} globalKmRecords={globalKm} settings={settings} />}
                 {activeTab === 'raw' && <DataExplorer incidents={incidents} mode="normalized" onUpdateIncident={(u) => setIncidents(updateIncidentManual(incidents, u))} />}
                 {activeTab === 'pending' && <PendingTasks incidents={incidents} exposureHours={exposureHours} exposureKm={[]} onNavigateToExposure={() => {}} onNavigateToReview={() => setActiveTab('raw')} />}
                 {activeTab === 'docs' && <DocumentLibrary documents={sgiDocuments} />}

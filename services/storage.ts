@@ -1,4 +1,5 @@
 
+
 import { Incident, ExposureHour, ExposureKm, AppSettings, MappingRule, ChangeLogEntry, SharePointConfig, SyncLog, ScheduledReport, GlobalKmRecord, SGIDocument } from "../types";
 import { SEED_INCIDENTS, SEED_EXPOSURE_HOURS, SEED_EXPOSURE_KM, SEED_SETTINGS, SEED_RULES, SEED_DOCUMENTS } from "../utils/seedData";
 
@@ -23,10 +24,14 @@ export interface AppState {
 const DEFAULT_SHAREPOINT_CONFIG: SharePointConfig = {
     isEnabled: false,
     tenantId: '',
+    // Added missing clientId property to comply with SharePointConfig interface
+    clientId: '',
     siteUrl: 'https://company.sharepoint.com/sites/SST',
     libraryName: 'Documentos Compartidos',
     incidentFileName: 'basedatosincidentes.xlsx',
     reportFolderPath: 'Reportes_Automaticos',
+    // Added missing authStatus property to comply with SharePointConfig interface
+    authStatus: 'DISCONNECTED',
     lastSyncDate: null,
     lastFileHash: null
 };
