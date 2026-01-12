@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo } from 'react';
 import { Incident } from '../types';
 import { MONTHS } from '../constants';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Filter, Download, History, MapPin, AlertTriangle, Info, X, Zap, FileText, ChevronDown, ChevronUp, Printer, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Filter, Download, History, MapPin, AlertTriangle, Info, X, Zap, FileText, ChevronDown, ChevronUp, Printer, BookOpen, Mail, Loader2, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generateSafetyTalk, SafetyTalk } from '../utils/safetyTalkGenerator';
 import { exportToPDF } from '../utils/pdfExportService';
@@ -25,6 +26,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
   const [generatedTalk, setGeneratedTalk] = useState<SafetyTalk | null>(null);
   const [isTalkExpanded, setIsTalkExpanded] = useState(false);
   const [showPdfOptions, setShowPdfOptions] = useState(false);
+  
+  // Email Sending State
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [emailMessage, setEmailMessage] = useState<string | null>(null);
+
   const [pdfConfig, setPdfConfig] = useState({
     include2026Table: true,
     includeHistoryTable: true,
@@ -90,6 +97,41 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
         { ...pdfConfig, filters: { site: filterSite, type: filterType } }
     );
     setShowPdfOptions(false);
+  };
+
+  const handleSendPdfEmail = async () => {
+      if (!selectedDate) return;
+      
+      setIsSendingEmail(true);
+      setEmailStatus('idle');
+      setEmailMessage(null);
+
+      try {
+          const res = await fetch(`/api/email/daily/pdf?date=${selectedDate}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}), // Use default MAIL_TO from env
+          });
+          
+          const data = await res.json();
+          
+          if (!data.ok) throw new Error(data.error || "Error al enviar");
+          
+          setEmailStatus('success');
+          setEmailMessage(`Enviado correctamente a ${data.to}`);
+          
+          // Clear status after 3 seconds
+          setTimeout(() => {
+              setEmailStatus('idle');
+              setEmailMessage(null);
+          }, 3000);
+
+      } catch (e: any) {
+          setEmailStatus('error');
+          setEmailMessage(e.message || "Error de conexión con el servidor");
+      } finally {
+          setIsSendingEmail(false);
+      }
   };
 
   const getSeverityColor = (risk: string) => {
@@ -201,7 +243,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                         return (
                             <div 
                                 key={dateKey}
-                                onClick={() => { setSelectedDate(dateKey); setGeneratedTalk(null); }}
+                                onClick={() => { setSelectedDate(dateKey); setGeneratedTalk(null); setEmailStatus('idle'); }}
                                 className={`bg-white min-h-[100px] p-2 relative cursor-pointer hover:bg-blue-50 transition-colors flex flex-col ${isSelected ? 'ring-2 ring-inset ring-blue-500 z-10' : ''}`}
                             >
                                 <span className="text-sm font-medium text-gray-700">{dayNumber}</span>
@@ -230,12 +272,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ incidents }) => {
                         </h3>
                         {selectedDate && (
                             <div className="flex space-x-2">
+                                <button 
+                                    onClick={handleSendPdfEmail} 
+                                    disabled={isSendingEmail}
+                                    className={`p-1.5 rounded transition-colors ${
+                                        emailStatus === 'success' ? 'bg-green-100 text-green-700' :
+                                        emailStatus === 'error' ? 'bg-red-100 text-red-700' :
+                                        'text-gray-600 hover:bg-blue-50 hover:text-blue-700'
+                                    }`} 
+                                    title="Enviar PDF por Mail"
+                                >
+                                    {isSendingEmail ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : emailStatus === 'success' ? (
+                                        <CheckCircle2 className="w-4 h-4" />
+                                    ) : (
+                                        <Mail className="w-4 h-4" />
+                                    )}
+                                </button>
                                 <button onClick={() => setShowPdfOptions(true)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Exportar Reporte Diario PDF">
                                     <Printer className="w-4 h-4" />
                                 </button>
                             </div>
                         )}
                     </div>
+
+                    {/* Email Status Message */}
+                    {emailMessage && (
+                        <div className={`px-4 py-2 text-xs font-bold text-center ${emailStatus === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                            {emailMessage}
+                        </div>
+                    )}
 
                     <div className="p-4 space-y-4">
                         {!selectedDate ? (

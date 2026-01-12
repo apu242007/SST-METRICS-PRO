@@ -1,562 +1,188 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { 
-  Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  Line, ComposedChart
+  Area, AreaChart, ResponsiveContainer, 
+  Bar, ComposedChart, XAxis, YAxis, Tooltip, Cell
 } from 'recharts';
-import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, GlobalKmRecord } from '../types';
+import { Incident, ExposureHour, GlobalKmRecord, AppSettings } from '../types';
 import { calculateKPIs, generateParetoData } from '../utils/calculations';
-import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
-import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon } from 'lucide-react';
+import { TARGET_SCENARIOS } from '../constants';
+import { 
+  Activity, TrendingDown, Truck, Shield, 
+  Zap, Siren, ArrowUpRight, AlertCircle
+} from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
-interface DashboardProps {
-  incidents: Incident[];
-  exposureHours: ExposureHour[];
-  exposureKm: ExposureKm[];
-  globalKmRecords: GlobalKmRecord[];
-  settings: AppSettings;
-  onNavigateToExposure?: (site?: string) => void;
-  onOpenKmModal?: () => void; // NEW PROP
-  onDrillDown?: (criteria: { type?: string, period?: string, category?: 'LTI' | 'Recordable' | 'Transit' }) => void;
-}
-
-// Data for the Target Evolution Table
-const TARGET_COMPARISON_DATA = [
-  { label: 'TRIR (OSHA)', m25: '2.5', m26: '1.2', var: '↓ 52%' },
-  { label: 'LTIF (IOGP)', m25: '5.0', m26: '2.5', var: '↓ 50%' },
-  { label: 'DART (OSHA)', m25: '1.2', m26: '0.6', var: '↓ 50%' },
-  { label: 'SR (Severidad)', m25: '0.20', m26: '0.15', var: '↓ 25%' },
-  { label: 'FAR (Fatalidad)', m25: '2', m26: '0', var: '↓ 100% (objetivo “cero”)' },
-  { label: 'T1 PSER (Tier 1)', m25: '0.5', m26: '0.1', var: '↓ 80%' },
-  { label: 'T2 PSER (Tier 2)', m25: '1.5', m26: '1.0', var: '↓ 33%' },
-  { label: 'SLG-24H', m25: '100%', m26: '100%', var: '= (sin cambios)' },
-];
-
-// Helper Card Component
-const KPICard = ({ title, value, target, subtext, icon: Icon, colorClass, borderClass, onClick, tooltip, footer, blocked, reverseLogic, unit }: any) => {
-  const isNull = value === null || value === undefined || blocked;
-  
-  let statusColor = "text-gray-400";
-  if (!isNull && target !== undefined) {
-      // Standard: Lower is better. Reverse: Higher is better (e.g. Audit Compliance)
-      const isGood = reverseLogic ? value >= target : value <= target;
-      const isWarning = reverseLogic ? value >= target * 0.8 && value < target : value <= target * 1.2 && value > target;
-      
-      if (isGood) statusColor = "text-green-700 bg-green-100 px-1.5 py-0.5 rounded";
-      else if (isWarning) statusColor = "text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded";
-      else statusColor = "text-red-700 bg-red-100 px-1.5 py-0.5 rounded";
-  }
-
-  // String target handling (e.g. "Bajo")
-  if (typeof target === 'string' && typeof value === 'string') {
-       if (value === target) statusColor = "text-green-700 bg-green-100 px-1.5 py-0.5 rounded";
-       else statusColor = "text-red-700 bg-red-100 px-1.5 py-0.5 rounded";
-  }
+const MegaCard = ({ title, value, unit, icon: Icon, color, status, target, subtext }: any) => {
+  const isDanger = status === 'danger';
+  const isGood = status === 'good';
   
   return (
-    <div 
-        onClick={blocked ? undefined : onClick}
-        className={`bg-white p-4 rounded-xl shadow-sm border-l-4 ${borderClass} border-t border-r border-b border-gray-100 flex flex-col justify-between transition-all hover:shadow-md cursor-pointer h-full min-h-[140px] relative ${blocked ? 'opacity-70' : ''}`}
-        title={tooltip}
-    >
-      <div className="flex justify-between items-start mb-2">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{title}</p>
-          <Icon className={`w-5 h-5 ${colorClass.replace('bg-', 'text-')}`} />
-      </div>
-      
-      <div className="flex items-baseline mb-2">
-            {isNull ? (
-                <span className="text-3xl font-bold text-gray-300 select-none" title={blocked ? "Tasa bloqueada: Faltan horas hombre" : "Falta denominador"}>&mdash;</span>
-            ) : (
-                <div className="flex items-baseline">
-                    <h3 className="text-3xl font-bold text-gray-900 truncate">{value}</h3>
-                    {unit && <span className="ml-1 text-sm text-gray-400 font-medium">{unit}</span>}
+    <div className="mega-card-saas group relative overflow-hidden">
+        {/* Background Decor */}
+        <div className={`absolute top-0 right-0 w-32 h-32 blur-[80px] rounded-full opacity-20 transition-all duration-700 group-hover:scale-150 bg-${color}-500`}></div>
+        
+        <div className="flex justify-between items-start mb-12 relative z-10">
+            <div className={`p-5 rounded-[1.75rem] bg-${color}-50 text-${color}-600 shadow-sm border border-${color}-100/50`}>
+                <Icon className="w-8 h-8" />
+            </div>
+            {target && (
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target 2025</span>
+                    <span className="text-sm font-black text-slate-800">{target}</span>
                 </div>
             )}
-            {!isNull && target !== undefined && (
-                <div className="ml-auto">
-                    <span className={`text-[10px] font-bold uppercase ${statusColor} flex items-center`}>
-                        <Target className="w-3 h-3 mr-1" /> Meta: {target}
-                    </span>
-                </div>
-            )}
-      </div>
-      
-      <div className="text-xs text-gray-500 mt-auto pt-2 border-t border-gray-50 flex justify-between items-center">
-          {blocked ? <span className="text-red-500 font-bold">Datos incompletos</span> : <span>{subtext}</span>}
-          {footer && !blocked && <span className="font-medium text-blue-600">{footer}</span>}
-      </div>
+        </div>
+
+        <div className="relative z-10 flex-1">
+            <p className="text-xs font-black uppercase tracking-widest mb-2 text-slate-400">{title}</p>
+            <div className="flex items-baseline gap-2">
+                <h3 className="text-7xl font-black tracking-tighter tabular-nums text-slate-900 group-hover:text-indigo-600 transition-colors">
+                    {value ?? '0'}
+                </h3>
+                {unit && <span className="text-xl font-bold text-slate-300">{unit}</span>}
+            </div>
+        </div>
+
+        <div className="mt-12 flex items-center justify-between relative z-10 pt-8 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+                {isDanger ? <AlertCircle className="w-4 h-4 text-rose-500" /> : <ArrowUpRight className="w-4 h-4 text-emerald-500" />}
+                <p className="text-[11px] font-bold text-slate-500 tracking-tight">{subtext}</p>
+            </div>
+            <div className={`status-badge ${
+                isDanger ? 'bg-rose-50 border-rose-100 text-rose-600' : 
+                isGood ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 
+                'bg-amber-50 border-amber-100 text-amber-600'
+            }`}>
+                {status === 'danger' ? 'Crítico' : status === 'good' ? 'Óptimo' : 'En Observación'}
+            </div>
+        </div>
     </div>
   );
 };
 
-// --- METRIC DETAIL MODAL ---
-const MetricDetailModal = ({ detail, onClose }: { detail: any, onClose: () => void }) => {
-    if (!detail) return null;
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-gray-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center">
-                    <div className="flex items-center">
-                        <Calculator className="w-5 h-5 text-blue-600 mr-2" />
-                        <h3 className="font-bold text-gray-800">{detail.title}</h3>
-                    </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
-                </div>
-                <div className="p-6 space-y-6">
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-1">Descripción</h4>
-                        <p className="text-sm text-gray-700 leading-relaxed">{detail.description}</p>
-                    </div>
-
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                        <h4 className="text-xs font-bold text-blue-700 uppercase mb-3 flex items-center">
-                            <Activity className="w-3 h-3 mr-1"/> Fórmula de Cálculo
-                        </h4>
-                        <p className="text-xs font-mono text-blue-900 bg-white p-2 rounded border border-blue-200 mb-4 text-center">
-                            {detail.formula}
-                        </p>
-                        
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center text-sm border-b border-blue-200 pb-1">
-                                <span className="text-blue-600 font-medium">{detail.numeratorLabel}:</span>
-                                <span className="font-bold text-gray-800">{detail.num !== undefined ? detail.num.toLocaleString() : '-'}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm border-b border-blue-200 pb-1">
-                                <span className="text-blue-600 font-medium">Factor:</span>
-                                <span className="font-bold text-gray-800">x {detail.factor ? detail.factor.toLocaleString() : '1'}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm">
-                                <span className="text-blue-600 font-medium">{detail.denominatorLabel}:</span>
-                                <span className="font-bold text-gray-800">{detail.den !== undefined ? detail.den.toLocaleString() : '-'}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-2">
-                        <span className="text-xs font-bold text-gray-500 uppercase">Resultado Actual</span>
-                        <span className="text-2xl font-bold text-blue-600">{detail.value !== null ? detail.value : '—'}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export const Dashboard: React.FC<DashboardProps> = ({ 
-    incidents, exposureHours, exposureKm, globalKmRecords, settings, 
-    onNavigateToExposure, onOpenKmModal, onDrillDown 
+export const Dashboard: React.FC<{incidents: Incident[], exposureHours: ExposureHour[], globalKmRecords: GlobalKmRecord[], settings: AppSettings}> = ({ 
+    incidents, exposureHours, globalKmRecords, settings 
 }) => {
-  const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
-  const [paretoView, setParetoView] = useState<'location' | 'type'>('type');
-  const [selectedMetric, setSelectedMetric] = useState<any | null>(null);
-  const [showTargetsTable, setShowTargetsTable] = useState(false);
-  
-  const targets = TARGET_SCENARIOS[selectedScenario];
-  
-  // MAIN METRICS Calculation
-  const metrics = useMemo(() => calculateKPIs(incidents, exposureHours, exposureKm, settings, targets, globalKmRecords), [incidents, exposureHours, exposureKm, settings, targets, globalKmRecords]);
-  
-  // Sorted Impact Analysis (Missing HH)
-  const missingImpact = useMemo(() => getMissingExposureImpact(incidents, exposureHours), [incidents, exposureHours]);
-  const isRatesBlocked = missingImpact.length > 0;
-  const isIfatBlocked = !metrics.totalKM || metrics.totalKM === 0;
+  const targets = TARGET_SCENARIOS['Realista 2025'];
+  const metrics = useMemo(() => calculateKPIs(incidents, exposureHours, [], settings, targets, globalKmRecords), [incidents, exposureHours, settings, globalKmRecords]);
+  const paretoData = useMemo(() => generateParetoData(incidents, 'type'), [incidents]);
 
-  // CHART DATA GENERATORS
-  const paretoData = useMemo(() => generateParetoData(incidents, paretoView), [incidents, paretoView]);
-  
-  // Risk Trend Data
-  const trendData = useMemo(() => {
-    const periods = Array.from(new Set([
-        ...exposureHours.map(e => e.period),
-        ...incidents.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
-    ])).sort();
-
-    return periods.map(period => {
-        const [year, month] = period.split('-').map(Number);
-        const sliceIncidents = incidents.filter(i => i.year === year && i.month === month);
-        const sliceHours = exposureHours.filter(e => e.period === period);
-        
-        const m = calculateKPIs(sliceIncidents, sliceHours, [], settings);
-        
-        return {
-            name: period,
-            Risk: m.risk_index_total,
-            TRIR: m.trir,
-            LTIR: m.ltif, // Using LTIF here for trend
-            TargetTRIR: targets.trir
-        };
-    });
-  }, [incidents, exposureHours, settings, targets]);
-
-  const handleCardClick = (kpiKey: keyof typeof KPI_DEFINITIONS, value: any, num: number, den: number) => {
-      const def = KPI_DEFINITIONS[kpiKey];
-      if (def) {
-          setSelectedMetric({
-              ...def,
-              value,
-              num,
-              den
-          });
-      }
+  const determineStatus = (val: number | null, target: number) => {
+    if (!val || val === 0) return 'good';
+    return val <= target ? 'good' : (val <= target * 1.5 ? 'warning' : 'danger');
   };
 
-  // Dynamic Status Logic for Process Safety
-  const isT1Good = metrics.t1_pser !== null && metrics.t1_pser <= targets.t1_pser;
-  const isT2Good = metrics.t2_pser !== null && metrics.t2_pser <= targets.t2_pser;
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-12 pb-20">
       
-      {selectedMetric && <MetricDetailModal detail={selectedMetric} onClose={() => setSelectedMetric(null)} />}
-
-      {/* TOP BAR: Scenario & Alerts */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-           <div>
-               <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                   <Activity className="w-6 h-6 mr-2 text-blue-600" />
-                   Tablero Corporativo HSE
-               </h2>
-               <p className="text-xs text-gray-500 mt-1">
-                   Estándares: OSHA (200k), IOGP (1M), API RP 754, ISO 45001.
-               </p>
-           </div>
-           
-           <div className="flex items-center space-x-4">
-                <button 
-                    onClick={() => setShowTargetsTable(!showTargetsTable)}
-                    className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${showTargetsTable ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}
-                >
-                    <TableIcon className="w-4 h-4 mr-2" />
-                    {showTargetsTable ? 'Ocultar Evolución' : 'Ver Plan Evolución'}
-                    {showTargetsTable ? <ChevronUp className="w-3 h-3 ml-2"/> : <ChevronDown className="w-3 h-3 ml-2"/>}
-                </button>
-
-                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1.5">
-                    <span className="text-xs font-bold text-gray-500 mx-2 uppercase flex items-center">
-                        <Target className="w-4 h-4 mr-1 text-yellow-500" /> Metas:
-                    </span>
-                    <select 
-                        value={selectedScenario} 
-                        onChange={(e) => setSelectedScenario(e.target.value as TargetScenarioType)}
-                        className="text-sm border-none bg-transparent font-bold text-gray-800 focus:ring-0 cursor-pointer"
-                    >
-                        <option value="Realista 2025">Realista (2025)</option>
-                        <option value="Metas 2026">Metas 2026</option>
-                    </select>
-                </div>
-           </div>
-      </div>
-
-      {/* COMPARISON TABLE COLLAPSIBLE */}
-      {showTargetsTable && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in slide-in-from-top-2 duration-300">
-              <div className="p-4 bg-slate-50 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase flex items-center">
-                      <TrendingDown className="w-4 h-4 mr-2 text-green-600"/> Evolución de Metas Corporativas (2025 vs 2026)
-                  </h3>
+      {/* 1. MEGA CARDS GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <MegaCard 
+            title="TRIR (Tasa)" 
+            value={metrics.trir} 
+            unit="pts"
+            color="indigo"
+            target={targets.trir}
+            status={determineStatus(metrics.trir, targets.trir)}
+            icon={Activity}
+            subtext={`Forecast: ${metrics.forecast_trir ?? '0.00'}`}
+          />
+          <MegaCard 
+            title="LTIF (Incapacitantes)" 
+            value={metrics.ltif} 
+            unit="pts"
+            color="rose"
+            target={targets.ltif}
+            status={determineStatus(metrics.ltif, targets.ltif)}
+            icon={TrendingDown}
+            subtext={`${metrics.totalLTI} eventos con baja registrados.`}
+          />
+          <div className="flex flex-col gap-6">
+              <div className="mega-card-saas p-8 flex items-center gap-6 group hover:-translate-y-2">
+                  <div className="p-5 bg-slate-900 text-white rounded-3xl group-hover:scale-110 transition-transform"><Truck className="w-7 h-7" /></div>
+                  <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">IFAT (Vial)</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-black text-slate-900">{metrics.ifatRate ?? '0.00'}</span>
+                        <span className="text-xs font-bold text-slate-400">Rate</span>
+                      </div>
+                  </div>
               </div>
-              <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                      <thead className="bg-gray-50">
-                          <tr>
-                              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Indicador</th>
-                              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Meta 2025</th>
-                              <th className="px-6 py-3 text-right text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50/50">Meta 2026</th>
-                              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Variación</th>
-                          </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                          {TARGET_COMPARISON_DATA.map((row, idx) => (
-                              <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                                  <td className="px-6 py-3 text-gray-900 font-bold">{row.label}</td>
-                                  <td className="px-6 py-3 text-right text-gray-600 font-mono">{row.m25}</td>
-                                  <td className="px-6 py-3 text-right text-blue-700 font-mono font-bold bg-blue-50/30">{row.m26}</td>
-                                  <td className={`px-6 py-3 text-right font-bold text-xs ${row.var.includes('↓') ? 'text-green-600' : 'text-gray-400'}`}>
-                                      {row.var}
-                                  </td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
-          </div>
-      )}
-
-      {/* MISSING HH ALERTS */}
-      {isRatesBlocked && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
-             <div className="flex items-center">
-                 <AlertTriangle className="w-5 h-5 text-red-600 mr-3" />
-                 <div>
-                     <h3 className="text-sm font-bold text-red-900">Datos Incompletos</h3>
-                     <p className="text-xs text-red-800">Faltan Horas Hombre en {missingImpact.length} sitios. Las tasas están bloqueadas.</p>
-                 </div>
-             </div>
-             <button onClick={() => onNavigateToExposure && onNavigateToExposure()} className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700">Completar</button>
-          </div>
-      )}
-
-      {/* A. OCCUPATIONAL SAFETY */}
-      <div className="space-y-4">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
-              <HeartPulse className="w-4 h-4 mr-2" /> Seguridad Ocupacional (Lagging)
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <KPICard 
-                  title="TRIR (OSHA)" 
-                  value={metrics.trir} 
-                  target={targets.trir}
-                  icon={Activity}
-                  colorClass="bg-blue-100 text-blue-600"
-                  borderClass="border-blue-400"
-                  subtext="Base 200k Horas"
-                  footer={`Forecast: ${metrics.forecast_trir ?? '-'}`}
-                  blocked={isRatesBlocked}
-                  onClick={() => handleCardClick('trir', metrics.trir, metrics.totalRecordables, metrics.totalManHours)}
-              />
-              <KPICard 
-                  title="LTIF (IOGP)" 
-                  value={metrics.ltif} 
-                  target={targets.ltif}
-                  icon={TrendingDown}
-                  colorClass="bg-orange-100 text-orange-600"
-                  borderClass="border-orange-400"
-                  subtext="Base 1M Horas"
-                  blocked={isRatesBlocked}
-                  onClick={() => handleCardClick('ltif', metrics.ltif, metrics.totalLTI, metrics.totalManHours)}
-              />
-              <KPICard 
-                  title="DART (OSHA)" 
-                  value={metrics.dart} 
-                  target={targets.dart}
-                  icon={AlertTriangle}
-                  colorClass="bg-indigo-100 text-indigo-600"
-                  borderClass="border-indigo-400"
-                  subtext="Días Perd/Rest/Trans"
-                  blocked={isRatesBlocked}
-                  onClick={() => handleCardClick('dart', metrics.dart, metrics.totalDARTCases, metrics.totalManHours)}
-              />
-              <KPICard 
-                  title="SR (Severidad)" 
-                  value={metrics.sr} 
-                  target={targets.sr}
-                  icon={Clock}
-                  colorClass="bg-gray-100 text-gray-600"
-                  borderClass="border-gray-400"
-                  subtext="Días/1k Horas (ILO)"
-                  blocked={isRatesBlocked}
-                  onClick={() => handleCardClick('sr', metrics.sr, metrics.totalDaysLost, metrics.totalManHours)}
-              />
-              <KPICard 
-                  title="FAR (Fatalidad)" 
-                  value={metrics.far} 
-                  target={targets.far}
-                  icon={Siren}
-                  colorClass="bg-red-100 text-red-600"
-                  borderClass="border-red-400"
-                  subtext="Base 100M Horas"
-                  blocked={isRatesBlocked}
-                  onClick={() => handleCardClick('far', metrics.far, metrics.totalFatalities, metrics.totalManHours)}
-              />
-          </div>
-      </div>
-
-      {/* B. PROCESS SAFETY */}
-      <div className="space-y-4">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
-              <Flame className="w-4 h-4 mr-2" /> Seguridad de Procesos (API RP 754)
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-               <KPICard 
-                  title="T1 PSER (Tier 1)" 
-                  value={metrics.t1_pser} 
-                  target={targets.t1_pser}
-                  icon={isT1Good ? CheckCircle2 : AlertTriangle}
-                  colorClass={isT1Good ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}
-                  borderClass={isT1Good ? "border-green-600" : "border-red-600"}
-                  subtext={`${metrics.t1_count} eventos mayores`}
-                  blocked={isRatesBlocked}
-                  onClick={() => handleCardClick('t1_pser', metrics.t1_pser, metrics.t1_count, metrics.totalManHours)}
-              />
-              <KPICard 
-                  title="T2 PSER (Tier 2)" 
-                  value={metrics.t2_pser} 
-                  target={targets.t2_pser}
-                  icon={isT2Good ? CheckCircle2 : AlertTriangle}
-                  colorClass={isT2Good ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}
-                  borderClass={isT2Good ? "border-green-500" : "border-orange-500"}
-                  subtext={`${metrics.t2_count} eventos menores`}
-                  blocked={isRatesBlocked}
-                  onClick={() => handleCardClick('t2_pser', metrics.t2_pser, metrics.t2_count, metrics.totalManHours)}
-              />
-              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 col-span-2 flex items-center justify-between">
-                  <div className="text-xs text-gray-500">
-                      <p className="font-bold mb-1">Definiciones API 754:</p>
-                      <ul className="list-disc ml-4 space-y-1">
-                          <li>Tier 1: Pérdida de contención mayor (LOPC) con consecuencias severas.</li>
-                          <li>Tier 2: LOPC de menor magnitud o activación de sistemas de seguridad.</li>
-                      </ul>
+              <div className="mega-card-saas p-8 flex items-center gap-6 group hover:-translate-y-2 bg-emerald-600 text-white border-transparent">
+                  <div className="p-5 bg-white/20 rounded-3xl group-hover:rotate-12 transition-transform"><Shield className="w-7 h-7" /></div>
+                  <div>
+                      <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">Compliance</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-black">{metrics.slg24h}%</span>
+                        <span className="text-xs font-bold text-white/40">SLG-24h</span>
+                      </div>
                   </div>
               </div>
           </div>
       </div>
 
-      {/* C & D. REGULATORY (MODIFIED GRID) */}
-      <div className="grid grid-cols-1 gap-8">
+      {/* 2. ANALYTICS AREA */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           
-          {/* C. Regulatory */}
-          <div className="space-y-4">
-               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
-                  <Scale className="w-4 h-4 mr-2" /> Regulatorio (SRT Argentina)
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <KPICard 
-                      title="Ind. Incidencia" 
-                      value={metrics.incidenceRateSRT} 
-                      target={undefined}
-                      icon={Users}
-                      colorClass="bg-teal-100 text-teal-600"
-                      borderClass="border-teal-400"
-                      subtext="Casos x 1000 / Trabajadores"
-                      blocked={isRatesBlocked}
-                      onClick={() => handleCardClick('incidenceRateSRT', metrics.incidenceRateSRT, metrics.totalLTI, metrics.totalManHours / 200)}
-                  />
-                   <KPICard 
-                      title="SLG-24h" 
-                      value={`${metrics.slg24h}%`} 
-                      target="100%"
-                      icon={FileCheck}
-                      colorClass="bg-green-100 text-green-600"
-                      borderClass="border-green-400"
-                      subtext="Denuncia SRT <= 24hs"
-                      reverseLogic={true}
-                      blocked={false}
-                      onClick={() => handleCardClick('slg24h', metrics.slg24h, incidents.filter(i => i.is_verified).length, incidents.length)} // Simplified for mock
-                  />
+          <div className="lg:col-span-8 mega-card-saas p-12 h-[600px] flex flex-col">
+              <div className="flex justify-between items-start mb-10">
+                  <div>
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tighter">Concentración del <span className="text-indigo-600">Riesgo</span></h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Análisis de Pareto 80/20</p>
+                  </div>
+                  <div className="p-3 bg-indigo-50 rounded-2xl"><Zap className="w-6 h-6 text-indigo-600" /></div>
+              </div>
+              
+              <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={paretoData}>
+                          <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={60} stroke="#94A3B8" fontWeight="bold" />
+                          <YAxis yAxisId="left" fontSize={10} tickLine={false} axisLine={false} stroke="#94A3B8" />
+                          <Tooltip contentStyle={{borderRadius: '2rem', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)'}} />
+                          <Bar yAxisId="left" dataKey="count" radius={[12, 12, 0, 0]} barSize={60}>
+                              {paretoData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={index === 0 ? '#4F46E5' : '#E2E8F0'} />
+                              ))}
+                          </Bar>
+                      </ComposedChart>
+                  </ResponsiveContainer>
               </div>
           </div>
-          
-          {/* Section D (System Efficacy) removed as per request */}
-      </div>
 
-      {/* 6. CHARTS ROW (Risk Trend & Pareto) */}
-      <div id="dashboard-charts-container" className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-2 rounded-xl min-w-0">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-w-0 flex flex-col">
-               <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                   <TrendingUp className="w-4 h-4 mr-2 text-orange-500" /> Evolución Índice de Riesgo
-               </h3>
-               <div className="h-64 w-full min-w-0 relative">
-                   {trendData.length > 0 ? (
-                       <ResponsiveContainer width="100%" height="100%">
-                           <ComposedChart data={trendData}>
-                               <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                               <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false}/>
-                               <YAxis yAxisId="left" fontSize={10} tickLine={false} axisLine={false}/>
-                               <YAxis yAxisId="right" orientation="right" fontSize={10} tickLine={false} axisLine={false}/>
-                               <Tooltip contentStyle={{borderRadius: '8px', border:'none', boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}/>
-                               <Legend />
-                               <Bar yAxisId="left" dataKey="Risk" name="Puntos Riesgo" fill="#fb923c" radius={[4,4,0,0]} barSize={20} />
-                               {!isRatesBlocked && <Line yAxisId="right" type="monotone" dataKey="TRIR" name="TRIR" stroke="#3b82f6" strokeWidth={2} dot={{r:3}} />}
-                               {!isRatesBlocked && <Line yAxisId="right" type="monotone" dataKey="LTIF" name="LTIF" stroke="#ef4444" strokeWidth={2} dot={{r:3}} />}
-                           </ComposedChart>
-                       </ResponsiveContainer>
-                   ) : (
-                       <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm italic">
-                           Sin datos para visualizar tendencias.
-                       </div>
-                   )}
-               </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-w-0 flex flex-col">
-               <div className="flex justify-between items-center mb-4">
-                   <h3 className="font-bold text-gray-800 flex items-center">
-                       <BarChart2 className="w-4 h-4 mr-2 text-blue-500" /> Pareto 80/20
-                   </h3>
-                   <div className="flex space-x-2 text-xs">
-                       <button onClick={() => setParetoView('type')} className={`px-2 py-1 rounded ${paretoView==='type'?'bg-blue-100 text-blue-700':'bg-gray-100'}`}>Por Tipo</button>
-                       <button onClick={() => setParetoView('location')} className={`px-2 py-1 rounded ${paretoView==='location'?'bg-blue-100 text-blue-700':'bg-gray-100'}`}>Por Ubicación</button>
+          <div className="lg:col-span-4 mega-card-saas bg-slate-900 p-12 flex flex-col justify-between text-white border-transparent">
+               <div className="relative z-10">
+                   <div className="flex items-center gap-4 mb-10">
+                       <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20"><Siren className="w-7 h-7 text-indigo-400" /></div>
+                       <h3 className="text-3xl font-black tracking-tighter">Process Safety</h3>
+                   </div>
+                   
+                   <div className="space-y-12">
+                        <div>
+                            <div className="flex justify-between items-end mb-4">
+                                <span className="text-slate-400 text-xs font-black uppercase tracking-widest">Tier 1 Events</span>
+                                <span className="text-6xl font-black">{metrics.t1_count}</span>
+                            </div>
+                            <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500 transition-all duration-1000" style={{width: `${Math.min(100, (metrics.t1_pser || 0) * 100)}%`}}></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="flex justify-between items-end mb-4">
+                                <span className="text-slate-400 text-xs font-black uppercase tracking-widest">Tier 2 Events</span>
+                                <span className="text-6xl font-black">{metrics.t2_count}</span>
+                            </div>
+                            <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-400 transition-all duration-1000" style={{width: `${Math.min(100, (metrics.t2_pser || 0) * 50)}%`}}></div>
+                            </div>
+                        </div>
                    </div>
                </div>
-               <div className="h-64 w-full min-w-0 relative">
-                   {paretoData.length > 0 ? (
-                       <ResponsiveContainer width="100%" height="100%">
-                           <ComposedChart data={paretoData} onClick={(d: any) => d && d.activePayload && onDrillDown && onDrillDown({ type: d.activePayload[0].payload.name })}>
-                               <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                               <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={40}/>
-                               <YAxis yAxisId="left" fontSize={10} tickLine={false} axisLine={false}/>
-                               <YAxis yAxisId="right" orientation="right" unit="%" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]}/>
-                               <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}}/>
-                               <Bar yAxisId="left" dataKey="count" name="Cantidad" fill="#64748b" barSize={30} radius={[4,4,0,0]} />
-                               <Line yAxisId="right" type="monotone" dataKey="cumulativePercentage" name="% Acumulado" stroke="#ef4444" strokeWidth={2} dot={{r:3}} />
-                           </ComposedChart>
-                       </ResponsiveContainer>
-                   ) : (
-                       <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm italic">
-                           Sin datos para visualizar Pareto.
-                       </div>
-                   )}
-               </div>
+               
+               <p className="text-[10px] text-slate-500 italic leading-relaxed pt-10 border-t border-white/5">"Tier 1 representa la pérdida de contención mayor según API RP 754."</p>
           </div>
       </div>
       
-      {/* 7. HEATMAP & TRANSIT */}
-      <div className="min-w-0">
-          <div className="min-h-[500px] w-full">
-              <HeatmapMatrix incidents={incidents} exposureHours={exposureHours} />
-          </div>
-      </div>
-      
-       <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
-          <div className="flex items-center mb-6">
-              <Truck className="w-6 h-6 mr-3 text-purple-600" />
-              <div>
-                  <h3 className="text-lg font-bold text-slate-800">Módulo de Gestión Vial</h3>
-                  <p className="text-xs text-slate-500">Separación estricta: Tránsito Laboral (IFAT) vs In Itinere (Commuting).</p>
-              </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className={`bg-white p-4 rounded-lg shadow-sm border-l-4 ${isIfatBlocked ? 'border-gray-400' : 'border-purple-500'}`}>
-                  <h4 className="text-xs font-bold text-purple-600 uppercase mb-2">IFAT Rate (Laboral)</h4>
-                  <div className="flex items-baseline">
-                      <span className="text-3xl font-bold text-slate-900">{metrics.ifatRate ?? '—'}</span>
-                      <span className="ml-2 text-xs text-slate-500">/ 1M KM</span>
-                  </div>
-                  <div className="mt-2 text-xs text-slate-400">
-                      Target 2026: ≤ {TARGET_SCENARIOS['Metas 2026'].ifat_km} • {metrics.cnt_transit_laboral} eventos
-                  </div>
-                  {isIfatBlocked && (
-                      <div className="mt-2">
-                          <p className="text-[10px] text-red-600 font-bold mb-1">Faltan KM recorridos para calcular IFAT.</p>
-                          <button 
-                            onClick={() => onOpenKmModal ? onOpenKmModal() : (onNavigateToExposure && onNavigateToExposure())} 
-                            className="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold"
-                          >
-                            Cargar KM
-                          </button>
-                      </div>
-                  )}
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-400">
-                  <h4 className="text-xs font-bold text-indigo-500 uppercase mb-2">In Itinere (Commuting)</h4>
-                  <div className="flex items-baseline">
-                      <span className="text-3xl font-bold text-slate-900">{metrics.cnt_in_itinere}</span>
-                      <span className="ml-2 text-xs text-slate-500">Eventos</span>
-                  </div>
-                  <div className="mt-2 text-xs text-slate-400">No afecta IFAT ni TRIR</div>
-              </div>
-
-               <div className="flex items-center justify-center p-4 text-center text-xs text-slate-400 italic">
-                  <Info className="w-4 h-4 mr-2" />
-                  "Los accidentes In Itinere se registran como indicador independiente y no penalizan el desempeño de planta (Safety)."
-              </div>
-          </div>
-      </div>
+      <HeatmapMatrix incidents={incidents} exposureHours={exposureHours} />
     </div>
   );
 };

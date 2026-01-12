@@ -19,7 +19,7 @@ const createTransporter = () => {
     });
 };
 
-const sendEmail = async (to, subject, htmlContent) => {
+const sendEmail = async (to, subject, htmlContent, attachments = []) => {
     const transporter = createTransporter();
     if (!transporter) return false;
 
@@ -29,6 +29,7 @@ const sendEmail = async (to, subject, htmlContent) => {
             to: to,
             subject: subject,
             html: htmlContent,
+            attachments: attachments
         });
         console.log(`[Mailer] Message sent: ${info.messageId}`);
         return true;

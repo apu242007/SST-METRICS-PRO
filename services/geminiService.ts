@@ -1,19 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Incident } from "../types";
 
-const apiKey = process.env.API_KEY || '';
-
 export const analyzeIncident = async (incident: Incident): Promise<{
   isRecordable: boolean;
   isLTI: boolean;
   daysAwayEstimate: number;
   reasoning: string;
 }> => {
-  if (!apiKey) {
-    throw new Error("API Key missing");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Fix: Obtained API key exclusively from process.env.API_KEY and initialized inside the function as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
     Analyze the following workplace safety incident based on OSHA recordability criteria.
@@ -47,6 +42,7 @@ export const analyzeIncident = async (incident: Incident): Promise<{
       },
     });
 
+    // Fix: Access the generated text directly from the .text property (not as a method)
     const text = response.text;
     if (!text) throw new Error("No response from AI");
     

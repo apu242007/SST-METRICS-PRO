@@ -17,6 +17,7 @@
     "lucide-react": "^0.562.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.13",
+    "puppeteer": "^22.6.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "recharts": "^3.6.0",

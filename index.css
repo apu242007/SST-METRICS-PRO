@@ -1,20 +1,61 @@
-body {
-  background-color: #f3f4f6;
-  font-family: 'Inter', sans-serif;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    @apply bg-[#F8FAFC] text-slate-900 antialiased overflow-x-hidden;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.07) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.05) 0px, transparent 50%);
+  }
 }
 
-/* Custom Scrollbar for matrix table */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@layer components {
+  .premium-canvas {
+    @apply flex h-screen w-screen overflow-hidden p-6 gap-6;
+  }
+
+  .sidebar-saas {
+    @apply w-24 bg-white/40 backdrop-blur-3xl border border-white/50 rounded-[2.5rem] flex flex-col items-center py-10 gap-8 shadow-[0_10px_40px_rgba(0,0,0,0.02)] shrink-0;
+  }
+
+  .nav-icon {
+    @apply w-14 h-14 flex items-center justify-center rounded-2xl transition-all duration-500 text-slate-400 hover:bg-white hover:text-indigo-600 hover:shadow-xl hover:shadow-indigo-100;
+  }
+
+  .nav-icon.active {
+    @apply bg-indigo-600 text-white shadow-2xl shadow-indigo-200;
+  }
+
+  .mega-card-saas {
+    @apply bg-white/60 backdrop-blur-xl border border-white/60 rounded-[3.5rem] p-10 flex flex-col transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.03)];
+  }
+
+  .mega-card-saas:hover {
+    @apply -translate-y-4 bg-white/90 border-indigo-100 shadow-[0_40px_100px_-20px_rgba(79,70,229,0.1)];
+  }
+
+  .status-badge {
+    @apply px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm;
+  }
 }
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f5f9; 
+
+/* Animations */
+@keyframes entrance-up {
+  from { opacity: 0; transform: translateY(40px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1; 
-  border-radius: 3px;
+
+.animate-entrance {
+  animation: entrance-up 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; 
-}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+
+/* Hide Scrollbar */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
