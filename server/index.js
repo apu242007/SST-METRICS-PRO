@@ -1,14 +1,19 @@
+import express from 'express';
+import cors from 'cors';
+import fs from 'fs';
+import chokidar from 'chokidar';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import cron from 'node-cron';
+import { processDailyReport } from './services/reportGenerator.js';
+import { sendEmail } from './services/mailer.js';
+import { renderPdfFromHtml } from './services/pdfRenderer.js';
+import dotenv from 'dotenv';
 
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const chokidar = require('chokidar');
-const path = require('path');
-const cron = require('node-cron');
-const { processDailyReport } = require('./services/reportGenerator');
-const { sendEmail } = require('./services/mailer');
-const { renderPdfFromHtml } = require('./services/pdfRenderer');
-require('dotenv').config();
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3001;
@@ -17,11 +22,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- STATIC FILES (For Production) ---
-// Resolve exact path to dist folder relative to this file
-// Assumes structure: root/server/index.js and root/dist
 const DIST_PATH = path.resolve(__dirname, '../dist');
-
-// Serve static files (JS, CSS, Images)
 app.use(express.static(DIST_PATH));
 
 // --- CONFIGURATION ---
@@ -35,7 +36,6 @@ console.log(`Excel: "${FILE_PATH}"`);
 console.log(`Static Files: "${DIST_PATH}"`);
 
 // --- CRON JOBS ---
-// Run every day at 07:00 AM
 cron.schedule('0 7 * * *', async () => {
     console.log("[Cron] Running daily email report task...");
     const today = new Date().toISOString().split('T')[0];
@@ -46,15 +46,10 @@ cron.schedule('0 7 * * *', async () => {
     }
 });
 
-// --- HELPER: Trigger Email ---
 const triggerDailyEmail = async (dateStr) => {
     console.log(`[Report] Generating report for ${dateStr}...`);
-    
-    // 1. Generate Content
-    const { subject, html, stats } = await processDailyReport(dateStr, 'SI'); // Default Com.Cliente=SI for automation
-    
-    // 2. Send
-    const recipient = process.env.MAIL_TO || 'jcastro@tackertools.com'; // Fallback strictly to req spec
+    const { subject, html, stats } = await processDailyReport(dateStr, 'SI');
+    const recipient = process.env.MAIL_TO || 'jcastro@tackertools.com';
     const sent = await sendEmail(recipient, subject, html);
 
     if (sent) {
@@ -66,8 +61,6 @@ const triggerDailyEmail = async (dateStr) => {
 };
 
 // --- ENDPOINTS ---
-
-// 1. Status Check
 app.get('/api/status', (req, res) => {
     const exists = fs.existsSync(FILE_PATH);
     res.json({
@@ -78,7 +71,6 @@ app.get('/api/status', (req, res) => {
     });
 });
 
-// 2. Manual Trigger (Test Mode) - Sends HTML Body
 app.post('/api/email/daily', async (req, res) => {
     const date = req.query.date || new Date().toISOString().split('T')[0];
     try {
@@ -89,23 +81,16 @@ app.post('/api/email/daily', async (req, res) => {
     }
 });
 
-// 3. New Endpoint: Send PDF as Attachment
 app.post('/api/email/daily/pdf', async (req, res) => {
-    const dateYmd = req.query.date; // YYYY-MM-DD
+    const dateYmd = req.query.date;
     const to = req.body?.to || process.env.MAIL_TO || 'jcastro@tackertools.com';
 
     if (!dateYmd) return res.status(400).json({ ok: false, error: "Date parameter required" });
 
-    console.log(`[API] Generating PDF Report for ${dateYmd} to ${to}...`);
-
     try {
-        // 1. Generate HTML Report
         const report = await processDailyReport(dateYmd, 'SI');
-        
-        // 2. Convert to PDF
         const pdfBuffer = await renderPdfFromHtml(report.html);
         
-        // 3. Send Email with Attachment
         const subject = `Reporte Diario SST (PDF) - ${dateYmd}`;
         const bodyHtml = `
             <p>Estimado/a,</p>
@@ -124,23 +109,16 @@ app.post('/api/email/daily/pdf', async (req, res) => {
         ]);
 
         if (sent) {
-            res.json({ 
-                ok: true, 
-                date: dateYmd, 
-                to, 
-                incidentsCount: report.stats.dayCount 
-            });
+            res.json({ ok: true, date: dateYmd, to, incidentsCount: report.stats.dayCount });
         } else {
             throw new Error("Failed to send email via SMTP.");
         }
-
     } catch (e) {
         console.error("[API] Error sending PDF:", e);
         res.status(500).json({ ok: false, error: e.message || String(e) });
     }
 });
 
-// 4. Data Download (Raw Buffer)
 app.get('/api/data', (req, res) => {
     if (!fs.existsSync(FILE_PATH)) return res.status(404).json({ error: "Archivo no encontrado" });
     try {
@@ -152,40 +130,22 @@ app.get('/api/data', (req, res) => {
     }
 });
 
-// --- SPA FALLBACK (After API routes) ---
-// This handles client-side routing by serving index.html for unknown paths
 app.get('*', (req, res) => {
-    // API 404 safety check
-    if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: "Endpoint not found" });
-    }
-    
-    // Frontend 404 (or SPA route)
+    if (req.path.startsWith('/api')) return res.status(404).json({ error: "Endpoint not found" });
     const indexFile = path.join(DIST_PATH, 'index.html');
     if (fs.existsSync(indexFile)) {
         res.sendFile(indexFile);
     } else {
-        // Fallback message if build is missing
-        res.status(404).send(`
-            <div style="font-family: sans-serif; padding: 20px; text-align: center;">
-                <h1>SST Metrics Pro</h1>
-                <p>Frontend build not found.</p>
-                <p>Expected path: ${DIST_PATH}</p>
-                <p>Please run <code>npm run build</code> to generate the 'dist' folder.</p>
-            </div>
-        `);
+        res.status(404).send("Frontend build not found.");
     }
 });
 
-// --- WATCHER ---
 if (WATCH_ENABLED && fs.existsSync(FILE_PATH)) {
     chokidar.watch(FILE_PATH, { persistent: true, interval: 5000 }).on('change', () => {
         console.log(`[Watcher] File updated: ${new Date().toLocaleTimeString()}`);
     });
 }
 
-const server = app.listen(PORT, () => {
+app.listen(PORT, () => {
     console.log(`\nServer running on http://localhost:${PORT}`);
-    console.log(`Frontend serving from: ${DIST_PATH}`);
-    console.log(`Test endpoint (HTML): POST http://localhost:${PORT}/api/email/daily?date=2025-01-08`);
 });

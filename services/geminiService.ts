@@ -7,7 +7,6 @@ export const analyzeIncident = async (incident: Incident): Promise<{
   daysAwayEstimate: number;
   reasoning: string;
 }> => {
-  // Fix: Obtained API key exclusively from process.env.API_KEY and initialized inside the function as per guidelines
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
@@ -42,7 +41,6 @@ export const analyzeIncident = async (incident: Incident): Promise<{
       },
     });
 
-    // Fix: Access the generated text directly from the .text property (not as a method)
     const text = response.text;
     if (!text) throw new Error("No response from AI");
     
