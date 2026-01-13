@@ -283,9 +283,10 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
             {/* Pagination */}
             <div className="bg-gray-50 border-t border-gray-200 p-2 flex justify-between items-center">
                 <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500">Filas por pág:</span>
-                    <select 
-                        value={rowsPerPage} 
+                    <label htmlFor="rows-per-page" className="text-xs text-gray-500">Filas por pág:</label>
+                    <select
+                        id="rows-per-page"
+                        value={rowsPerPage}
                         onChange={e => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                         className="text-xs border-gray-300 rounded shadow-sm p-1"
                     >
@@ -300,19 +301,23 @@ export const DataExplorer: React.FC<DataExplorerProps> = ({
                         Página {currentPage} de {Math.max(1, totalPages)}
                     </span>
                     <div className="flex rounded-md shadow-sm">
-                        <button 
+                        <button
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                             disabled={currentPage === 1}
                             className="p-1 border border-gray-300 rounded-l-md bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                            aria-label="Página anterior"
+                            title="Página anterior"
                         >
-                            <ChevronLeft className="w-4 h-4" />
+                            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                         </button>
-                        <button 
+                        <button
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                             disabled={currentPage === totalPages || totalPages === 0}
                             className="p-1 border border-gray-300 rounded-r-md bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                            aria-label="Página siguiente"
+                            title="Página siguiente"
                         >
-                            <ChevronRight className="w-4 h-4" />
+                            <ChevronRight className="w-4 h-4" aria-hidden="true" />
                         </button>
                     </div>
                 </div>

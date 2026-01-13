@@ -356,21 +356,26 @@ const App: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className={`flex items-center mr-1 ${isSandboxMode ? 'text-slate-500' : 'text-gray-400'}`}><Filter className="w-4 h-4" /></div>
-                    <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.site} onChange={e => setFilters({...filters, site: e.target.value})}>
+                    <label htmlFor="filter-site" className="sr-only">Filtrar por sitio</label>
+                    <select id="filter-site" className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.site} onChange={e => setFilters({...filters, site: e.target.value})}>
                         <option value="All">Sitio: Todos</option>
                         {uniqueValues.sites.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                    <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.year} onChange={e => setFilters({...filters, year: e.target.value})}>
+                    <label htmlFor="filter-year" className="sr-only">Filtrar por año</label>
+                    <select id="filter-year" className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.year} onChange={e => setFilters({...filters, year: e.target.value})}>
                         <option value="All">Año: Todos</option>
                         {uniqueValues.years.map(y => <option key={y} value={String(y)}>{y}</option>)}
                     </select>
-                    <select className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.month} onChange={e => setFilters({...filters, month: e.target.value})}>
+                    <label htmlFor="filter-month" className="sr-only">Filtrar por mes</label>
+                    <select id="filter-month" className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.month} onChange={e => setFilters({...filters, month: e.target.value})}>
                         <option value="All">Mes: Todos</option>
                         {MONTHS.map((m, idx) => <option key={idx} value={String(idx + 1)}>{m}</option>)}
                     </select>
-                    <select 
-                        className="text-xs border rounded-md shadow-sm py-1.5 px-2" 
-                        value={filters.comCliente} 
+                    <label htmlFor="filter-comCliente" className="sr-only">Filtrar por comunicación con cliente</label>
+                    <select
+                        id="filter-comCliente"
+                        className="text-xs border rounded-md shadow-sm py-1.5 px-2"
+                        value={filters.comCliente}
                         onChange={(e) => setFilters(prev => ({...prev, comCliente: e.target.value as 'All' | 'SI' | 'NO'}))}
                     >
                         <option value="All">Com. Cliente: Todos</option>
@@ -442,7 +447,9 @@ const App: React.FC = () => {
                             <FileSpreadsheet className="w-5 h-5 text-blue-600 mr-2" />
                             <h3 className="font-bold text-gray-800">Carga Manual de Exposición (HH y KM Globales)</h3>
                         </div>
-                        <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                        <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600" aria-label="Cerrar modal" title="Cerrar">
+                            <X className="w-5 h-5" aria-hidden="true" />
+                        </button>
                     </div>
                     <div className="p-6 overflow-y-auto">
                         <ExposureManager 
@@ -468,7 +475,9 @@ const App: React.FC = () => {
                             <Zap className="w-5 h-5 text-purple-600 mr-2" />
                             <h3 className="font-bold text-purple-900">Actualización de Flota (KM)</h3>
                         </div>
-                        <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                        <button onClick={() => setModalMode(null)} className="text-gray-400 hover:text-gray-600" aria-label="Cerrar modal" title="Cerrar">
+                            <X className="w-5 h-5" aria-hidden="true" />
+                        </button>
                     </div>
                     <div className="p-6">
                         <ExposureManager 
