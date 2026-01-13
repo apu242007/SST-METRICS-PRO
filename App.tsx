@@ -17,6 +17,7 @@ import { DataExplorer } from './components/DataExplorer';
 import { PendingTasks } from './components/PendingTasks';
 import { CalendarView } from './components/CalendarView';
 import { DocumentLibrary } from './components/DocumentLibrary';
+import { ExposureManager } from './components/ExposureManager';
 
 const App: React.FC = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -40,6 +41,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kpis' | 'automation' | 'raw' | 'pending' | 'docs' | 'calendar'>('automation');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isKmModalOpen, setIsKmModalOpen] = useState(false);
 
   useEffect(() => {
     const data = loadState();
@@ -100,6 +102,16 @@ const App: React.FC = () => {
       } finally {
           setIsProcessing(false);
       }
+  };
+
+  const handleNavigateToExposure = () => {
+      setIsKmModalOpen(true);
+  };
+
+  const handleKmUpdate = (hours: ExposureHour[], km: ExposureKm[], globalKmRecords: GlobalKmRecord[]) => {
+      setExposureHours(hours);
+      setGlobalKm(globalKmRecords);
+      setIsKmModalOpen(false);
   };
 
   if (!isLoaded) return null;
@@ -164,12 +176,39 @@ const App: React.FC = () => {
                 )}
                 {activeTab === 'kpis' && <Dashboard incidents={incidents} exposureHours={exposureHours} globalKmRecords={globalKm} settings={settings} />}
                 {activeTab === 'raw' && <DataExplorer incidents={incidents} mode="normalized" onUpdateIncident={(u) => setIncidents(updateIncidentManual(incidents, u))} />}
-                {activeTab === 'pending' && <PendingTasks incidents={incidents} exposureHours={exposureHours} exposureKm={[]} onNavigateToExposure={() => {}} onNavigateToReview={() => setActiveTab('raw')} />}
+                {activeTab === 'pending' && <PendingTasks incidents={incidents} exposureHours={exposureHours} exposureKm={[]} onNavigateToExposure={handleNavigateToExposure} onNavigateToReview={() => setActiveTab('raw')} />}
                 {activeTab === 'docs' && <DocumentLibrary documents={sgiDocuments} />}
                 {activeTab === 'calendar' && <CalendarView incidents={incidents} />}
               </div>
           </div>
       </main>
+
+      {/* KM Modal */}
+      {isKmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col mx-4">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900">Cargar KM Global</h2>
+              <button 
+                onClick={() => setIsKmModalOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <ExposureManager 
+                exposureHours={exposureHours}
+                exposureKm={[]}
+                globalKmRecords={globalKm}
+                sites={Array.from(new Set(incidents.map(i => i.site)))}
+                viewMode="km_only"
+                onUpdate={handleKmUpdate}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

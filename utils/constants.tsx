@@ -1,5 +1,5 @@
 
-import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone, DashboardMetrics } from "./types";
+import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone, DashboardMetrics } from "../types";
 
 export const DEFAULT_KPI_SETTINGS: AppSettings = {
   base_if: 1000,    // ILO/SRT Severity Rate (base 1000)
@@ -29,9 +29,6 @@ export const EMPTY_DASHBOARD_METRICS: DashboardMetrics = {
   t2_pser: 0,
   incidenceRateSRT: 0,
   slg24h: 0,
-  lcer: 0,
-  iap: 0,
-  capa_otc: 0,
   incidenceRatePct: 0,
   ifatRate: 0,
   envIncidentsMajor: 0,
@@ -174,10 +171,6 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
       t1_pser: 0.50,     // 200k
       t2_pser: 1.50,     // 200k
       
-      lcer: 90,          // Legal Compliance %
-      iap: 85,           // Audit Performance %
-      capa_otc: 80,      // Action Closure %
-      
       ifat_km: 3.00,     
       max_events_trir: 25,
       max_events_lti: 10,
@@ -196,10 +189,6 @@ export const TARGET_SCENARIOS: Record<TargetScenarioType, KPITargets> = {
 
       t1_pser: 0.10,
       t2_pser: 1.00,
-
-      lcer: 98,
-      iap: 98,
-      capa_otc: 95,
 
       ifat_km: 2.00,
       max_events_trir: 15,
