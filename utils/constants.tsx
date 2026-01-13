@@ -1,5 +1,5 @@
 
-import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone, DashboardMetrics } from "./types";
+import { MappingRule, AppSettings, KPITargets, TargetScenarioType, BodyZone, DashboardMetrics } from "../types";
 
 export const DEFAULT_KPI_SETTINGS: AppSettings = {
   base_if: 1000,    // ILO/SRT Severity Rate (base 1000)

@@ -388,6 +388,7 @@ const App: React.FC = () => {
             </div>
         </div>
         )}
+      </header>
 
         {/* === MAIN CONTENT === */}
         <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
