@@ -4,10 +4,17 @@ Este archivo documenta el commit estable para recuperación en caso de fallos fu
 
 ## Commit de Recuperación
 
-**Commit Hash:** `8e7c465c420390bb06ffa6619d74365a5ed087b1`
-**Fecha:** 13 de enero de 2026, 16:06:33 -0300
-**Mensaje:** Remove import maps from source HTML for proper Vite bundling
+**Commit Hash:** `4a546a65bdf7790fceeabf1ce21d35b171d309f8`
+**Fecha:** 13 de enero de 2026, 16:24:53 -0300
+**Mensaje:** fix: Add accessibility labels and TypeScript deps
 **Autor:** apu242007 <jorge_e_castro@hotmail.com>
+
+**Cambios:**
+- Agrega clase CSS sr-only para lectores de pantalla
+- Agrega labels a todos los elementos `<select>`
+- Agrega aria-label y title a botones con solo iconos
+- Instala @types/react, @types/react-dom, @types/node
+- Corrige errores de accesibilidad Axe y resolución de módulos TypeScript
 
 ## Cómo Recuperar a Este Punto
 
@@ -15,13 +22,13 @@ Si necesitas volver a este commit estable:
 
 ```bash
 # Opción 1: Reset duro (CUIDADO: pierdes cambios no guardados)
-git reset --hard 8e7c465c420390bb06ffa6619d74365a5ed087b1
+git reset --hard 4a546a65bdf7790fceeabf1ce21d35b171d309f8
 
 # Opción 2: Crear una nueva rama desde este commit
-git checkout -b recovery-branch 8e7c465c420390bb06ffa6619d74365a5ed087b1
+git checkout -b recovery-branch 4a546a65bdf7790fceeabf1ce21d35b171d309f8
 
 # Opción 3: Ver los archivos de este commit sin cambiar el HEAD
-git checkout 8e7c465c420390bb06ffa6619d74365a5ed087b1 -- <archivo>
+git checkout 4a546a65bdf7790fceeabf1ce21d35b171d309f8 -- <archivo>
 ```
 
 ## Estado del Proyecto en Este Commit
@@ -80,7 +87,9 @@ git checkout main
 ## Commits Previos Importantes
 
 ```
-8e7c465 - Remove import maps from source HTML for proper Vite bundling (ACTUAL)
+4a546a6 - fix: Add accessibility labels and TypeScript deps (ACTUAL)
+83307a8 - docs: Add recovery commit reference for future rollbacks
+8e7c465 - Remove import maps from source HTML for proper Vite bundling
 669d8a2 - Remove Tailwind CDN from source HTML
 0dbc80f - Fix: Use Tailwind PostCSS instead of CDN for production
 eb1c0f4 - Fix: Add base path for GitHub Pages
@@ -107,6 +116,14 @@ edaefa1 - feat: Implement daily email reports and file watching (COMMIT OBJETIVO
    - Problema: Errores de tipos bloqueaban build
    - Solución: Removido `tsc &&` del script de build
 
+5. ❌ **TypeScript module resolution errors**
+   - Problema: Cannot find module 'react', 'lucide-react', 'xlsx', type definitions
+   - Solución: Instalado @types/react, @types/react-dom, @types/node
+
+6. ❌ **Axe accessibility errors**
+   - Problema: Select elements sin labels, botones sin texto discernible
+   - Solución: Agregado sr-only labels, aria-label y title a todos los elementos
+
 ## Notas Adicionales
 
 - ⚠️ **NO** incluir dist/ en la rama main (está en .gitignore)
@@ -116,5 +133,6 @@ edaefa1 - feat: Implement daily email reports and file watching (COMMIT OBJETIVO
 
 ## Última Actualización
 
-**Fecha:** 13 de enero de 2026
-**Estado:** ✅ Build funcional, pendiente verificación de deployment en GitHub Pages
+**Fecha:** 13 de enero de 2026, 16:24:53 -0300
+**Commit:** 4a546a65bdf7790fceeabf1ce21d35b171d309f8
+**Estado:** ✅ Build funcional con correcciones de accesibilidad y TypeScript, desplegado en gh-pages
