@@ -2,13 +2,20 @@
 import React, { useMemo, useState } from 'react';
 import { 
   Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  Line, ComposedChart
+  Line, ComposedChart, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, 
+  PolarRadiusAxis, Radar, ScatterChart, Scatter, ZAxis, BarChart, Area, AreaChart,
+  ReferenceLine
 } from 'recharts';
 import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, GlobalKmRecord } from '../types';
-import { calculateKPIs, generateParetoData } from '../utils/calculations';
+import { 
+  calculateKPIs, generateParetoData, generatePyramidData, generateSeverityDistribution,
+  generateTemporalHeatmap, generateMultiKPIEvolution, generateBodyMapAnalytics,
+  generateWaterfallData, generateControlChartData, generateScatterPlotData,
+  generateBurndownData, generateRadarChartData
+} from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon, PieChart as PieIcon, Layers } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
 interface DashboardProps {
@@ -104,7 +111,7 @@ const MetricDetailModal = ({ detail, onClose }: { detail: any, onClose: () => vo
                         <Calculator className="w-5 h-5 text-blue-600 mr-2" />
                         <h3 className="font-bold text-gray-800">{detail.title}</h3>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Cerrar ventana de detalles"><X className="w-5 h-5"/></button>
                 </div>
                 <div className="p-6 space-y-6">
                     <div>
@@ -243,6 +250,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         value={selectedScenario} 
                         onChange={(e) => setSelectedScenario(e.target.value as TargetScenarioType)}
                         className="text-sm border-none bg-transparent font-bold text-gray-800 focus:ring-0 cursor-pointer"
+                        aria-label="Seleccionar escenario de metas"
                     >
                         <option value="Realista 2025">Realista (2025)</option>
                         <option value="Metas 2026">Metas 2026</option>
@@ -405,42 +413,134 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
       </div>
 
-      {/* C & D. REGULATORY (MODIFIED GRID) */}
-      <div className="grid grid-cols-1 gap-8">
-          
-          {/* C. Regulatory */}
-          <div className="space-y-4">
-               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
-                  <Scale className="w-4 h-4 mr-2" /> Regulatorio (SRT Argentina)
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <KPICard 
-                      title="Ind. Incidencia" 
-                      value={metrics.incidenceRateSRT} 
-                      target={undefined}
-                      icon={Users}
-                      colorClass="bg-teal-100 text-teal-600"
-                      borderClass="border-teal-400"
-                      subtext="Casos x 1000 / Trabajadores"
-                      blocked={isRatesBlocked}
-                      onClick={() => handleCardClick('incidenceRateSRT', metrics.incidenceRateSRT, metrics.totalLTI, metrics.totalManHours / 200)}
-                  />
-                   <KPICard 
-                      title="SLG-24h" 
-                      value={`${metrics.slg24h}%`} 
-                      target="100%"
-                      icon={FileCheck}
-                      colorClass="bg-green-100 text-green-600"
-                      borderClass="border-green-400"
-                      subtext="Denuncia SRT <= 24hs"
-                      reverseLogic={true}
-                      blocked={false}
-                      onClick={() => handleCardClick('slg24h', metrics.slg24h, incidents.filter(i => i.is_verified).length, incidents.length)} // Simplified for mock
-                  />
+      {/* C. REGULATORY */}
+      <div className="space-y-4">
+           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
+              <Scale className="w-4 h-4 mr-2" /> Regulatorio (SRT Argentina)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <KPICard 
+                  title="Ind. Incidencia" 
+                  value={metrics.incidenceRateSRT} 
+                  target={undefined}
+                  icon={Users}
+                  colorClass="bg-teal-100 text-teal-600"
+                  borderClass="border-teal-400"
+                  subtext="Casos x 1000 / Trabajadores"
+                  blocked={isRatesBlocked}
+                  onClick={() => handleCardClick('incidenceRateSRT', metrics.incidenceRateSRT, metrics.totalLTI, metrics.totalManHours / 200)}
+              />
+               <KPICard 
+                  title="SLG-24h" 
+                  value={`${metrics.slg24h}%`} 
+                  target="100%"
+                  icon={FileCheck}
+                  colorClass="bg-green-100 text-green-600"
+                  borderClass="border-green-400"
+                  subtext="Denuncia SRT <= 24hs"
+                  reverseLogic={true}
+                  blocked={false}
+                  onClick={() => handleCardClick('slg24h', metrics.slg24h, incidents.filter(i => i.is_verified).length, incidents.length)}
+              />
+              <KPICard 
+                  title="ALOS (Días Promedio)" 
+                  value={metrics.alos} 
+                  target={undefined}
+                  icon={Clock}
+                  colorClass="bg-purple-100 text-purple-600"
+                  borderClass="border-purple-400"
+                  subtext="Promedio días de baja"
+                  blocked={false}
+                  unit="días"
+              />
+          </div>
+      </div>
+
+      {/* D. ENVIRONMENTAL SAFETY */}
+      <div className="space-y-4">
+          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
+              <Leaf className="w-4 h-4 mr-2" /> Seguridad Ambiental
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <KPICard 
+                  title="Incidentes Mayores" 
+                  value={metrics.envIncidentsMajor} 
+                  target={0}
+                  icon={AlertTriangle}
+                  colorClass="bg-red-100 text-red-600"
+                  borderClass="border-red-400"
+                  subtext="Alto Riesgo Ambiental"
+                  blocked={false}
+              />
+              <KPICard 
+                  title="Incidentes Menores" 
+                  value={metrics.envIncidentsMinor} 
+                  target={undefined}
+                  icon={Leaf}
+                  colorClass="bg-yellow-100 text-yellow-600"
+                  borderClass="border-yellow-400"
+                  subtext="Bajo Riesgo Ambiental"
+                  blocked={false}
+              />
+              <div className="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-400 flex flex-col justify-between">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">Clasificación Riesgo</p>
+                  <div className="flex items-baseline">
+                      <span className={`text-2xl font-bold ${
+                          metrics.probabilityIndexLabel === 'Alto' ? 'text-red-600' :
+                          metrics.probabilityIndexLabel === 'Medio' ? 'text-yellow-600' : 'text-green-600'
+                      }`}>
+                          {metrics.probabilityIndexLabel}
+                      </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Índice promedio de probabilidad</p>
               </div>
           </div>
-          
-          {/* Section D (System Efficacy) removed as per request */}
+      </div>
+
+      {/* E. LEADING INDICATORS (PROACTIVE) */}
+      <div className="space-y-4">
+          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
+              <Microscope className="w-4 h-4 mr-2" /> Indicadores Proactivos (Leading)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <KPICard 
+                  title="HIPO Count" 
+                  value={metrics.hipoCount} 
+                  target={0}
+                  icon={AlertTriangle}
+                  colorClass="bg-orange-100 text-orange-600"
+                  borderClass="border-orange-400"
+                  subtext="Alta Potencialidad"
+                  blocked={false}
+              />
+              <KPICard 
+                  title="HIPO Rate" 
+                  value={`${((metrics.hipoRate ?? 0) * 100).toFixed(0)}%`}
+                  target={undefined}
+                  icon={TrendingUp}
+                  colorClass="bg-amber-100 text-amber-600"
+                  borderClass="border-amber-400"
+                  subtext="% HIPO vs Total"
+                  blocked={false}
+              />
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl shadow-sm border-l-4 border-indigo-400">
+                  <p className="text-xs font-bold text-indigo-600 uppercase mb-2">Pronóstico Anual</p>
+                  <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">TRIR:</span>
+                          <span className="text-sm font-bold text-indigo-700">{metrics.forecast_trir ?? '-'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">LTI:</span>
+                          <span className="text-sm font-bold text-indigo-700">{metrics.forecast_lti_count ?? '-'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-600">Registrables:</span>
+                          <span className="text-sm font-bold text-indigo-700">{metrics.forecast_recordable_count ?? '-'}</span>
+                      </div>
+                  </div>
+              </div>
+          </div>
       </div>
 
       {/* 6. CHARTS ROW (Risk Trend & Pareto) */}
@@ -503,6 +603,289 @@ export const Dashboard: React.FC<DashboardProps> = ({
                </div>
           </div>
       </div>
+
+      {/* NEW ADVANCED CHARTS SECTION */}
+      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6">
+          <h2 className="text-lg font-bold text-indigo-900 uppercase flex items-center mb-6">
+              <Layers className="w-6 h-6 mr-2" /> Análisis Avanzado - Gráficos Ejecutivos
+          </h2>
+
+          {/* Row 1: Heinrich Pyramid + Severity Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* 1. Heinrich Pyramid */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <Layers className="w-4 h-4 mr-2 text-purple-600" /> Pirámide de Heinrich/Bird
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const pyramidData = generatePyramidData(incidents);
+                          return pyramidData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={pyramidData} layout="vertical">
+                                      <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                      <XAxis type="number" fontSize={10} tickLine={false} axisLine={false}/>
+                                      <YAxis type="category" dataKey="level" fontSize={10} tickLine={false} axisLine={false} width={120}/>
+                                      <Tooltip/>
+                                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                                          {pyramidData.map((entry, index) => (
+                                              <Cell key={`cell-${index}`} fill={entry.color} />
+                                          ))}
+                                      </Bar>
+                                  </BarChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                      })()}
+                  </div>
+              </div>
+
+              {/* 2. Severity Distribution (Donut) */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <PieIcon className="w-4 h-4 mr-2 text-blue-600" /> Distribución por Tipo
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const severityData = generateSeverityDistribution(incidents);
+                          return severityData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <PieChart>
+                                      <Pie
+                                          data={severityData}
+                                          cx="50%"
+                                          cy="50%"
+                                          innerRadius={60}
+                                          outerRadius={100}
+                                          paddingAngle={2}
+                                          dataKey="value"
+                                          label={({name, percent}) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
+                                          labelLine={{ stroke: '#666', strokeWidth: 1 }}
+                                      >
+                                          {severityData.map((entry, index) => (
+                                              <Cell key={`cell-${index}`} fill={entry.color} />
+                                          ))}
+                                      </Pie>
+                                      <Tooltip />
+                                  </PieChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                      })()}
+                  </div>
+              </div>
+          </div>
+
+          {/* Row 2: Multi-KPI Evolution + Body Map */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* 4. Multi-KPI Evolution */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <TrendingUp className="w-4 h-4 mr-2 text-green-600" /> Evolución Multi-KPI
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const multiKpiData = generateMultiKPIEvolution(incidents, exposureHours, exposureKm, settings, targets);
+                          return multiKpiData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <ComposedChart data={multiKpiData}>
+                                      <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                                      <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60}/>
+                                      <YAxis fontSize={10} tickLine={false} axisLine={false}/>
+                                      <Tooltip/>
+                                      <Legend />
+                                      <Line type="monotone" dataKey="TRIR" stroke="#3b82f6" strokeWidth={2} dot={{r:3}} />
+                                      <Line type="monotone" dataKey="LTIF" stroke="#ef4444" strokeWidth={2} dot={{r:3}} />
+                                      <Line type="monotone" dataKey="DART" stroke="#f59e0b" strokeWidth={2} dot={{r:3}} />
+                                      <Line type="monotone" dataKey="targetTRIR" stroke="#94a3b8" strokeWidth={1} strokeDasharray="5 5" name="Meta TRIR" dot={false} />
+                                  </ComposedChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                      })()}
+                  </div>
+              </div>
+
+              {/* 5. Body Map Analytics */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <HeartPulse className="w-4 h-4 mr-2 text-red-600" /> Top 10 Partes del Cuerpo Afectadas
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const bodyData = generateBodyMapAnalytics(incidents);
+                          return bodyData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={bodyData} layout="vertical">
+                                      <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                      <XAxis type="number" fontSize={10} tickLine={false} axisLine={false}/>
+                                      <YAxis type="category" dataKey="name" fontSize={10} tickLine={false} axisLine={false} width={100}/>
+                                      <Tooltip/>
+                                      <Bar dataKey="count" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                                  </BarChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de partes del cuerpo</div>;
+                      })()}
+                  </div>
+              </div>
+          </div>
+
+          {/* Row 3: Waterfall + Control Chart */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* 7. Waterfall Chart */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <BarChart2 className="w-4 h-4 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const waterfallData = generateWaterfallData(incidents, exposureHours, settings);
+                          return waterfallData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={waterfallData} layout="vertical">
+                                      <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
+                                      <XAxis type="number" fontSize={10} tickLine={false} axisLine={false}/>
+                                      <YAxis type="category" dataKey="site" fontSize={10} tickLine={false} axisLine={false} width={80}/>
+                                      <Tooltip/>
+                                      <Bar dataKey="value" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+                                  </BarChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                      })()}
+                  </div>
+              </div>
+
+              {/* 8. Control Chart */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <Activity className="w-4 h-4 mr-2 text-purple-600" /> Control Chart (UCL/LCL)
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const controlData = generateControlChartData(incidents, exposureHours, settings);
+                          return controlData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <ComposedChart data={controlData}>
+                                      <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                                      <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60}/>
+                                      <YAxis fontSize={10} tickLine={false} axisLine={false}/>
+                                      <Tooltip/>
+                                      <Legend />
+                                      <ReferenceLine y={controlData[0]?.mean} stroke="#64748b" strokeDasharray="3 3" label="Media" />
+                                      <ReferenceLine y={controlData[0]?.ucl} stroke="#ef4444" strokeDasharray="5 5" label="UCL" />
+                                      <ReferenceLine y={controlData[0]?.lcl} stroke="#22c55e" strokeDasharray="5 5" label="LCL" />
+                                      <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={(props: any) => {
+                                          const { cx, cy, payload } = props;
+                                          return <circle cx={cx} cy={cy} r={payload.outOfControl ? 6 : 3} fill={payload.outOfControl ? '#ef4444' : '#3b82f6'} />;
+                                      }} name="TRIR" />
+                                  </ComposedChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                      })()}
+                  </div>
+              </div>
+          </div>
+
+          {/* Row 4: Scatter Plot + Burndown */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* 9. Scatter Plot */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <Target className="w-4 h-4 mr-2 text-orange-600" /> Frecuencia vs Severidad (por Sitio)
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const scatterData = generateScatterPlotData(incidents, exposureHours);
+                          return scatterData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <ScatterChart>
+                                      <CartesianGrid strokeDasharray="3 3"/>
+                                      <XAxis type="number" dataKey="frequency" name="Frecuencia" fontSize={10} tickLine={false} axisLine={false} label={{ value: 'Cantidad de Incidentes', position: 'bottom' }} />
+                                      <YAxis type="number" dataKey="severity" name="Severidad" fontSize={10} tickLine={false} axisLine={false} label={{ value: 'Días Promedio', angle: -90, position: 'left' }} />
+                                      <ZAxis type="number" dataKey="hours" range={[50, 400]} />
+                                      <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }: any) => {
+                                          if (active && payload && payload.length) {
+                                              const data = payload[0].payload;
+                                              return (
+                                                  <div className="bg-white p-3 rounded shadow-lg border text-xs">
+                                                      <p className="font-bold">{data.site}</p>
+                                                      <p>Incidentes: {data.frequency}</p>
+                                                      <p>Días Prom: {data.severity}</p>
+                                                      <p>Horas: {data.hours.toLocaleString()}</p>
+                                                  </div>
+                                              );
+                                          }
+                                          return null;
+                                      }}/>
+                                      <Scatter data={scatterData} fill="#f59e0b" />
+                                  </ScatterChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                      })()}
+                  </div>
+              </div>
+
+              {/* 10. Burndown Chart */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <TrendingDown className="w-4 h-4 mr-2 text-green-600" /> Burndown Chart (Progreso a Meta)
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const burndownData = generateBurndownData(incidents, exposureHours, settings, 2.5, 1.2);
+                          return burndownData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <ComposedChart data={burndownData}>
+                                      <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+                                      <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60}/>
+                                      <YAxis fontSize={10} tickLine={false} axisLine={false}/>
+                                      <Tooltip/>
+                                      <Legend />
+                                      <Area type="monotone" dataKey="target" fill="#86efac" stroke="#22c55e" fillOpacity={0.3} name="Meta" />
+                                      <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={3} dot={{r:4}} name="Real" />
+                                  </ComposedChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                      })()}
+                  </div>
+              </div>
+          </div>
+
+          {/* Row 5: Radar Chart (Full Width) */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                  <Target className="w-4 h-4 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
+              </h3>
+              <div className="h-96">
+                  {(() => {
+                      const radarData = generateRadarChartData(incidents, exposureHours, exposureKm, settings);
+                      const sites = Array.from(new Set(radarData.map(d => d.site)));
+                      const metrics = ['TRIR', 'LTIF', 'DART', 'HIPO', 'SLG24h'];
+                      const radarFormatted = metrics.map(metric => {
+                          const obj: any = { metric };
+                          radarData.forEach(site => {
+                              obj[site.site] = site[metric as keyof typeof site];
+                          });
+                          return obj;
+                      });
+                      
+                      const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6'];
+
+                      return radarFormatted.length > 0 && sites.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                              <RadarChart data={radarFormatted}>
+                                  <PolarGrid />
+                                  <PolarAngleAxis dataKey="metric" fontSize={12} />
+                                  <PolarRadiusAxis fontSize={10} />
+                                  <Tooltip />
+                                  <Legend />
+                                  {sites.map((site, idx) => (
+                                      <Radar key={site} name={site} dataKey={site} stroke={COLORS[idx % COLORS.length]} fill={COLORS[idx % COLORS.length]} fillOpacity={0.2} />
+                                  ))}
+                              </RadarChart>
+                          </ResponsiveContainer>
+                      ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos suficientes</div>;
+                  })()}
+              </div>
+          </div>
+      </div>
       
       {/* 7. HEATMAP & TRANSIT */}
       <div className="min-w-0">
@@ -510,6 +893,210 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <HeatmapMatrix incidents={incidents} exposureHours={exposureHours} />
           </div>
       </div>
+
+      {/* 8. MANAGEMENT INDICATORS */}
+      
+      {/* TOP 5 SITES RANKING */}
+      {metrics.top5Sites && metrics.top5Sites.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+              <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
+                  <Trophy className="w-5 h-5 mr-2 text-amber-500" /> Top 5 Sitios con Mayor Incidentalidad
+              </h3>
+              <div className="space-y-3">
+                  {metrics.top5Sites.map((site, idx) => {
+                      const maxCount = metrics.top5Sites[0].count;
+                      const percentage = (site.count / maxCount) * 100;
+                      const colorClass = idx === 0 ? 'bg-red-500' : idx === 1 ? 'bg-orange-500' : idx === 2 ? 'bg-yellow-500' : 'bg-blue-500';
+                      
+                      return (
+                          <div key={idx} className="flex items-center space-x-3">
+                              <div className="flex-shrink-0 w-8 text-center">
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white ${colorClass}`}>
+                                      {site.rank}
+                                  </span>
+                              </div>
+                              <div className="flex-grow">
+                                  <div className="flex justify-between items-center mb-1">
+                                      <span className="text-sm font-bold text-gray-800">{site.site}</span>
+                                      <span className="text-sm font-mono text-gray-600">{site.count} incidentes</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
+                                      {/* @ts-ignore - Dynamic width requires inline style, this is valid React pattern */}
+                                      <div className={`h-2 rounded-full absolute top-0 left-0 transition-all ${colorClass}`} style={{width: `${percentage}%`}}></div>
+                                  </div>
+                              </div>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      )}
+
+      {/* RISK CONSOLIDATED PANEL */}
+      <div className="bg-gradient-to-br from-slate-50 to-gray-100 border border-gray-200 rounded-xl p-6">
+          <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
+              <Activity className="w-5 h-5 mr-2 text-purple-600" /> Panel Consolidado de Riesgo
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-purple-500">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">Índice Riesgo Total</p>
+                  <p className="text-3xl font-bold text-purple-700">{metrics.risk_index_total ?? 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">Puntos acumulados</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-indigo-500">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">Índice Riesgo Rate</p>
+                  <p className="text-3xl font-bold text-indigo-700">{metrics.risk_index_rate ?? 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">Normalizado</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-blue-500">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">Clasificación Promedio</p>
+                  <p className={`text-2xl font-bold ${
+                      metrics.probabilityIndexLabel === 'Alto' ? 'text-red-600' :
+                      metrics.probabilityIndexLabel === 'Medio' ? 'text-yellow-600' : 'text-green-600'
+                  }`}>
+                      {metrics.probabilityIndexLabel}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Potencialidad</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-cyan-500">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-2">Incidentes HIPO</p>
+                  <p className="text-3xl font-bold text-cyan-700">{metrics.hipoCount}</p>
+                  <p className="text-xs text-gray-500 mt-1">{((metrics.hipoRate ?? 0) * 100).toFixed(0)}% del total</p>
+              </div>
+          </div>
+      </div>
+
+      {/* SUGGESTED ACTIONS */}
+      {metrics.suggestedActions && metrics.suggestedActions.length > 0 && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+              <h3 className="text-sm font-bold text-blue-800 uppercase flex items-center mb-4">
+                  <ShieldCheck className="w-5 h-5 mr-2" /> Acciones Correctivas Sugeridas (IA)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {metrics.suggestedActions.map((suggestion, idx) => {
+                      const reasonConfig = {
+                          deterioration: { icon: TrendingDown, label: 'Deterioro Detectado', color: 'text-red-600' },
+                          trend_alert: { icon: AlertTriangle, label: 'Tendencia Creciente', color: 'text-orange-600' }
+                      }[suggestion.reason];
+                      const Icon = reasonConfig.icon;
+
+                      return (
+                          <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border border-blue-200">
+                              <div className="flex items-start justify-between mb-3">
+                                  <h4 className="font-bold text-gray-800 text-sm">{suggestion.site}</h4>
+                                  <span className={`flex items-center text-xs font-bold ${reasonConfig.color}`}>
+                                      <Icon className="w-3 h-3 mr-1" />
+                                      {reasonConfig.label}
+                                  </span>
+                              </div>
+                              <ul className="space-y-2">
+                                  {suggestion.actions.slice(0, 3).map((action, actionIdx) => (
+                                      <li key={actionIdx} className="flex items-start text-xs text-gray-700">
+                                          <CheckCircle2 className="w-3 h-3 mr-2 mt-0.5 text-blue-500 flex-shrink-0" />
+                                          <span>{action}</span>
+                                      </li>
+                                  ))}
+                              </ul>
+                              {suggestion.actions.length > 3 && (
+                                  <p className="text-xs text-blue-600 font-bold mt-2">
+                                      + {suggestion.actions.length - 3} acciones más
+                                  </p>
+                              )}
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      )}
+
+      {metrics.trendAlerts && metrics.trendAlerts.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+              <h3 className="text-sm font-bold text-red-800 uppercase flex items-center mb-4">
+                  <Siren className="w-5 h-5 mr-2" /> Alertas de Tendencia Creciente
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {metrics.trendAlerts.map((alert, idx) => (
+                      <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
+                          <h4 className="font-bold text-gray-800 mb-2">{alert.site}</h4>
+                          <p className="text-xs text-gray-600 mb-2">Tendencia: 
+                              <span className="ml-1 text-red-600 font-bold">↑ Creciente</span>
+                          </p>
+                          <div className="flex space-x-2 text-xs">
+                              {alert.history.map((h, i) => (
+                                  <div key={i} className="bg-gray-100 px-2 py-1 rounded">
+                                      <span className="font-mono">{h.count}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
+
+      {/* SITE EVOLUTION CARDS */}
+      {metrics.siteEvolutions && metrics.siteEvolutions.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+              <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
+                  <BarChart2 className="w-5 h-5 mr-2 text-blue-600" /> Evolución por Sitio (Últimos 6 Meses)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {metrics.siteEvolutions.slice(0, 6).map((evolution, idx) => {
+                      const statusConfig = {
+                          improving: { color: 'border-green-500', bg: 'bg-green-50', icon: '↓', textColor: 'text-green-700' },
+                          stable: { color: 'border-gray-400', bg: 'bg-gray-50', icon: '→', textColor: 'text-gray-600' },
+                          deteriorating: { color: 'border-red-500', bg: 'bg-red-50', icon: '↑', textColor: 'text-red-700' }
+                      }[evolution.status];
+
+                      return (
+                          <div key={idx} className={`${statusConfig.bg} p-4 rounded-lg shadow-sm border-l-4 ${statusConfig.color}`}>
+                              <h4 className="font-bold text-gray-800 mb-2">{evolution.site}</h4>
+                              <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                                  <div>
+                                      <p className="text-gray-500">Últimos 3m:</p>
+                                      <p className="font-bold text-gray-800">{evolution.currentAvg}</p>
+                                  </div>
+                                  <div>
+                                      <p className="text-gray-500">Previos 3m:</p>
+                                      <p className="font-bold text-gray-800">{evolution.prevAvg}</p>
+                                  </div>
+                              </div>
+                              <div className={`flex items-center justify-between ${statusConfig.textColor} font-bold text-sm`}>
+                                  <span>{statusConfig.icon} {Math.abs(evolution.variationPct)}%</span>
+                                  <span className="uppercase text-[10px]">{evolution.status === 'improving' ? 'Mejorando' : evolution.status === 'stable' ? 'Estable' : 'Deterioro'}</span>
+                              </div>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      )}
+
+      {/* DAYS SINCE INCIDENT */}
+      {metrics.daysSinceList && metrics.daysSinceList.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl p-6">
+              <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
+                  <CalendarCheck className="w-5 h-5 mr-2 text-green-600" /> Días Sin Incidentes por Sitio
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {metrics.daysSinceList.slice(0, 10).map((item, idx) => {
+                      const statusConfig = {
+                          critical: { bg: 'bg-red-50', border: 'border-red-400', text: 'text-red-700' },
+                          warning: { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-700' },
+                          safe: { bg: 'bg-green-50', border: 'border-green-400', text: 'text-green-700' }
+                      }[item.status];
+
+                      return (
+                          <div key={idx} className={`${statusConfig.bg} p-3 rounded-lg border ${statusConfig.border} text-center`}>
+                              <p className="text-xs font-bold text-gray-600 mb-1">{item.site}</p>
+                              <p className={`text-2xl font-bold ${statusConfig.text}`}>{item.days}</p>
+                              <p className="text-[10px] text-gray-500 uppercase">días</p>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      )}
       
        <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
           <div className="flex items-center mb-6">

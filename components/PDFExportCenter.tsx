@@ -130,7 +130,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
                         <p className="text-xs text-slate-400">Generador de reportes A4 profesional</p>
                     </div>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-white"><X className="w-6 h-6"/></button>
+                <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Cerrar centro de exportación"><X className="w-6 h-6"/></button>
             </div>
 
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">

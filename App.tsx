@@ -233,6 +233,18 @@ const App: React.FC = () => {
       });
   }, [exposureHours, filters]);
 
+  const filteredExposureKm = useMemo(() => {
+      return exposureKm.filter(k => {
+          if (filters.site !== 'All' && k.site !== filters.site) return false;
+          if (filters.year !== 'All' && !k.period.startsWith(`${filters.year}-`)) return false;
+          if (filters.month !== 'All') {
+              const m = String(filters.month).padStart(2, '0');
+              if (!k.period.endsWith(`-${m}`)) return false;
+          }
+          return true;
+      });
+  }, [exposureKm, filters]);
+
   const filteredGlobalKm = useMemo(() => {
       if (filters.year !== 'All') {
           const year = parseInt(filters.year);
@@ -241,7 +253,7 @@ const App: React.FC = () => {
       return globalKm;
   }, [globalKm, filters.year]);
 
-  const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, filteredExposureHours, exposureKm, settings, TARGET_SCENARIOS['Realista 2025'], filteredGlobalKm), [filteredIncidents, filteredExposureHours, exposureKm, settings, filteredGlobalKm]);
+  const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, filteredExposureHours, filteredExposureKm, settings, TARGET_SCENARIOS['Realista 2025'], filteredGlobalKm), [filteredIncidents, filteredExposureHours, filteredExposureKm, settings, filteredGlobalKm]);
   const currentMissingImpact = useMemo(() => getMissingExposureImpact(incidents, exposureHours), [incidents, exposureHours]);
 
   // --- HANDLERS ---
@@ -415,7 +427,7 @@ const App: React.FC = () => {
                     <Dashboard 
                         incidents={filteredIncidents} 
                         exposureHours={filteredExposureHours} 
-                        exposureKm={exposureKm} 
+                        exposureKm={filteredExposureKm} 
                         globalKmRecords={filteredGlobalKm}
                         settings={settings} 
                         onNavigateToExposure={(site) => { setFocusSite(site); setModalMode('exposure_hh'); }}

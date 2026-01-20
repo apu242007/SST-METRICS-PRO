@@ -423,3 +423,255 @@ export const generateDetailedKPIReport = (
 
   return report.sort((a, b) => b.Period.localeCompare(a.Period));
 };
+
+// ========== NEW CHART DATA GENERATORS ==========
+
+// 1. Heinrich Pyramid Data
+export const generatePyramidData = (incidents: Incident[]) => {
+  const fatalities = incidents.filter(i => i.fatality).length;
+  const lti = incidents.filter(i => i.lti_case && !i.fatality).length;
+  const medicalTreatment = incidents.filter(i => i.type === 'Medical Treatment').length;
+  const firstAid = incidents.filter(i => i.type === 'First Aid').length;
+  const nearMiss = incidents.filter(i => i.type === 'Near Miss').length;
+  const propertyDamage = incidents.filter(i => i.type === 'Property Damage').length;
+
+  return [
+    { level: 'Fatalidades', count: fatalities, color: '#dc2626' },
+    { level: 'LTI', count: lti, color: '#ea580c' },
+    { level: 'Medical Treatment', count: medicalTreatment, color: '#f59e0b' },
+    { level: 'First Aid', count: firstAid, color: '#eab308' },
+    { level: 'Near Miss', count: nearMiss, color: '#84cc16' },
+    { level: 'Property Damage', count: propertyDamage, color: '#22c55e' }
+  ].filter(d => d.count > 0);
+};
+
+// 2. Severity Distribution (Pie/Donut)
+export const generateSeverityDistribution = (incidents: Incident[]) => {
+  const typeCount: Record<string, number> = {};
+  incidents.forEach(i => {
+    typeCount[i.type] = (typeCount[i.type] || 0) + 1;
+  });
+
+  const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1', '#14b8a6'];
+  
+  return Object.entries(typeCount).map(([name, value], idx) => ({
+    name,
+    value,
+    color: COLORS[idx % COLORS.length]
+  })).sort((a, b) => b.value - a.value);
+};
+
+// 3. Temporal Heatmap Data
+export const generateTemporalHeatmap = (incidents: Incident[]) => {
+  const heatmapData: Record<string, Record<number, number>> = {};
+  
+  incidents.forEach(i => {
+    if (!heatmapData[i.site]) heatmapData[i.site] = {};
+    heatmapData[i.site][i.month] = (heatmapData[i.site][i.month] || 0) + 1;
+  });
+
+  const result = [];
+  for (const site in heatmapData) {
+    for (let month = 1; month <= 12; month++) {
+      result.push({
+        site,
+        month,
+        count: heatmapData[site][month] || 0
+      });
+    }
+  }
+  
+  return result;
+};
+
+// 4. Multi-KPI Evolution Data
+export const generateMultiKPIEvolution = (
+  incidents: Incident[], 
+  exposureHours: ExposureHour[], 
+  exposureKm: ExposureKm[], 
+  settings: AppSettings, 
+  targets: any
+) => {
+  const periods = Array.from(new Set([
+    ...exposureHours.map(e => e.period),
+    ...incidents.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
+  ])).sort();
+
+  return periods.map(period => {
+    const [year, month] = period.split('-').map(Number);
+    const sliceIncidents = incidents.filter(i => i.year === year && i.month === month);
+    const sliceHours = exposureHours.filter(e => e.period === period);
+    const sliceKm = exposureKm.filter(e => e.period === period);
+    
+    const m = calculateKPIs(sliceIncidents, sliceHours, sliceKm, settings);
+    
+    return {
+      period,
+      TRIR: m.trir || 0,
+      LTIF: m.ltif || 0,
+      DART: m.dart || 0,
+      targetTRIR: targets?.trir || 0,
+      targetLTIF: targets?.ltif || 0,
+      targetDART: targets?.dart || 0
+    };
+  });
+};
+
+// 5. Body Map Analytics
+export const generateBodyMapAnalytics = (incidents: Incident[]) => {
+  const bodyPartCount: Record<string, number> = {};
+  
+  incidents.forEach(i => {
+    if (i.affected_zones && i.affected_zones.length > 0) {
+      i.affected_zones.forEach(zone => {
+        const label = zone.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        bodyPartCount[label] = (bodyPartCount[label] || 0) + 1;
+      });
+    }
+  });
+
+  return Object.entries(bodyPartCount)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+};
+
+// 6. Waterfall Chart Data (Site Contribution to TRIR)
+export const generateWaterfallData = (
+  incidents: Incident[], 
+  exposureHours: ExposureHour[], 
+  settings: AppSettings
+) => {
+  const totalHH = exposureHours.reduce((acc, e) => acc + e.hours, 0);
+  const sites = Array.from(new Set(incidents.map(i => i.site)));
+  
+  let cumulative = 0;
+  const data = sites.map(site => {
+    const siteIncidents = incidents.filter(i => i.site === site && i.recordable_osha);
+    const siteHours = exposureHours.filter(e => e.site === site).reduce((acc, e) => acc + e.hours, 0);
+    
+    const siteTRIR = siteHours > 0 ? (siteIncidents.length * 200000) / siteHours : 0;
+    const start = cumulative;
+    cumulative += siteTRIR;
+    
+    return {
+      site,
+      value: parseFloat(siteTRIR.toFixed(2)),
+      start,
+      end: cumulative
+    };
+  });
+
+  return data.sort((a, b) => b.value - a.value).slice(0, 8);
+};
+
+// 7. Control Chart Data (UCL/LCL)
+export const generateControlChartData = (
+  incidents: Incident[], 
+  exposureHours: ExposureHour[], 
+  settings: AppSettings
+) => {
+  const periods = Array.from(new Set(exposureHours.map(e => e.period))).sort();
+  
+  const trirValues = periods.map(period => {
+    const [year, month] = period.split('-').map(Number);
+    const sliceIncidents = incidents.filter(i => i.year === year && i.month === month && i.recordable_osha);
+    const sliceHours = exposureHours.filter(e => e.period === period).reduce((acc, e) => acc + e.hours, 0);
+    
+    return sliceHours > 0 ? (sliceIncidents.length * 200000) / sliceHours : 0;
+  });
+
+  const mean = trirValues.reduce((a, b) => a + b, 0) / trirValues.length;
+  const stdDev = Math.sqrt(trirValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / trirValues.length);
+  
+  const ucl = mean + (3 * stdDev);
+  const lcl = Math.max(0, mean - (3 * stdDev));
+
+  return periods.map((period, idx) => ({
+    period,
+    value: parseFloat(trirValues[idx].toFixed(2)),
+    mean: parseFloat(mean.toFixed(2)),
+    ucl: parseFloat(ucl.toFixed(2)),
+    lcl: parseFloat(lcl.toFixed(2)),
+    outOfControl: trirValues[idx] > ucl || trirValues[idx] < lcl
+  }));
+};
+
+// 8. Scatter Plot Data (Frequency vs Severity)
+export const generateScatterPlotData = (
+  incidents: Incident[], 
+  exposureHours: ExposureHour[]
+) => {
+  const sites = Array.from(new Set(incidents.map(i => i.site)));
+  
+  return sites.map(site => {
+    const siteIncidents = incidents.filter(i => i.site === site);
+    const frequency = siteIncidents.length;
+    const avgDays = siteIncidents.length > 0 
+      ? siteIncidents.reduce((acc, i) => acc + (i.days_away || 0) + (i.days_restricted || 0), 0) / siteIncidents.length
+      : 0;
+    const totalHours = exposureHours.filter(e => e.site === site).reduce((acc, e) => acc + e.hours, 0);
+    
+    return {
+      site,
+      frequency,
+      severity: parseFloat(avgDays.toFixed(1)),
+      hours: totalHours
+    };
+  }).filter(d => d.frequency > 0);
+};
+
+// 9. Burndown Chart Data
+export const generateBurndownData = (
+  incidents: Incident[], 
+  exposureHours: ExposureHour[], 
+  settings: AppSettings,
+  initialTarget: number,
+  finalTarget: number
+) => {
+  const periods = Array.from(new Set(exposureHours.map(e => e.period))).sort();
+  const totalPeriods = 12; // Assuming annual tracking
+  
+  return periods.map((period, idx) => {
+    const [year, month] = period.split('-').map(Number);
+    const sliceIncidents = incidents.filter(i => i.year === year && i.month === month && i.recordable_osha);
+    const sliceHours = exposureHours.filter(e => e.period === period).reduce((acc, e) => acc + e.hours, 0);
+    
+    const actualTRIR = sliceHours > 0 ? (sliceIncidents.length * 200000) / sliceHours : 0;
+    const targetTRIR = initialTarget - ((initialTarget - finalTarget) / totalPeriods) * (idx + 1);
+    
+    return {
+      period,
+      actual: parseFloat(actualTRIR.toFixed(2)),
+      target: parseFloat(targetTRIR.toFixed(2)),
+      month: idx + 1
+    };
+  });
+};
+
+// 10. Radar Chart Data (Site Comparison)
+export const generateRadarChartData = (
+  incidents: Incident[], 
+  exposureHours: ExposureHour[], 
+  exposureKm: ExposureKm[],
+  settings: AppSettings
+) => {
+  const sites = Array.from(new Set(incidents.map(i => i.site))).slice(0, 5); // Top 5 sites
+  
+  return sites.map(site => {
+    const siteIncidents = incidents.filter(i => i.site === site);
+    const siteHours = exposureHours.filter(e => e.site === site);
+    const siteKm = exposureKm.filter(e => e.site === site);
+    
+    const metrics = calculateKPIs(siteIncidents, siteHours, siteKm, settings);
+    
+    return {
+      site,
+      TRIR: metrics.trir || 0,
+      LTIF: metrics.ltif || 0,
+      DART: metrics.dart || 0,
+      HIPO: (metrics.hipoRate || 0) * 100,
+      SLG24h: metrics.slg24h || 0
+    };
+  });
+};
