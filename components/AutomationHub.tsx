@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { Incident } from '../types';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, FileText, HardDrive, ShieldCheck } from 'lucide-react';
+import { KpiCard } from './KpiCard';
 
 interface AutomationHubProps {
   incidents: Incident[];
@@ -174,6 +175,37 @@ export const AutomationHub: React.FC<AutomationHubProps> = ({
                 </p>
             </div>
         )}
+
+        {/* KPI Cards Demo Section */}
+        <div className="mt-12 border-t border-gray-200 pt-8">
+            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                <FileText className="w-5 h-5 mr-2 text-blue-600" />
+                Vista Previa de KPI Cards
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+                Ejemplo de tarjetas KPI con estilos Tailwind CSS aplicados correctamente:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <KpiCard 
+                    title="Total Incidentes" 
+                    value={incidents.length}
+                    change="+5.2%"
+                    positive={false}
+                />
+                <KpiCard 
+                    title="Casos LTI" 
+                    value={incidents.filter(i => i.lti_case).length}
+                    change="-12.3%"
+                    positive={true}
+                />
+                <KpiCard 
+                    title="Casos OSHA" 
+                    value={incidents.filter(i => i.recordable_osha).length}
+                    change="-8.1%"
+                    positive={true}
+                />
+            </div>
+        </div>
     </div>
   );
 };

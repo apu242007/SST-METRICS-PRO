@@ -16,6 +16,7 @@ import { DataExplorer } from './components/DataExplorer';
 import { PendingTasks } from './components/PendingTasks';
 import { ExposureManager } from './components/ExposureManager';
 import { PDFExportCenter } from './components/PDFExportCenter';
+import { KpiCard } from './components/KpiCard';
 
 const App: React.FC = () => {
   // --- 1. GLOBAL STATE ---
