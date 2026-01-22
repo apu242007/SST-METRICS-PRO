@@ -16,7 +16,6 @@ const AVAILABLE_CHARTS: ChartSelection[] = [
   { id: 'risk-trend', name: 'Evolución Índice de Riesgo', elementId: 'chart-risk-trend', selected: true },
   { id: 'pareto', name: 'Análisis Pareto 80/20', elementId: 'chart-pareto', selected: true },
   { id: 'severity-dist', name: 'Distribución por Tipo (Donut)', elementId: 'chart-severity-dist', selected: true },
-  { id: 'body-map', name: 'Top 10 Partes del Cuerpo Afectadas', elementId: 'chart-body-map', selected: true },
   { id: 'waterfall', name: 'Contribución por Sitio al TRIR', elementId: 'chart-waterfall', selected: true },
   { id: 'scatter', name: 'Frecuencia vs Severidad', elementId: 'chart-scatter', selected: true },
   { id: 'radar', name: 'Radar Comparativo (Top 5 Sitios)', elementId: 'chart-radar', selected: true },
@@ -78,94 +77,252 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 15;
+      const margin = 20;
       const maxWidth = pageWidth - (margin * 2);
+      const contentWidth = maxWidth;
       
-      // Portada
-      pdf.setFillColor(239, 68, 68);
-      pdf.rect(0, 0, pageWidth, 60, 'F');
-      
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(28);
-      pdf.setTextColor(255, 255, 255);
-      pdf.text("TACKER SRL", pageWidth / 2, 25, { align: 'center' });
-      
-      pdf.setFontSize(16);
-      pdf.text("Reporte Integral SST", pageWidth / 2, 40, { align: 'center' });
-      
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(`Generado: ${new Date().toLocaleString('es-ES')}`, pageWidth / 2, 50, { align: 'center' });
-      
-      pdf.setTextColor(51, 65, 85);
-      pdf.setFontSize(11);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Alcance del Reporte:", margin, 80);
-      
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(10);
-      pdf.setTextColor(100, 116, 139);
-      let yPos = 90;
-      pdf.text(`• Sitio: ${filters.site || 'Todos'}`, margin + 5, yPos);
-      pdf.text(`• Año: ${filters.year || 'Todos'}`, margin + 5, yPos += 7);
-      pdf.text(`• Mes: ${filters.month || 'Todos'}`, margin + 5, yPos += 7);
-      pdf.text(`• Tipo: ${filters.type || 'Todos'}`, margin + 5, yPos += 7);
-      pdf.text(`• Total Incidentes: ${incidents.length}`, margin + 5, yPos += 7);
+      // Función auxiliar para verificar espacio y agregar página si es necesario
+      const checkSpace = (requiredSpace: number, currentY: number): number => {
+        if (currentY + requiredSpace > pageHeight - margin - 15) {
+          pdf.addPage();
+          return margin + 5;
+        }
+        return currentY;
+      };
 
-      setProgress(15);
+      // Función para dibujar separador visual
+      const drawSeparator = (y: number) => {
+        pdf.setDrawColor(220, 220, 220);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, y, pageWidth - margin, y);
+        return y + 8;
+      };
+
+      // Función para agregar sección de título
+      const addSectionTitle = (title: string, currentY: number, color: number[] = [239, 68, 68]): number => {
+        currentY = checkSpace(20, currentY);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(14);
+        pdf.setTextColor(color[0], color[1], color[2]);
+        pdf.text(title, margin, currentY);
+        
+        // Línea debajo del título
+        pdf.setDrawColor(color[0], color[1], color[2]);
+        pdf.setLineWidth(0.8);
+        pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
+        
+        return currentY + 10;
+      };
+
+      // ========== PORTADA MEJORADA ==========
+      pdf.setFillColor(239, 68, 68);
+      pdf.rect(0, 0, pageWidth, 70, 'F');
+      
+      // Logo/Título principal
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(32);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text("TACKER SRL", pageWidth / 2, 30, { align: 'center' });
+      
+      // Subtítulo
+      pdf.setFontSize(18);
+      pdf.text("Reporte Integral de Seguridad y Salud en el Trabajo", pageWidth / 2, 50, { align: 'center' });
+      
+      // Línea decorativa
+      pdf.setDrawColor(255, 255, 255);
+      pdf.setLineWidth(0.5);
+      pdf.line(margin + 20, 58, pageWidth - margin - 20, 58);
+      
+      // Fecha y hora de generación
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`Generado el ${new Date().toLocaleDateString('es-ES', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })} a las ${new Date().toLocaleTimeString('es-ES')}`, pageWidth / 2, 64, { align: 'center' });
+      
+      // Sección de alcance con mejor diseño
+      let yPos = 90;
+      pdf.setFillColor(245, 247, 250);
+      pdf.roundedRect(margin, yPos, contentWidth, 65, 3, 3, 'F');
+      
+      yPos += 8;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text("Alcance del Reporte", margin + 5, yPos);
+      
+      yPos += 10;
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(71, 85, 105);
+      
+      const scopeItems = [
+        { label: 'Sitio(s)', value: filters.site || 'Todos los sitios' },
+        { label: 'Año', value: filters.year || 'Todos' },
+        { label: 'Mes', value: filters.month || 'Todos' },
+        { label: 'Tipo de Incidente', value: filters.type || 'Todos' },
+        { label: 'Total de Incidentes Analizados', value: incidents.length.toString() },
+      ];
+      
+      scopeItems.forEach(item => {
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`${item.label}:`, margin + 10, yPos);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(item.value, margin + 70, yPos);
+        yPos += 7;
+      });
+      
+      // Resumen ejecutivo en portada
+      yPos += 10;
+      pdf.setFillColor(254, 242, 242);
+      pdf.roundedRect(margin, yPos, contentWidth, 55, 3, 3, 'F');
+      
+      yPos += 8;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.setTextColor(220, 38, 38);
+      pdf.text("Resumen Ejecutivo", margin + 5, yPos);
+      
+      yPos += 10;
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(71, 85, 105);
+      
+      const summaryItems = [
+        `TRIR: ${metrics.trir?.toFixed(2) || 'N/A'} (Tasa Total de Casos Registrables)`,
+        `LTIF: ${metrics.ltif?.toFixed(2) || 'N/A'} (Índice de Frecuencia de Lesiones con Tiempo Perdido)`,
+        `Registrables OSHA: ${metrics.totalRecordables} casos`,
+        `LTI (Casos con Baja): ${metrics.totalLTI} casos`,
+        `Fatalidades: ${metrics.totalFatalities} casos`,
+      ];
+      
+      summaryItems.forEach(item => {
+        pdf.text(`• ${item}`, margin + 10, yPos);
+        yPos += 6;
+      });
+
+      setProgress(10);
+
+      // ========== ÍNDICE DE CONTENIDOS ==========
+      if (includeFullData || selectedCharts.length > 0) {
+        pdf.addPage();
+        let currentY = margin + 10;
+        
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(18);
+        pdf.setTextColor(239, 68, 68);
+        pdf.text("Índice de Contenidos", margin, currentY);
+        currentY += 15;
+        
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(11);
+        pdf.setTextColor(71, 85, 105);
+        
+        const tocItems = [
+          { title: "1. Indicadores Clave de Desempeño (KPIs)", show: includeFullData },
+          { title: "2. Seguridad de Procesos (API RP 754)", show: includeFullData },
+          { title: "3. Top 5 Sitios con Mayor Incidentalidad", show: includeFullData && metrics.top5Sites && metrics.top5Sites.length > 0 },
+          { title: "4. Detalle de Incidentes", show: includeFullData && incidents.length > 0 },
+          { title: "5. Datos de Exposición", show: includeFullData && exposureHours.length > 0 },
+          { title: "6. Configuración del Sistema", show: includeFullData },
+          { title: "7. Análisis Gráfico", show: selectedCharts.length > 0 }
+        ];
+        
+        tocItems.filter(item => item.show).forEach(item => {
+          pdf.text(`• ${item.title}`, margin + 5, currentY);
+          currentY += 10;
+        });
+        
+        setProgress(15);
+      }
 
       if (includeFullData) {
         pdf.addPage();
-        let currentY = margin + 10;
+        let currentY = margin + 5;
 
-        // KPIs
+        // ========== SECCIÓN 1: KPIs PRINCIPALES ==========
         pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(16);
+        pdf.setFontSize(14);
         pdf.setTextColor(239, 68, 68);
         pdf.text("1. Indicadores Clave de Desempeño (KPIs)", margin, currentY);
-        currentY += 10;
+        pdf.setDrawColor(239, 68, 68);
+        pdf.setLineWidth(0.8);
+        pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
+        currentY += 12;
 
         const kpiData = [
-          ['TRIR (OSHA)', metrics.trir?.toFixed(2) || '—', 'Base 200k Horas'],
-          ['LTIF (IOGP)', metrics.ltif?.toFixed(2) || '—', 'Base 1M Horas'],
-          ['DART (OSHA)', metrics.dart?.toFixed(2) || '—', 'Días Perdidos/Rest/Trans'],
-          ['SR (Severidad)', metrics.sr?.toFixed(2) || '—', 'Días/1k Horas'],
-          ['FAR (Fatalidad)', metrics.far?.toFixed(2) || '—', 'Base 100M Horas'],
-          ['Incidentes Totales', metrics.totalIncidents.toString(), 'Registrados'],
-          ['Registrables OSHA', metrics.totalRecordables.toString(), 'Reportables'],
-          ['LTI Cases', metrics.totalLTI.toString(), 'Casos con baja'],
-          ['Fatalidades', metrics.totalFatalities.toString(), 'Casos mortales'],
+          ['TRIR (OSHA)', metrics.trir?.toFixed(2) || '—', 'Base 200,000 Horas', 'Total Recordable Incident Rate'],
+          ['LTIF (IOGP)', metrics.ltif?.toFixed(2) || '—', 'Base 1,000,000 Horas', 'Lost Time Injury Frequency'],
+          ['DART (OSHA)', metrics.dart?.toFixed(2) || '—', 'Días Perdidos/Rest/Trans', 'Days Away, Restricted or Transferred'],
+          ['SR (Severidad)', metrics.sr?.toFixed(2) || '—', 'Días/1,000 Horas', 'Severity Rate'],
+          ['FAR (Fatalidad)', metrics.far?.toFixed(2) || '—', 'Base 100,000,000 Horas', 'Fatality Accident Rate'],
+          ['Incidentes Totales', metrics.totalIncidents.toString(), 'Total Registrados', '—'],
+          ['Registrables OSHA', metrics.totalRecordables.toString(), 'Casos Reportables', '—'],
+          ['LTI Cases', metrics.totalLTI.toString(), 'Casos con Tiempo Perdido', '—'],
+          ['Fatalidades', metrics.totalFatalities.toString(), 'Casos Mortales', '—'],
         ];
 
         autoTable(pdf, {
           startY: currentY,
-          head: [['KPI', 'Valor', 'Descripción']],
+          head: [['KPI', 'Valor', 'Base de Cálculo', 'Descripción']],
           body: kpiData,
           theme: 'grid',
-          styles: { fontSize: 10, cellPadding: 3 },
-          headStyles: { fillColor: [239, 68, 68], textColor: 255, fontStyle: 'bold' },
-          columnStyles: { 0: { fontStyle: 'bold', textColor: [51, 65, 85] } },
+          styles: { 
+            fontSize: 9, 
+            cellPadding: 4,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.1
+          },
+          headStyles: { 
+            fillColor: [239, 68, 68], 
+            textColor: 255, 
+            fontStyle: 'bold',
+            fontSize: 10,
+            cellPadding: 5
+          },
+          columnStyles: { 
+            0: { fontStyle: 'bold', textColor: [51, 65, 85], cellWidth: 38 },
+            1: { fontStyle: 'bold', textColor: [220, 38, 38], halign: 'center', cellWidth: 25 },
+            2: { fontSize: 8, textColor: [100, 116, 139], cellWidth: 50 },
+            3: { fontSize: 8, textColor: [100, 116, 139], cellWidth: 'auto' }
+          },
           margin: { left: margin, right: margin },
         });
 
-        currentY = (pdf as any).lastAutoTable.finalY + 15;
-        setProgress(30);
+        currentY = (pdf as any).lastAutoTable.finalY + 12;
+        setProgress(25);
 
-        // Seguridad de Procesos
-        if (currentY + 60 > pageHeight - margin) {
+        // ========== SECCIÓN 2: SEGURIDAD DE PROCESOS ==========
+        if (currentY + 60 > pageHeight - margin - 15) {
           pdf.addPage();
-          currentY = margin + 10;
+          currentY = margin + 5;
         }
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(14);
-        pdf.setTextColor(239, 68, 68);
+        pdf.setTextColor(100, 116, 139);
         pdf.text("2. Seguridad de Procesos (API RP 754)", margin, currentY);
-        currentY += 8;
+        pdf.setDrawColor(100, 116, 139);
+        pdf.setLineWidth(0.8);
+        pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
+        currentY += 12;
 
         const processSafetyData = [
-          ['Tier 1 PSER', metrics.t1_pser?.toFixed(2) || '—', metrics.t1_count.toString(), 'Eventos mayores'],
-          ['Tier 2 PSER', metrics.t2_pser?.toFixed(2) || '—', metrics.t2_count.toString(), 'Eventos menores'],
+          [
+            'Tier 1 PSER', 
+            metrics.t1_pser?.toFixed(2) || '—', 
+            metrics.t1_count.toString(), 
+            'Eventos mayores que generan consecuencias graves'
+          ],
+          [
+            'Tier 2 PSER', 
+            metrics.t2_pser?.toFixed(2) || '—', 
+            metrics.t2_count.toString(), 
+            'Eventos menores con potencial de escalamiento'
+          ],
         ];
 
         autoTable(pdf, {
@@ -173,163 +330,275 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           head: [['Indicador', 'Tasa', 'Cantidad', 'Descripción']],
           body: processSafetyData,
           theme: 'grid',
-          styles: { fontSize: 10 },
-          headStyles: { fillColor: [100, 116, 139] },
+          styles: { 
+            fontSize: 9,
+            cellPadding: 4,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.1
+          },
+          headStyles: { 
+            fillColor: [100, 116, 139],
+            textColor: 255,
+            fontStyle: 'bold',
+            fontSize: 10,
+            cellPadding: 5
+          },
+          columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 38 },
+            1: { fontStyle: 'bold', halign: 'center', cellWidth: 25 },
+            2: { halign: 'center', cellWidth: 25 },
+            3: { fontSize: 8, cellWidth: 'auto' }
+          },
           margin: { left: margin, right: margin },
         });
 
-        currentY = (pdf as any).lastAutoTable.finalY + 15;
-        setProgress(40);
+        currentY = (pdf as any).lastAutoTable.finalY + 12;
+        setProgress(35);
 
-        // Top 5 Sitios
+        // ========== SECCIÓN 3: TOP 5 SITIOS ==========
         if (metrics.top5Sites && metrics.top5Sites.length > 0) {
-          if (currentY + 60 > pageHeight - margin) {
+          if (currentY + 70 > pageHeight - margin - 15) {
             pdf.addPage();
-            currentY = margin + 10;
+            currentY = margin + 5;
           }
 
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(14);
-          pdf.setTextColor(239, 68, 68);
+          pdf.setTextColor(245, 158, 11);
           pdf.text("3. Top 5 Sitios con Mayor Incidentalidad", margin, currentY);
-          currentY += 8;
+          pdf.setDrawColor(245, 158, 11);
+          pdf.setLineWidth(0.8);
+          pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
+          currentY += 12;
 
-          const top5Data = metrics.top5Sites.map((site, idx) => [
-            (idx + 1).toString(),
-            site.site,
-            site.count.toString(),
-          ]);
+          const top5Data = metrics.top5Sites.map((site, idx) => {
+            const percentage = ((site.count / incidents.length) * 100).toFixed(1);
+            return [
+              (idx + 1).toString(),
+              site.site,
+              site.count.toString(),
+              `${percentage}%`
+            ];
+          });
 
           autoTable(pdf, {
             startY: currentY,
-            head: [['Ranking', 'Sitio', 'Incidentes']],
+            head: [['#', 'Sitio', 'Incidentes', '% del Total']],
             body: top5Data,
             theme: 'striped',
-            styles: { fontSize: 10 },
-            headStyles: { fillColor: [245, 158, 11], fontStyle: 'bold' },
+            styles: { 
+              fontSize: 10,
+              cellPadding: 4,
+              lineColor: [220, 220, 220],
+              lineWidth: 0.1
+            },
+            headStyles: { 
+              fillColor: [245, 158, 11], 
+              fontStyle: 'bold',
+              fontSize: 10,
+              cellPadding: 5
+            },
+            columnStyles: {
+              0: { halign: 'center', cellWidth: 15, fontStyle: 'bold' },
+              1: { cellWidth: 'auto' },
+              2: { halign: 'center', cellWidth: 30, fontStyle: 'bold' },
+              3: { halign: 'center', cellWidth: 30, textColor: [220, 38, 38] }
+            },
             margin: { left: margin, right: margin },
           });
 
-          currentY = (pdf as any).lastAutoTable.finalY + 15;
+          currentY = (pdf as any).lastAutoTable.finalY + 12;
         }
 
-        setProgress(50);
+        setProgress(45);
 
-        // Tabla de Incidentes
+        // ========== SECCIÓN 4: DETALLE DE INCIDENTES ==========
         if (incidents.length > 0) {
           pdf.addPage();
-          currentY = margin + 10;
+          currentY = margin + 5;
 
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(14);
-          pdf.setTextColor(239, 68, 68);
-          pdf.text("4. Detalle de Incidentes (Primeros 20)", margin, currentY);
-          currentY += 8;
+          pdf.setTextColor(59, 130, 246);
+          pdf.text(`4. Detalle de Incidentes (Mostrando ${Math.min(incidents.length, 25)} de ${incidents.length})`, margin, currentY);
+          pdf.setDrawColor(59, 130, 246);
+          pdf.setLineWidth(0.8);
+          pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
+          currentY += 12;
 
-          const incidentData = incidents.slice(0, 20).map(inc => [
+          const incidentData = incidents.slice(0, 25).map(inc => [
             inc.incident_id,
-            inc.site,
+            inc.site.length > 20 ? inc.site.substring(0, 17) + '...' : inc.site,
             `${inc.year}-${String(inc.month).padStart(2, '0')}`,
             inc.type,
-            inc.location || '—',
+            inc.location && inc.location.length > 15 ? inc.location.substring(0, 12) + '...' : (inc.location || '—'),
             inc.recordable_osha ? 'Sí' : 'No',
           ]);
 
           autoTable(pdf, {
             startY: currentY,
-            head: [['ID', 'Sitio', 'Período', 'Tipo', 'Ubicación', 'Registrable']],
+            head: [['ID', 'Sitio', 'Período', 'Tipo', 'Ubicación', 'Reg.']],
             body: incidentData,
             theme: 'grid',
-            styles: { fontSize: 8 },
-            headStyles: { fillColor: [59, 130, 246] },
+            styles: { 
+              fontSize: 8,
+              cellPadding: 3,
+              lineColor: [220, 220, 220],
+              lineWidth: 0.1
+            },
+            headStyles: { 
+              fillColor: [59, 130, 246],
+              textColor: 255,
+              fontStyle: 'bold',
+              fontSize: 9,
+              cellPadding: 4
+            },
+            columnStyles: {
+              0: { cellWidth: 20, fontSize: 7 },
+              1: { cellWidth: 'auto' },
+              2: { halign: 'center', cellWidth: 22 },
+              3: { cellWidth: 28 },
+              4: { cellWidth: 32, fontSize: 7 },
+              5: { halign: 'center', cellWidth: 15, fontStyle: 'bold' }
+            },
             margin: { left: margin, right: margin },
           });
 
           currentY = (pdf as any).lastAutoTable.finalY + 10;
         }
 
-        setProgress(60);
+        setProgress(55);
 
-        // Exposición
+        // ========== SECCIÓN 5: DATOS DE EXPOSICIÓN ==========
         if (exposureHours.length > 0) {
-          if (currentY + 60 > pageHeight - margin) {
+          if (currentY + 80 > pageHeight - margin - 15) {
             pdf.addPage();
-            currentY = margin + 10;
+            currentY = margin + 5;
           }
 
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(14);
-          pdf.setTextColor(239, 68, 68);
-          pdf.text("5. Datos de Exposición (Primeros 15 Registros)", margin, currentY);
-          currentY += 8;
+          pdf.setTextColor(16, 185, 129);
+          pdf.text(`5. Datos de Exposición (Mostrando ${Math.min(exposureHours.length, 20)} de ${exposureHours.length})`, margin, currentY);
+          pdf.setDrawColor(16, 185, 129);
+          pdf.setLineWidth(0.8);
+          pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
+          currentY += 12;
 
-          const exposureData = exposureHours.slice(0, 15).map(exp => [
-            exp.site,
+          // Calcular totales
+          const totalHours = exposureHours.reduce((sum, exp) => sum + exp.hours, 0);
+          
+          const exposureData = exposureHours.slice(0, 20).map(exp => [
+            exp.site.length > 25 ? exp.site.substring(0, 22) + '...' : exp.site,
             exp.period,
-            exp.hours.toLocaleString(),
+            exp.hours.toLocaleString('es-ES'),
           ]);
 
           autoTable(pdf, {
             startY: currentY,
             head: [['Sitio', 'Período', 'Horas Hombre']],
             body: exposureData,
+            foot: [['TOTAL', '', totalHours.toLocaleString('es-ES')]],
             theme: 'grid',
-            styles: { fontSize: 9 },
-            headStyles: { fillColor: [16, 185, 129] },
+            styles: { 
+              fontSize: 9,
+              cellPadding: 4,
+              lineColor: [220, 220, 220],
+              lineWidth: 0.1
+            },
+            headStyles: { 
+              fillColor: [16, 185, 129],
+              textColor: 255,
+              fontStyle: 'bold',
+              fontSize: 10,
+              cellPadding: 5
+            },
+            footStyles: {
+              fillColor: [16, 185, 129],
+              textColor: 255,
+              fontStyle: 'bold',
+              fontSize: 10
+            },
+            columnStyles: {
+              0: { cellWidth: 'auto' },
+              1: { halign: 'center', cellWidth: 35 },
+              2: { halign: 'right', cellWidth: 35, fontStyle: 'bold' }
+            },
             margin: { left: margin, right: margin },
           });
 
-          currentY = (pdf as any).lastAutoTable.finalY + 15;
+          currentY = (pdf as any).lastAutoTable.finalY + 12;
         }
 
-        setProgress(70);
+        setProgress(65);
 
-        // Configuración
-        if (currentY + 40 > pageHeight - margin) {
+        // ========== SECCIÓN 6: CONFIGURACIÓN DEL SISTEMA ==========
+        if (currentY + 50 > pageHeight - margin - 15) {
           pdf.addPage();
-          currentY = margin + 10;
+          currentY = margin + 5;
         }
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(14);
-        pdf.setTextColor(239, 68, 68);
+        pdf.setTextColor(139, 92, 246);
         pdf.text("6. Configuración del Sistema", margin, currentY);
-        currentY += 8;
+        pdf.setDrawColor(139, 92, 246);
+        pdf.setLineWidth(0.8);
+        pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
+        currentY += 12;
 
         const configData = [
-          ['Base IF', settings.base_if?.toLocaleString() || '1000000'],
-          ['Base TRIR', settings.base_trir?.toLocaleString() || '200000'],
-          ['Límite de Días', settings.days_cap?.toString() || '180'],
+          ['Base IF (Injury Frequency)', settings.base_if?.toLocaleString('es-ES') || '1,000,000', 'Horas'],
+          ['Base TRIR (Total Recordable)', settings.base_trir?.toLocaleString('es-ES') || '200,000', 'Horas'],
+          ['Límite de Días (Cap)', settings.days_cap?.toString() || '180', 'Días'],
         ];
 
         autoTable(pdf, {
           startY: currentY,
-          head: [['Parámetro', 'Valor']],
+          head: [['Parámetro', 'Valor', 'Unidad']],
           body: configData,
           theme: 'grid',
-          styles: { fontSize: 10 },
-          headStyles: { fillColor: [100, 116, 139] },
+          styles: { 
+            fontSize: 10,
+            cellPadding: 4,
+            lineColor: [220, 220, 220],
+            lineWidth: 0.1
+          },
+          headStyles: { 
+            fillColor: [139, 92, 246],
+            textColor: 255,
+            fontStyle: 'bold',
+            cellPadding: 5
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto', fontStyle: 'bold' },
+            1: { halign: 'right', cellWidth: 40, fontStyle: 'bold', textColor: [139, 92, 246] },
+            2: { halign: 'center', cellWidth: 30 }
+          },
           margin: { left: margin, right: margin },
         });
 
-        currentY = (pdf as any).lastAutoTable.finalY + 15;
-        setProgress(75);
+        currentY = (pdf as any).lastAutoTable.finalY + 12;
+        setProgress(70);
       }
 
-      // Gráficos
+      // ========== SECCIÓN 7: GRÁFICOS SELECCIONADOS ==========
       if (selectedCharts.length > 0) {
         pdf.addPage();
-        let currentY = margin + 10;
+        let currentY = margin + 5;
 
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(16);
         pdf.setTextColor(239, 68, 68);
-        pdf.text("Análisis Gráfico", margin, currentY);
-        currentY += 12;
+        pdf.text("7. Análisis Gráfico", margin, currentY);
+        pdf.setDrawColor(239, 68, 68);
+        pdf.setLineWidth(1);
+        pdf.line(margin, currentY + 3, pageWidth - margin, currentY + 3);
+        currentY += 15;
 
         for (let i = 0; i < selectedCharts.length; i++) {
           const chart = selectedCharts[i];
-          setProgress(75 + Math.round((i / selectedCharts.length) * 20));
+          setProgress(70 + Math.round((i / selectedCharts.length) * 25));
 
           const element = document.getElementById(chart.elementId);
           if (!element) {
@@ -343,25 +612,56 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
               backgroundColor: '#ffffff',
               logging: false,
               useCORS: true,
+              windowWidth: element.scrollWidth,
+              windowHeight: element.scrollHeight
             });
 
             const imgData = canvas.toDataURL('image/png');
             const imgWidth = maxWidth;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-            if (currentY + imgHeight + 20 > pageHeight - margin) {
-              pdf.addPage();
-              currentY = margin + 10;
+            
+            // Limitar altura máxima del gráfico
+            const maxImgHeight = pageHeight - margin * 2 - 40;
+            let finalImgHeight = imgHeight;
+            let finalImgWidth = imgWidth;
+            
+            if (imgHeight > maxImgHeight) {
+              finalImgHeight = maxImgHeight;
+              finalImgWidth = (canvas.width * maxImgHeight) / canvas.height;
             }
 
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(12);
-            pdf.setTextColor(51, 65, 85);
-            pdf.text(`${i + 1}. ${chart.name}`, margin, currentY);
-            currentY += 8;
+            // Verificar espacio y crear nueva página si es necesario
+            if (currentY + finalImgHeight + 30 > pageHeight - margin - 15) {
+              pdf.addPage();
+              currentY = margin + 5;
+            }
 
-            pdf.addImage(imgData, 'PNG', margin, currentY, imgWidth, imgHeight);
-            currentY += imgHeight + 15;
+            // Título del gráfico con fondo
+            pdf.setFillColor(245, 247, 250);
+            pdf.roundedRect(margin, currentY, contentWidth, 10, 2, 2, 'F');
+            
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(11);
+            pdf.setTextColor(51, 65, 85);
+            pdf.text(`7.${i + 1} ${chart.name}`, margin + 3, currentY + 7);
+            currentY += 15;
+
+            // Centrar imagen si es más pequeña que el ancho máximo
+            const xOffset = finalImgWidth < maxWidth ? margin + (maxWidth - finalImgWidth) / 2 : margin;
+            
+            // Agregar sombra sutil
+            pdf.setFillColor(240, 240, 240);
+            pdf.roundedRect(xOffset + 1, currentY + 1, finalImgWidth, finalImgHeight, 3, 3, 'F');
+            
+            // Agregar imagen
+            pdf.addImage(imgData, 'PNG', xOffset, currentY, finalImgWidth, finalImgHeight);
+            
+            // Borde del gráfico
+            pdf.setDrawColor(220, 220, 220);
+            pdf.setLineWidth(0.5);
+            pdf.roundedRect(xOffset, currentY, finalImgWidth, finalImgHeight, 3, 3, 'S');
+            
+            currentY += finalImgHeight + 20;
 
             await new Promise(resolve => setTimeout(resolve, 100));
           } catch (error) {
@@ -372,31 +672,55 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
 
       setProgress(95);
 
-      // Numeración
+      // ========== NUMERACIÓN Y PIE DE PÁGINA ==========
       const pageCount = pdf.getNumberOfPages();
-      pdf.setFontSize(8);
-      pdf.setTextColor(148, 163, 184);
+      const currentDate = new Date().toLocaleDateString('es-ES', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
       
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
-        if (i > 1) {
+        
+        if (i > 1) { // Skip portada
+          // Línea superior del pie de página
+          pdf.setDrawColor(220, 220, 220);
+          pdf.setLineWidth(0.3);
+          pdf.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
+          
+          // Texto del pie de página
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          pdf.setTextColor(120, 120, 120);
+          
+          // Izquierda: Empresa y fecha
+          pdf.text('SST Metrics Pro - TACKER SRL', margin, pageHeight - 12);
+          pdf.text(`Generado: ${currentDate}`, margin, pageHeight - 7);
+          
+          // Centro: Número de página
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(9);
           pdf.text(
             `Página ${i} de ${pageCount}`,
             pageWidth / 2,
             pageHeight - 10,
             { align: 'center' }
           );
-          pdf.text(
-            'SST Metrics Pro - TACKER SRL',
-            margin,
-            pageHeight - 10
-          );
+          
+          // Derecha: Marca de confidencialidad
+          pdf.setFont("helvetica", "italic");
+          pdf.setFontSize(7);
+          pdf.setTextColor(180, 180, 180);
+          pdf.text('Documento Confidencial', pageWidth - margin, pageHeight - 10, { align: 'right' });
         }
       }
 
       setProgress(100);
 
-      pdf.save(`SST_Reporte_Completo_${new Date().toISOString().split('T')[0]}.pdf`);
+      // ========== GUARDAR PDF ==========
+      const fileName = `SST_Reporte_Integral_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
       
       setExporting(false);
       setProgress(0);

@@ -9,13 +9,13 @@ import {
 import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, GlobalKmRecord } from '../types';
 import { 
   calculateKPIs, generateParetoData, generateSeverityDistribution,
-  generateTemporalHeatmap, generateBodyMapAnalytics,
+  generateTemporalHeatmap,
   generateWaterfallData, generateScatterPlotData,
   generateRadarChartData
 } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon, PieChart as PieIcon, Layers } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon, PieChart as PieIcon, Layers } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
 interface DashboardProps {
@@ -687,46 +687,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                   </PieChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
-                      })()}
-                  </div>
-              </div>
-          </div>
-
-          {/* Row 2: Body Map */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* 5. Body Map Analytics */}
-              <div id="chart-body-map" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <HeartPulse className="w-5 h-5 mr-2 text-red-600" /> Top 10 Partes del Cuerpo Afectadas
-                  </h3>
-                  <div className="h-80">
-                      {(() => {
-                          const bodyData = generateBodyMapAnalytics(incidents);
-                          return bodyData.length > 0 ? (
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={bodyData} layout="vertical">
-                                      <defs>
-                                          <linearGradient id="colorBody" x1="0" y1="0" x2="1" y2="0">
-                                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9}/>
-                                              <stop offset="95%" stopColor="#fca5a5" stopOpacity={0.7}/>
-                                          </linearGradient>
-                                      </defs>
-                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false}/>
-                                      <XAxis type="number" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }}/>
-                                      <YAxis type="category" dataKey="name" fontSize={10} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} width={120}/>
-                                      <Tooltip
-                                          contentStyle={{
-                                              backgroundColor: '#ffffff',
-                                              borderRadius: '12px',
-                                              border: '1px solid #e5e7eb',
-                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                                              padding: '12px'
-                                          }}
-                                      />
-                                      <Bar dataKey="count" fill="url(#colorBody)" radius={[0, 6, 6, 0]} />
-                                  </BarChart>
-                              </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de partes del cuerpo</div>;
                       })()}
                   </div>
               </div>
