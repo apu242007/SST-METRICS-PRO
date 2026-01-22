@@ -545,23 +545,38 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* 6. CHARTS ROW (Risk Trend & Pareto) */}
       <div id="dashboard-charts-container" className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-2 rounded-xl min-w-0">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-w-0 flex flex-col">
+          <div id="chart-risk-trend" className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 min-w-0 flex flex-col">
                <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                   <TrendingUp className="w-4 h-4 mr-2 text-orange-500" /> Evolución Índice de Riesgo
+                   <TrendingUp className="w-5 h-5 mr-2 text-orange-500" /> Evolución Índice de Riesgo
                </h3>
                <div className="h-64 w-full min-w-0 relative">
                    {trendData.length > 0 ? (
                        <ResponsiveContainer width="100%" height="100%">
                            <ComposedChart data={trendData}>
-                               <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                               <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false}/>
-                               <YAxis yAxisId="left" fontSize={10} tickLine={false} axisLine={false}/>
-                               <YAxis yAxisId="right" orientation="right" fontSize={10} tickLine={false} axisLine={false}/>
-                               <Tooltip contentStyle={{borderRadius: '8px', border:'none', boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}/>
-                               <Legend />
-                               <Bar yAxisId="left" dataKey="Risk" name="Puntos Riesgo" fill="#fb923c" radius={[4,4,0,0]} barSize={20} />
-                               {!isRatesBlocked && <Line yAxisId="right" type="monotone" dataKey="TRIR" name="TRIR" stroke="#3b82f6" strokeWidth={2} dot={{r:3}} />}
-                               {!isRatesBlocked && <Line yAxisId="right" type="monotone" dataKey="LTIF" name="LTIF" stroke="#ef4444" strokeWidth={2} dot={{r:3}} />}
+                               <defs>
+                                   <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
+                                       <stop offset="5%" stopColor="#fb923c" stopOpacity={0.8}/>
+                                       <stop offset="95%" stopColor="#fb923c" stopOpacity={0.3}/>
+                                   </linearGradient>
+                               </defs>
+                               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false}/>
+                               <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }}/>
+                               <YAxis yAxisId="left" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} label={{ value: 'Puntos Riesgo', angle: -90, position: 'insideLeft', style: { fill: '#6b7280', fontSize: 11 } }}/>
+                               <YAxis yAxisId="right" orientation="right" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} label={{ value: 'Tasas', angle: 90, position: 'insideRight', style: { fill: '#6b7280', fontSize: 11 } }}/>
+                               <Tooltip 
+                                   contentStyle={{
+                                       backgroundColor: '#ffffff',
+                                       borderRadius: '12px', 
+                                       border: '1px solid #e5e7eb',
+                                       boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+                                       padding: '12px'
+                                   }}
+                                   labelStyle={{ fontWeight: 'bold', color: '#374151', marginBottom: '8px' }}
+                               />
+                               <Legend wrapperStyle={{ paddingTop: '10px' }} iconType="circle" />
+                               <Bar yAxisId="left" dataKey="Risk" name="Puntos Riesgo" fill="url(#colorRisk)" radius={[6,6,0,0]} barSize={24} />
+                               {!isRatesBlocked && <Line yAxisId="right" type="monotone" dataKey="TRIR" name="TRIR" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />}
+                               {!isRatesBlocked && <Line yAxisId="right" type="monotone" dataKey="LTIF" name="LTIF" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />}
                            </ComposedChart>
                        </ResponsiveContainer>
                    ) : (
@@ -572,27 +587,43 @@ export const Dashboard: React.FC<DashboardProps> = ({
                </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-w-0 flex flex-col">
+          <div id="chart-pareto" className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 min-w-0 flex flex-col">
                <div className="flex justify-between items-center mb-4">
                    <h3 className="font-bold text-gray-800 flex items-center">
-                       <BarChart2 className="w-4 h-4 mr-2 text-blue-500" /> Pareto 80/20
+                       <BarChart2 className="w-5 h-5 mr-2 text-blue-500" /> Análisis Pareto 80/20
                    </h3>
                    <div className="flex space-x-2 text-xs">
-                       <button onClick={() => setParetoView('type')} className={`px-2 py-1 rounded ${paretoView==='type'?'bg-blue-100 text-blue-700':'bg-gray-100'}`}>Por Tipo</button>
-                       <button onClick={() => setParetoView('location')} className={`px-2 py-1 rounded ${paretoView==='location'?'bg-blue-100 text-blue-700':'bg-gray-100'}`}>Por Ubicación</button>
+                       <button onClick={() => setParetoView('type')} className={`px-3 py-1.5 rounded-lg font-medium transition-all ${paretoView==='type'?'bg-blue-600 text-white shadow-md':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Por Tipo</button>
+                       <button onClick={() => setParetoView('location')} className={`px-3 py-1.5 rounded-lg font-medium transition-all ${paretoView==='location'?'bg-blue-600 text-white shadow-md':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Por Ubicación</button>
                    </div>
                </div>
                <div className="h-64 w-full min-w-0 relative">
                    {paretoData.length > 0 ? (
                        <ResponsiveContainer width="100%" height="100%">
                            <ComposedChart data={paretoData} onClick={(d: any) => d && d.activePayload && onDrillDown && onDrillDown({ type: d.activePayload[0].payload.name })}>
-                               <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                               <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={40}/>
-                               <YAxis yAxisId="left" fontSize={10} tickLine={false} axisLine={false}/>
-                               <YAxis yAxisId="right" orientation="right" unit="%" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]}/>
-                               <Tooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '8px'}}/>
-                               <Bar yAxisId="left" dataKey="count" name="Cantidad" fill="#64748b" barSize={30} radius={[4,4,0,0]} />
-                               <Line yAxisId="right" type="monotone" dataKey="cumulativePercentage" name="% Acumulado" stroke="#ef4444" strokeWidth={2} dot={{r:3}} />
+                               <defs>
+                                   <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                       <stop offset="5%" stopColor="#64748b" stopOpacity={0.9}/>
+                                       <stop offset="95%" stopColor="#64748b" stopOpacity={0.5}/>
+                                   </linearGradient>
+                               </defs>
+                               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false}/>
+                               <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} interval={0} angle={-15} textAnchor="end" height={40}/>
+                               <YAxis yAxisId="left" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} label={{ value: 'Cantidad', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}/>
+                               <YAxis yAxisId="right" orientation="right" unit="%" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} domain={[0, 100]} label={{ value: '% Acumulado', angle: 90, position: 'insideRight', style: { fill: '#6b7280' } }}/>
+                               <Tooltip 
+                                   cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} 
+                                   contentStyle={{
+                                       backgroundColor: '#ffffff',
+                                       borderRadius: '12px',
+                                       border: '1px solid #e5e7eb',
+                                       boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                       padding: '12px'
+                                   }}
+                               />
+                               <Legend wrapperStyle={{ paddingTop: '10px' }} iconType="circle" />
+                               <Bar yAxisId="left" dataKey="count" name="Cantidad" fill="url(#colorCount)" barSize={32} radius={[6,6,0,0]} />
+                               <Line yAxisId="right" type="monotone" dataKey="cumulativePercentage" name="% Acumulado" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#fff', strokeWidth: 2 }} activeDot={{ r: 6 }} />
                            </ComposedChart>
                        </ResponsiveContainer>
                    ) : (
@@ -613,9 +644,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {/* Row 1: Severity Distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* 2. Severity Distribution (Donut) */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+              <div id="chart-severity-dist" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <PieIcon className="w-4 h-4 mr-2 text-blue-600" /> Distribución por Tipo
+                      <PieIcon className="w-5 h-5 mr-2 text-blue-600" /> Distribución por Tipo
                   </h3>
                   <div className="h-80">
                       {(() => {
@@ -627,18 +658,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                           data={severityData}
                                           cx="50%"
                                           cy="50%"
-                                          innerRadius={60}
-                                          outerRadius={100}
-                                          paddingAngle={2}
+                                          innerRadius={70}
+                                          outerRadius={110}
+                                          paddingAngle={3}
                                           dataKey="value"
                                           label={({name, percent}) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
-                                          labelLine={{ stroke: '#666', strokeWidth: 1 }}
+                                          labelLine={{ stroke: '#94a3b8', strokeWidth: 1.5 }}
                                       >
                                           {severityData.map((entry, index) => (
-                                              <Cell key={`cell-${index}`} fill={entry.color} />
+                                              <Cell key={`cell-${index}`} fill={entry.color} stroke="#fff" strokeWidth={2} />
                                           ))}
                                       </Pie>
-                                      <Tooltip />
+                                      <Tooltip 
+                                          contentStyle={{
+                                              backgroundColor: '#ffffff',
+                                              borderRadius: '12px',
+                                              border: '1px solid #e5e7eb',
+                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                              padding: '12px'
+                                          }}
+                                      />
+                                      <Legend 
+                                          verticalAlign="bottom" 
+                                          height={36}
+                                          iconType="circle"
+                                          wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }}
+                                      />
                                   </PieChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
@@ -650,9 +695,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {/* Row 2: Body Map */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* 5. Body Map Analytics */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+              <div id="chart-body-map" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <HeartPulse className="w-4 h-4 mr-2 text-red-600" /> Top 10 Partes del Cuerpo Afectadas
+                      <HeartPulse className="w-5 h-5 mr-2 text-red-600" /> Top 10 Partes del Cuerpo Afectadas
                   </h3>
                   <div className="h-80">
                       {(() => {
@@ -660,11 +705,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           return bodyData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={bodyData} layout="vertical">
-                                      <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
-                                      <XAxis type="number" fontSize={10} tickLine={false} axisLine={false}/>
-                                      <YAxis type="category" dataKey="name" fontSize={10} tickLine={false} axisLine={false} width={100}/>
-                                      <Tooltip/>
-                                      <Bar dataKey="count" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                                      <defs>
+                                          <linearGradient id="colorBody" x1="0" y1="0" x2="1" y2="0">
+                                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9}/>
+                                              <stop offset="95%" stopColor="#fca5a5" stopOpacity={0.7}/>
+                                          </linearGradient>
+                                      </defs>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false}/>
+                                      <XAxis type="number" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }}/>
+                                      <YAxis type="category" dataKey="name" fontSize={10} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} width={120}/>
+                                      <Tooltip
+                                          contentStyle={{
+                                              backgroundColor: '#ffffff',
+                                              borderRadius: '12px',
+                                              border: '1px solid #e5e7eb',
+                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                              padding: '12px'
+                                          }}
+                                      />
+                                      <Bar dataKey="count" fill="url(#colorBody)" radius={[0, 6, 6, 0]} />
                                   </BarChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos de partes del cuerpo</div>;
@@ -676,9 +735,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {/* Row 3: Waterfall */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* 7. Waterfall Chart */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+              <div id="chart-waterfall" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <BarChart2 className="w-4 h-4 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
+                      <BarChart2 className="w-5 h-5 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
                   </h3>
                   <div className="h-80">
                       {(() => {
@@ -686,11 +745,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           return waterfallData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={waterfallData} layout="vertical">
-                                      <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
-                                      <XAxis type="number" fontSize={10} tickLine={false} axisLine={false}/>
-                                      <YAxis type="category" dataKey="site" fontSize={10} tickLine={false} axisLine={false} width={80}/>
-                                      <Tooltip/>
-                                      <Bar dataKey="value" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+                                      <defs>
+                                          <linearGradient id="colorWaterfall" x1="0" y1="0" x2="1" y2="0">
+                                              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.9}/>
+                                              <stop offset="95%" stopColor="#67e8f9" stopOpacity={0.7}/>
+                                          </linearGradient>
+                                      </defs>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false}/>
+                                      <XAxis type="number" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }}/>
+                                      <YAxis type="category" dataKey="site" fontSize={10} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} width={90}/>
+                                      <Tooltip
+                                          contentStyle={{
+                                              backgroundColor: '#ffffff',
+                                              borderRadius: '12px',
+                                              border: '1px solid #e5e7eb',
+                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                              padding: '12px'
+                                          }}
+                                      />
+                                      <Bar dataKey="value" fill="url(#colorWaterfall)" radius={[0, 6, 6, 0]} />
                                   </BarChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
@@ -702,9 +775,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {/* Row 4: Scatter Plot */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* 9. Scatter Plot */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+              <div id="chart-scatter" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <Target className="w-4 h-4 mr-2 text-orange-600" /> Frecuencia vs Severidad (por Sitio)
+                      <Target className="w-5 h-5 mr-2 text-orange-600" /> Frecuencia vs Severidad (por Sitio)
                   </h3>
                   <div className="h-80">
                       {(() => {
@@ -712,25 +785,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           return scatterData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <ScatterChart>
-                                      <CartesianGrid strokeDasharray="3 3"/>
-                                      <XAxis type="number" dataKey="frequency" name="Frecuencia" fontSize={10} tickLine={false} axisLine={false} label={{ value: 'Cantidad de Incidentes', position: 'bottom' }} />
-                                      <YAxis type="number" dataKey="severity" name="Severidad" fontSize={10} tickLine={false} axisLine={false} label={{ value: 'Días Promedio', angle: -90, position: 'left' }} />
-                                      <ZAxis type="number" dataKey="hours" range={[50, 400]} />
-                                      <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }: any) => {
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
+                                      <XAxis 
+                                          type="number" 
+                                          dataKey="frequency" 
+                                          name="Frecuencia" 
+                                          fontSize={11} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#6b7280' }}
+                                          label={{ value: 'Cantidad de Incidentes', position: 'bottom', offset: 0, style: { fill: '#6b7280', fontSize: 11 } }} 
+                                      />
+                                      <YAxis 
+                                          type="number" 
+                                          dataKey="severity" 
+                                          name="Severidad" 
+                                          fontSize={11} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#6b7280' }}
+                                          label={{ value: 'Días Promedio', angle: -90, position: 'insideLeft', style: { fill: '#6b7280', fontSize: 11 } }} 
+                                      />
+                                      <ZAxis type="number" dataKey="hours" range={[100, 600]} />
+                                      <Tooltip 
+                                          cursor={{ strokeDasharray: '3 3', stroke: '#94a3b8' }} 
+                                          content={({ active, payload }: any) => {
                                           if (active && payload && payload.length) {
                                               const data = payload[0].payload;
                                               return (
-                                                  <div className="bg-white p-3 rounded shadow-lg border text-xs">
-                                                      <p className="font-bold">{data.site}</p>
-                                                      <p>Incidentes: {data.frequency}</p>
-                                                      <p>Días Prom: {data.severity}</p>
-                                                      <p>Horas: {data.hours.toLocaleString()}</p>
+                                                  <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 text-xs">
+                                                      <p className="font-bold text-gray-800 mb-2">{data.site}</p>
+                                                      <p className="text-gray-600">Incidentes: <span className="font-semibold text-gray-900">{data.frequency}</span></p>
+                                                      <p className="text-gray-600">Días Prom: <span className="font-semibold text-gray-900">{data.severity}</span></p>
+                                                      <p className="text-gray-600">Horas: <span className="font-semibold text-gray-900">{data.hours.toLocaleString()}</span></p>
                                                   </div>
                                               );
                                           }
                                           return null;
                                       }}/>
-                                      <Scatter data={scatterData} fill="#f59e0b" />
+                                      <Scatter data={scatterData} fill="#f59e0b" stroke="#fff" strokeWidth={2} />
                                   </ScatterChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
@@ -740,9 +833,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Row 5: Radar Chart (Full Width) */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
+          <div id="chart-radar" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
               <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                  <Target className="w-4 h-4 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
+                  <Target className="w-5 h-5 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
               </h3>
               <div className="h-96">
                   {(() => {
@@ -762,13 +855,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       return radarFormatted.length > 0 && sites.length > 0 ? (
                           <ResponsiveContainer width="100%" height="100%">
                               <RadarChart data={radarFormatted}>
-                                  <PolarGrid />
-                                  <PolarAngleAxis dataKey="metric" fontSize={12} />
-                                  <PolarRadiusAxis fontSize={10} />
-                                  <Tooltip />
-                                  <Legend />
+                                  <PolarGrid stroke="#e5e7eb" />
+                                  <PolarAngleAxis dataKey="metric" fontSize={13} tick={{ fill: '#374151', fontWeight: 500 }} />
+                                  <PolarRadiusAxis fontSize={10} stroke="#d1d5db" tick={{ fill: '#6b7280' }} />
+                                  <Tooltip 
+                                      contentStyle={{
+                                          backgroundColor: '#ffffff',
+                                          borderRadius: '12px',
+                                          border: '1px solid #e5e7eb',
+                                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                          padding: '12px'
+                                      }}
+                                  />
+                                  <Legend wrapperStyle={{ paddingTop: '15px' }} iconType="circle" />
                                   {sites.map((site, idx) => (
-                                      <Radar key={site} name={site} dataKey={site} stroke={COLORS[idx % COLORS.length]} fill={COLORS[idx % COLORS.length]} fillOpacity={0.2} />
+                                      <Radar 
+                                          key={site} 
+                                          name={site} 
+                                          dataKey={site} 
+                                          stroke={COLORS[idx % COLORS.length]} 
+                                          fill={COLORS[idx % COLORS.length]} 
+                                          fillOpacity={0.25}
+                                          strokeWidth={2}
+                                      />
                                   ))}
                               </RadarChart>
                           </ResponsiveContainer>
