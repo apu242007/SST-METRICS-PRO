@@ -8,10 +8,10 @@ import {
 } from 'recharts';
 import { ExposureHour, ExposureKm, Incident, AppSettings, TargetScenarioType, GlobalKmRecord } from '../types';
 import { 
-  calculateKPIs, generateParetoData, generatePyramidData, generateSeverityDistribution,
-  generateTemporalHeatmap, generateMultiKPIEvolution, generateBodyMapAnalytics,
-  generateWaterfallData, generateControlChartData, generateScatterPlotData,
-  generateBurndownData, generateRadarChartData
+  calculateKPIs, generateParetoData, generateSeverityDistribution,
+  generateTemporalHeatmap, generateBodyMapAnalytics,
+  generateWaterfallData, generateScatterPlotData,
+  generateRadarChartData
 } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
@@ -610,35 +610,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Layers className="w-6 h-6 mr-2" /> Análisis Avanzado - Gráficos Ejecutivos
           </h2>
 
-          {/* Row 1: Heinrich Pyramid + Severity Distribution */}
+          {/* Row 1: Severity Distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* 1. Heinrich Pyramid */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <Layers className="w-4 h-4 mr-2 text-purple-600" /> Pirámide de Heinrich/Bird
-                  </h3>
-                  <div className="h-80">
-                      {(() => {
-                          const pyramidData = generatePyramidData(incidents);
-                          return pyramidData.length > 0 ? (
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={pyramidData} layout="vertical">
-                                      <CartesianGrid strokeDasharray="3 3" horizontal={false}/>
-                                      <XAxis type="number" fontSize={10} tickLine={false} axisLine={false}/>
-                                      <YAxis type="category" dataKey="level" fontSize={10} tickLine={false} axisLine={false} width={120}/>
-                                      <Tooltip/>
-                                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                                          {pyramidData.map((entry, index) => (
-                                              <Cell key={`cell-${index}`} fill={entry.color} />
-                                          ))}
-                                      </Bar>
-                                  </BarChart>
-                              </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
-                      })()}
-                  </div>
-              </div>
-
               {/* 2. Severity Distribution (Donut) */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
@@ -674,35 +647,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
           </div>
 
-          {/* Row 2: Multi-KPI Evolution + Body Map */}
+          {/* Row 2: Body Map */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* 4. Multi-KPI Evolution */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <TrendingUp className="w-4 h-4 mr-2 text-green-600" /> Evolución Multi-KPI
-                  </h3>
-                  <div className="h-80">
-                      {(() => {
-                          const multiKpiData = generateMultiKPIEvolution(incidents, exposureHours, exposureKm, settings, targets);
-                          return multiKpiData.length > 0 ? (
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <ComposedChart data={multiKpiData}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                                      <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60}/>
-                                      <YAxis fontSize={10} tickLine={false} axisLine={false}/>
-                                      <Tooltip/>
-                                      <Legend />
-                                      <Line type="monotone" dataKey="TRIR" stroke="#3b82f6" strokeWidth={2} dot={{r:3}} />
-                                      <Line type="monotone" dataKey="LTIF" stroke="#ef4444" strokeWidth={2} dot={{r:3}} />
-                                      <Line type="monotone" dataKey="DART" stroke="#f59e0b" strokeWidth={2} dot={{r:3}} />
-                                      <Line type="monotone" dataKey="targetTRIR" stroke="#94a3b8" strokeWidth={1} strokeDasharray="5 5" name="Meta TRIR" dot={false} />
-                                  </ComposedChart>
-                              </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
-                      })()}
-                  </div>
-              </div>
-
               {/* 5. Body Map Analytics */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
@@ -727,7 +673,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
           </div>
 
-          {/* Row 3: Waterfall + Control Chart */}
+          {/* Row 3: Waterfall */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* 7. Waterfall Chart */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
@@ -751,39 +697,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       })()}
                   </div>
               </div>
-
-              {/* 8. Control Chart */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <Activity className="w-4 h-4 mr-2 text-purple-600" /> Control Chart (UCL/LCL)
-                  </h3>
-                  <div className="h-80">
-                      {(() => {
-                          const controlData = generateControlChartData(incidents, exposureHours, settings);
-                          return controlData.length > 0 ? (
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <ComposedChart data={controlData}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                                      <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60}/>
-                                      <YAxis fontSize={10} tickLine={false} axisLine={false}/>
-                                      <Tooltip/>
-                                      <Legend />
-                                      <ReferenceLine y={controlData[0]?.mean} stroke="#64748b" strokeDasharray="3 3" label="Media" />
-                                      <ReferenceLine y={controlData[0]?.ucl} stroke="#ef4444" strokeDasharray="5 5" label="UCL" />
-                                      <ReferenceLine y={controlData[0]?.lcl} stroke="#22c55e" strokeDasharray="5 5" label="LCL" />
-                                      <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={(props: any) => {
-                                          const { cx, cy, payload } = props;
-                                          return <circle cx={cx} cy={cy} r={payload.outOfControl ? 6 : 3} fill={payload.outOfControl ? '#ef4444' : '#3b82f6'} />;
-                                      }} name="TRIR" />
-                                  </ComposedChart>
-                              </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
-                      })()}
-                  </div>
-              </div>
           </div>
 
-          {/* Row 4: Scatter Plot + Burndown */}
+          {/* Row 4: Scatter Plot */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* 9. Scatter Plot */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
@@ -816,31 +732,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       }}/>
                                       <Scatter data={scatterData} fill="#f59e0b" />
                                   </ScatterChart>
-                              </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
-                      })()}
-                  </div>
-              </div>
-
-              {/* 10. Burndown Chart */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <TrendingDown className="w-4 h-4 mr-2 text-green-600" /> Burndown Chart (Progreso a Meta)
-                  </h3>
-                  <div className="h-80">
-                      {(() => {
-                          const burndownData = generateBurndownData(incidents, exposureHours, settings, 2.5, 1.2);
-                          return burndownData.length > 0 ? (
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <ComposedChart data={burndownData}>
-                                      <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                                      <XAxis dataKey="period" fontSize={10} tickLine={false} axisLine={false} interval={0} angle={-45} textAnchor="end" height={60}/>
-                                      <YAxis fontSize={10} tickLine={false} axisLine={false}/>
-                                      <Tooltip/>
-                                      <Legend />
-                                      <Area type="monotone" dataKey="target" fill="#86efac" stroke="#22c55e" fillOpacity={0.3} name="Meta" />
-                                      <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={3} dot={{r:4}} name="Real" />
-                                  </ComposedChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
                       })()}

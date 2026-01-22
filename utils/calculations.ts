@@ -426,26 +426,7 @@ export const generateDetailedKPIReport = (
 
 // ========== NEW CHART DATA GENERATORS ==========
 
-// 1. Heinrich Pyramid Data
-export const generatePyramidData = (incidents: Incident[]) => {
-  const fatalities = incidents.filter(i => i.fatality).length;
-  const lti = incidents.filter(i => i.lti_case && !i.fatality).length;
-  const medicalTreatment = incidents.filter(i => i.type === 'Medical Treatment').length;
-  const firstAid = incidents.filter(i => i.type === 'First Aid').length;
-  const nearMiss = incidents.filter(i => i.type === 'Near Miss').length;
-  const propertyDamage = incidents.filter(i => i.type === 'Property Damage').length;
-
-  return [
-    { level: 'Fatalidades', count: fatalities, color: '#dc2626' },
-    { level: 'LTI', count: lti, color: '#ea580c' },
-    { level: 'Medical Treatment', count: medicalTreatment, color: '#f59e0b' },
-    { level: 'First Aid', count: firstAid, color: '#eab308' },
-    { level: 'Near Miss', count: nearMiss, color: '#84cc16' },
-    { level: 'Property Damage', count: propertyDamage, color: '#22c55e' }
-  ].filter(d => d.count > 0);
-};
-
-// 2. Severity Distribution (Pie/Donut)
+// 1. Severity Distribution (Pie/Donut)
 export const generateSeverityDistribution = (incidents: Incident[]) => {
   const typeCount: Record<string, number> = {};
   incidents.forEach(i => {
@@ -461,7 +442,7 @@ export const generateSeverityDistribution = (incidents: Incident[]) => {
   })).sort((a, b) => b.value - a.value);
 };
 
-// 3. Temporal Heatmap Data
+// 2. Temporal Heatmap Data
 export const generateTemporalHeatmap = (incidents: Incident[]) => {
   const heatmapData: Record<string, Record<number, number>> = {};
   
@@ -484,40 +465,7 @@ export const generateTemporalHeatmap = (incidents: Incident[]) => {
   return result;
 };
 
-// 4. Multi-KPI Evolution Data
-export const generateMultiKPIEvolution = (
-  incidents: Incident[], 
-  exposureHours: ExposureHour[], 
-  exposureKm: ExposureKm[], 
-  settings: AppSettings, 
-  targets: any
-) => {
-  const periods = Array.from(new Set([
-    ...exposureHours.map(e => e.period),
-    ...incidents.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
-  ])).sort();
-
-  return periods.map(period => {
-    const [year, month] = period.split('-').map(Number);
-    const sliceIncidents = incidents.filter(i => i.year === year && i.month === month);
-    const sliceHours = exposureHours.filter(e => e.period === period);
-    const sliceKm = exposureKm.filter(e => e.period === period);
-    
-    const m = calculateKPIs(sliceIncidents, sliceHours, sliceKm, settings);
-    
-    return {
-      period,
-      TRIR: m.trir || 0,
-      LTIF: m.ltif || 0,
-      DART: m.dart || 0,
-      targetTRIR: targets?.trir || 0,
-      targetLTIF: targets?.ltif || 0,
-      targetDART: targets?.dart || 0
-    };
-  });
-};
-
-// 5. Body Map Analytics
+// 3. Body Map Analytics
 export const generateBodyMapAnalytics = (incidents: Incident[]) => {
   const bodyPartCount: Record<string, number> = {};
   
@@ -536,7 +484,7 @@ export const generateBodyMapAnalytics = (incidents: Incident[]) => {
     .slice(0, 10);
 };
 
-// 6. Waterfall Chart Data (Site Contribution to TRIR)
+// 4. Waterfall Chart Data (Site Contribution to TRIR)
 export const generateWaterfallData = (
   incidents: Incident[], 
   exposureHours: ExposureHour[], 
@@ -565,39 +513,7 @@ export const generateWaterfallData = (
   return data.sort((a, b) => b.value - a.value).slice(0, 8);
 };
 
-// 7. Control Chart Data (UCL/LCL)
-export const generateControlChartData = (
-  incidents: Incident[], 
-  exposureHours: ExposureHour[], 
-  settings: AppSettings
-) => {
-  const periods = Array.from(new Set(exposureHours.map(e => e.period))).sort();
-  
-  const trirValues = periods.map(period => {
-    const [year, month] = period.split('-').map(Number);
-    const sliceIncidents = incidents.filter(i => i.year === year && i.month === month && i.recordable_osha);
-    const sliceHours = exposureHours.filter(e => e.period === period).reduce((acc, e) => acc + e.hours, 0);
-    
-    return sliceHours > 0 ? (sliceIncidents.length * 200000) / sliceHours : 0;
-  });
-
-  const mean = trirValues.reduce((a, b) => a + b, 0) / trirValues.length;
-  const stdDev = Math.sqrt(trirValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / trirValues.length);
-  
-  const ucl = mean + (3 * stdDev);
-  const lcl = Math.max(0, mean - (3 * stdDev));
-
-  return periods.map((period, idx) => ({
-    period,
-    value: parseFloat(trirValues[idx].toFixed(2)),
-    mean: parseFloat(mean.toFixed(2)),
-    ucl: parseFloat(ucl.toFixed(2)),
-    lcl: parseFloat(lcl.toFixed(2)),
-    outOfControl: trirValues[idx] > ucl || trirValues[idx] < lcl
-  }));
-};
-
-// 8. Scatter Plot Data (Frequency vs Severity)
+// 5. Scatter Plot Data (Frequency vs Severity)
 export const generateScatterPlotData = (
   incidents: Incident[], 
   exposureHours: ExposureHour[]
@@ -621,35 +537,9 @@ export const generateScatterPlotData = (
   }).filter(d => d.frequency > 0);
 };
 
-// 9. Burndown Chart Data
-export const generateBurndownData = (
-  incidents: Incident[], 
-  exposureHours: ExposureHour[], 
-  settings: AppSettings,
-  initialTarget: number,
-  finalTarget: number
-) => {
-  const periods = Array.from(new Set(exposureHours.map(e => e.period))).sort();
-  const totalPeriods = 12; // Assuming annual tracking
-  
-  return periods.map((period, idx) => {
-    const [year, month] = period.split('-').map(Number);
-    const sliceIncidents = incidents.filter(i => i.year === year && i.month === month && i.recordable_osha);
-    const sliceHours = exposureHours.filter(e => e.period === period).reduce((acc, e) => acc + e.hours, 0);
-    
-    const actualTRIR = sliceHours > 0 ? (sliceIncidents.length * 200000) / sliceHours : 0;
-    const targetTRIR = initialTarget - ((initialTarget - finalTarget) / totalPeriods) * (idx + 1);
-    
-    return {
-      period,
-      actual: parseFloat(actualTRIR.toFixed(2)),
-      target: parseFloat(targetTRIR.toFixed(2)),
-      month: idx + 1
-    };
-  });
-};
 
-// 10. Radar Chart Data (Site Comparison)
+
+// 6. Radar Chart Data (Site Comparison)
 export const generateRadarChartData = (
   incidents: Incident[], 
   exposureHours: ExposureHour[], 
