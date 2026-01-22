@@ -174,18 +174,15 @@ const App: React.FC = () => {
   const uniqueValues = useMemo(() => {
     const sites = Array.from(new Set(incidents.map(i => i.site))).sort();
     
-    // YEAR FIX: Ensure 2026 and surrounding years are always available options
-    const yearsSet = new Set<number>(incidents.map(i => Number(i.year)));
-    const currentYear = new Date().getFullYear();
-    yearsSet.add(currentYear);
-    yearsSet.add(currentYear + 1); // 2026 (if current is 2025)
-    yearsSet.add(2026); // Explicit 2026 requirement
-    yearsSet.add(2025); // Ensure baseline years
-    yearsSet.add(2024);
+    // YEAR FIX: Only show 2025, 2026 and 2027
+    const yearsSet = new Set<number>();
+    yearsSet.add(2027);
+    yearsSet.add(2026);
+    yearsSet.add(2025);
 
     const years = Array.from(yearsSet)
-        .filter((y: number) => !isNaN(y) && y > 2000 && y < 2100) // Sanity check
-        .sort((a: number, b: number) => b - a); // Descending sort (2026 first)
+        .filter((y: number) => !isNaN(y) && y >= 2025 && y <= 2027) // Only 2025-2027
+        .sort((a: number, b: number) => b - a); // Descending sort (2027 first)
     
     return { sites, years };
   }, [incidents]);
