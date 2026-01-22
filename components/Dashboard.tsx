@@ -812,8 +812,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       <span className="text-sm font-mono text-gray-600">{site.count} incidentes</span>
                                   </div>
                                   <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
-                                      {/* @ts-ignore - Dynamic width requires inline style, this is valid React pattern */}
-                                      <div className={`h-2 rounded-full absolute top-0 left-0 transition-all ${colorClass}`} style={{width: `${percentage}%`}}></div>
+                                      <div 
+                                          className={`h-2 rounded-full absolute top-0 left-0 transition-all ${colorClass}`} 
+                                          style={{width: `${percentage}%`} as React.CSSProperties}
+                                      ></div>
                                   </div>
                               </div>
                           </div>
