@@ -473,6 +473,74 @@ export const generateYearComparisonByType = (incidents: Incident[], year1: numbe
   })).sort((a, b) => (b['2025'] + b['2026']) - (a['2025'] + a['2026']));
 };
 
+// Comparación mensual de eventos entre dos años
+export const generateMonthlyComparison = (incidents: Incident[], year1: number = 2025, year2: number = 2026) => {
+  const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  
+  const incidents1 = incidents.filter(i => i.year === year1);
+  const incidents2 = incidents.filter(i => i.year === year2);
+  
+  return MONTHS.map((month, idx) => {
+    const monthNum = idx + 1;
+    const count1 = incidents1.filter(i => i.month === monthNum).length;
+    const count2 = incidents2.filter(i => i.month === monthNum).length;
+    const diff = count2 - count1;
+    
+    return {
+      month,
+      monthNum,
+      [String(year1)]: count1,
+      [String(year2)]: count2,
+      diff,
+      trend: diff < 0 ? 'down' : diff > 0 ? 'up' : 'equal'
+    };
+  });
+};
+
+// Tipos de incidentes por mes entre dos años
+export const generateTypesByMonthComparison = (incidents: Incident[], year1: number = 2025, year2: number = 2026) => {
+  const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  
+  // Obtener los top 5 tipos más frecuentes
+  const typeCount: Record<string, number> = {};
+  incidents.forEach(i => {
+    typeCount[i.type] = (typeCount[i.type] || 0) + 1;
+  });
+  
+  const topTypes = Object.entries(typeCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([type]) => type);
+  
+  const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
+  
+  // Generar datos por mes
+  const data = MONTHS.map((month, idx) => {
+    const monthNum = idx + 1;
+    const monthData: any = { month, monthNum };
+    
+    topTypes.forEach((type, typeIdx) => {
+      const count1 = incidents.filter(i => i.year === year1 && i.month === monthNum && i.type === type).length;
+      const count2 = incidents.filter(i => i.year === year2 && i.month === monthNum && i.type === type).length;
+      
+      const shortType = type.length > 12 ? type.substring(0, 12) + '..' : type;
+      monthData[`${shortType}_${year1}`] = count1;
+      monthData[`${shortType}_${year2}`] = count2;
+    });
+    
+    return monthData;
+  });
+  
+  return {
+    data,
+    types: topTypes.map((type, idx) => ({
+      type,
+      shortType: type.length > 12 ? type.substring(0, 12) + '..' : type,
+      color: COLORS[idx]
+    }))
+  };
+};
+
 // 2. Temporal Heatmap Data
 export const generateTemporalHeatmap = (incidents: Incident[]) => {
   const heatmapData: Record<string, Record<number, number>> = {};

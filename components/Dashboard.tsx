@@ -11,11 +11,12 @@ import {
   calculateKPIs, generateParetoData, generateSeverityDistribution,
   generateTemporalHeatmap,
   generateWaterfallData, generateScatterPlotData,
-  generateRadarChartData, generateYearComparisonByType
+  generateRadarChartData, generateYearComparisonByType,
+  generateMonthlyComparison, generateTypesByMonthComparison
 } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
-import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon, PieChart as PieIcon, Layers } from 'lucide-react';
+import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon, PieChart as PieIcon, Layers, Calendar } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
 interface DashboardProps {
@@ -932,6 +933,175 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                   </RadarChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos suficientes</div>;
+                      })()}
+                  </div>
+              </div>
+          </div>
+
+          {/* Row 3: Comparación Mensual 2025 vs 2026 */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+              {/* Gráfico de líneas: Eventos por mes */}
+              <div id="chart-monthly-comparison" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-2 flex items-center">
+                      <Calendar className="w-5 h-5 mr-2 text-purple-600" /> Comparación Mensual de Eventos
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-4">Cantidad de incidentes por mes - 2025 vs 2026</p>
+                  <div className="h-72">
+                      {(() => {
+                          const monthlyData = generateMonthlyComparison(incidents, 2025, 2026);
+                          const hasData = monthlyData.some(m => m['2025'] > 0 || m['2026'] > 0);
+                          return hasData ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <AreaChart data={monthlyData} margin={{ left: 0, right: 20, top: 10, bottom: 5 }}>
+                                      <defs>
+                                          <linearGradient id="colorArea2025" x1="0" y1="0" x2="0" y2="1">
+                                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
+                                          </linearGradient>
+                                          <linearGradient id="colorArea2026" x1="0" y1="0" x2="0" y2="1">
+                                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                              <stop offset="95%" stopColor="#10b981" stopOpacity={0.05}/>
+                                          </linearGradient>
+                                      </defs>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false}/>
+                                      <XAxis 
+                                          dataKey="month" 
+                                          fontSize={11} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#6b7280' }}
+                                      />
+                                      <YAxis 
+                                          fontSize={11} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#6b7280' }}
+                                          allowDecimals={false}
+                                      />
+                                      <Tooltip
+                                          contentStyle={{
+                                              backgroundColor: '#ffffff',
+                                              borderRadius: '12px',
+                                              border: '1px solid #e5e7eb',
+                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                              padding: '12px'
+                                          }}
+                                          content={({ active, payload, label }: any) => {
+                                              if (active && payload && payload.length) {
+                                                  const diff = payload[1]?.value - payload[0]?.value;
+                                                  const arrow = diff < 0 ? '↓' : diff > 0 ? '↑' : '→';
+                                                  const color = diff < 0 ? 'text-green-600' : diff > 0 ? 'text-red-600' : 'text-gray-500';
+                                                  return (
+                                                      <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 text-xs">
+                                                          <p className="font-bold text-gray-800 mb-2">{label}</p>
+                                                          <div className="flex items-center gap-3 mb-1">
+                                                              <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                                                              <span>2025: <strong>{payload[0]?.value || 0}</strong></span>
+                                                          </div>
+                                                          <div className="flex items-center gap-3 mb-1">
+                                                              <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+                                                              <span>2026: <strong>{payload[1]?.value || 0}</strong></span>
+                                                          </div>
+                                                          <p className={`mt-2 font-medium ${color}`}>
+                                                              {arrow} Diferencia: {diff > 0 ? '+' : ''}{diff}
+                                                          </p>
+                                                      </div>
+                                                  );
+                                              }
+                                              return null;
+                                          }}
+                                      />
+                                      <Legend 
+                                          verticalAlign="top" 
+                                          height={30}
+                                          iconType="square"
+                                          wrapperStyle={{ fontSize: '11px' }}
+                                      />
+                                      <Area 
+                                          type="monotone" 
+                                          dataKey="2025" 
+                                          name="2025" 
+                                          stroke="#3b82f6" 
+                                          strokeWidth={2}
+                                          fill="url(#colorArea2025)" 
+                                          dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+                                          activeDot={{ r: 6 }}
+                                      />
+                                      <Area 
+                                          type="monotone" 
+                                          dataKey="2026" 
+                                          name="2026" 
+                                          stroke="#10b981" 
+                                          strokeWidth={2}
+                                          fill="url(#colorArea2026)" 
+                                          dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
+                                          activeDot={{ r: 6 }}
+                                      />
+                                  </AreaChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos para comparar</div>;
+                      })()}
+                  </div>
+              </div>
+
+              {/* Gráfico de barras agrupadas: Tipos por mes */}
+              <div id="chart-types-monthly" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-2 flex items-center">
+                      <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Top 5 Tipos de Incidente por Mes
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-4">Distribución mensual de los tipos más frecuentes</p>
+                  <div className="h-72">
+                      {(() => {
+                          const { data: typesMonthlyData, types } = generateTypesByMonthComparison(incidents, 2025, 2026);
+                          const hasData = types.length > 0;
+                          return hasData ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={typesMonthlyData} margin={{ left: 0, right: 10, top: 10, bottom: 5 }}>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false}/>
+                                      <XAxis 
+                                          dataKey="month" 
+                                          fontSize={10} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#6b7280' }}
+                                      />
+                                      <YAxis 
+                                          fontSize={10} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#6b7280' }}
+                                          allowDecimals={false}
+                                      />
+                                      <Tooltip
+                                          contentStyle={{
+                                              backgroundColor: '#ffffff',
+                                              borderRadius: '12px',
+                                              border: '1px solid #e5e7eb',
+                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                              padding: '12px',
+                                              fontSize: '11px'
+                                          }}
+                                      />
+                                      <Legend 
+                                          verticalAlign="top" 
+                                          height={40}
+                                          iconType="square"
+                                          iconSize={8}
+                                          wrapperStyle={{ fontSize: '9px', lineHeight: '14px' }}
+                                      />
+                                      {types.slice(0, 3).map((t, idx) => (
+                                          <Bar 
+                                              key={`${t.shortType}_2026`}
+                                              dataKey={`${t.shortType}_2026`} 
+                                              name={`${t.shortType} (2026)`}
+                                              fill={t.color}
+                                              radius={[2, 2, 0, 0]}
+                                              barSize={8}
+                                          />
+                                      ))}
+                                  </BarChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
                       })()}
                   </div>
               </div>
