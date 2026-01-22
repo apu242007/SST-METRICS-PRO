@@ -11,7 +11,7 @@ import {
   calculateKPIs, generateParetoData, generateSeverityDistribution,
   generateTemporalHeatmap,
   generateWaterfallData, generateScatterPlotData,
-  generateRadarChartData
+  generateRadarChartData, generateYearComparisonByType
 } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
@@ -641,58 +641,116 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Layers className="w-6 h-6 mr-2" /> Análisis Avanzado - Gráficos Ejecutivos
           </h2>
 
-          {/* Row 1: Severity Distribution + Waterfall side by side */}
+          {/* Row 1: Year Comparison + Waterfall side by side */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-              {/* 2. Severity Distribution (Donut) - Mejorado */}
+              {/* Comparación Año vs Año */}
               <div id="chart-severity-dist" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <PieIcon className="w-5 h-5 mr-2 text-blue-600" /> Distribución por Tipo de Incidente
+                  <h3 className="font-bold text-gray-800 mb-2 flex items-center">
+                      <BarChart2 className="w-5 h-5 mr-2 text-blue-600" /> Comparación por Tipo de Incidente
                   </h3>
-                  <div className="h-96">
+                  <p className="text-xs text-gray-500 mb-4">2025 vs 2026 - Análisis de tendencia por categoría</p>
+                  <div className="h-80">
                       {(() => {
-                          const severityData = generateSeverityDistribution(incidents);
-                          return severityData.length > 0 ? (
+                          const comparisonData = generateYearComparisonByType(incidents, 2025, 2026);
+                          return comparisonData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
-                                  <PieChart>
-                                      <Pie
-                                          data={severityData}
-                                          cx="50%"
-                                          cy="40%"
-                                          innerRadius={60}
-                                          outerRadius={100}
-                                          paddingAngle={2}
-                                          dataKey="value"
-                                          label={({name, percent, cx, x}) => {
-                                              const displayName = name.length > 18 ? name.substring(0, 18) + '...' : name;
-                                              return `${displayName}: ${((percent ?? 0) * 100).toFixed(0)}%`;
-                                          }}
-                                          labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
-                                      >
-                                          {severityData.map((entry, index) => (
-                                              <Cell key={`cell-${index}`} fill={entry.color} stroke="#fff" strokeWidth={2} />
-                                          ))}
-                                      </Pie>
-                                      <Tooltip 
-                                          formatter={(value: any, name: string) => [value, name]}
-                                          contentStyle={{
-                                              backgroundColor: '#ffffff',
-                                              borderRadius: '12px',
-                                              border: '1px solid #e5e7eb',
-                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                                              padding: '12px'
+                                  <BarChart 
+                                      data={comparisonData} 
+                                      layout="vertical" 
+                                      margin={{ left: 10, right: 30, top: 10, bottom: 10 }}
+                                      barGap={2}
+                                      barCategoryGap="20%"
+                                  >
+                                      <defs>
+                                          <linearGradient id="color2025" x1="0" y1="0" x2="1" y2="0">
+                                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9}/>
+                                              <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.7}/>
+                                          </linearGradient>
+                                          <linearGradient id="color2026" x1="0" y1="0" x2="1" y2="0">
+                                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.9}/>
+                                              <stop offset="95%" stopColor="#34d399" stopOpacity={0.7}/>
+                                          </linearGradient>
+                                      </defs>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={true} vertical={false}/>
+                                      <XAxis type="number" fontSize={10} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }}/>
+                                      <YAxis 
+                                          type="category" 
+                                          dataKey="shortType" 
+                                          fontSize={9} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#374151', fontWeight: 500 }} 
+                                          width={110}
+                                      />
+                                      <Tooltip
+                                          cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
+                                          content={({ active, payload }: any) => {
+                                              if (active && payload && payload.length) {
+                                                  const data = payload[0].payload;
+                                                  const change = Number(data.percentChange);
+                                                  const changeColor = change < 0 ? 'text-green-600' : change > 0 ? 'text-red-600' : 'text-gray-500';
+                                                  const arrow = change < 0 ? '↓' : change > 0 ? '↑' : '→';
+                                                  return (
+                                                      <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 text-xs">
+                                                          <p className="font-bold text-gray-800 mb-2">{data.type}</p>
+                                                          <div className="flex items-center gap-4">
+                                                              <div className="flex items-center">
+                                                                  <span className="w-3 h-3 rounded-full bg-blue-500 mr-1"></span>
+                                                                  <span className="text-gray-600">2025: <span className="font-semibold text-gray-900">{data['2025']}</span></span>
+                                                              </div>
+                                                              <div className="flex items-center">
+                                                                  <span className="w-3 h-3 rounded-full bg-emerald-500 mr-1"></span>
+                                                                  <span className="text-gray-600">2026: <span className="font-semibold text-gray-900">{data['2026']}</span></span>
+                                                              </div>
+                                                          </div>
+                                                          <p className={`mt-2 font-medium ${changeColor}`}>
+                                                              {arrow} {Math.abs(change)}% vs año anterior
+                                                          </p>
+                                                      </div>
+                                                  );
+                                              }
+                                              return null;
                                           }}
                                       />
                                       <Legend 
-                                          layout="horizontal"
-                                          verticalAlign="bottom" 
-                                          align="center"
-                                          iconType="circle"
-                                          iconSize={8}
-                                          wrapperStyle={{ paddingTop: '20px', fontSize: '11px', lineHeight: '20px' }}
+                                          verticalAlign="top" 
+                                          height={36}
+                                          iconType="square"
+                                          iconSize={10}
+                                          wrapperStyle={{ paddingBottom: '10px', fontSize: '11px' }}
                                       />
-                                  </PieChart>
+                                      <Bar dataKey="2025" name="2025" fill="url(#color2025)" radius={[0, 4, 4, 0]} barSize={12} />
+                                      <Bar dataKey="2026" name="2026" fill="url(#color2026)" radius={[0, 4, 4, 0]} barSize={12} />
+                                  </BarChart>
                               </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos para comparar</div>;
+                      })()}
+                  </div>
+                  {/* Mini resumen */}
+                  <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
+                      {(() => {
+                          const data2025 = incidents.filter(i => i.year === 2025).length;
+                          const data2026 = incidents.filter(i => i.year === 2026).length;
+                          const diff = data2026 - data2025;
+                          const pct = data2025 > 0 ? ((diff / data2025) * 100).toFixed(1) : 'N/A';
+                          return (
+                              <>
+                                  <div className="bg-blue-50 rounded-lg p-2">
+                                      <p className="text-xs text-blue-600 font-medium">2025</p>
+                                      <p className="text-lg font-bold text-blue-700">{data2025}</p>
+                                  </div>
+                                  <div className="bg-emerald-50 rounded-lg p-2">
+                                      <p className="text-xs text-emerald-600 font-medium">2026</p>
+                                      <p className="text-lg font-bold text-emerald-700">{data2026}</p>
+                                  </div>
+                                  <div className={`${diff <= 0 ? 'bg-green-50' : 'bg-red-50'} rounded-lg p-2`}>
+                                      <p className="text-xs text-gray-600 font-medium">Variación</p>
+                                      <p className={`text-lg font-bold ${diff <= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                          {diff <= 0 ? '↓' : '↑'} {typeof pct === 'string' ? pct : Math.abs(Number(pct))}%
+                                      </p>
+                                  </div>
+                              </>
+                          );
                       })()}
                   </div>
               </div>

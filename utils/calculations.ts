@@ -442,6 +442,37 @@ export const generateSeverityDistribution = (incidents: Incident[]) => {
   })).sort((a, b) => b.value - a.value);
 };
 
+// Comparación de distribución por tipo entre dos años
+export const generateYearComparisonByType = (incidents: Incident[], year1: number = 2025, year2: number = 2026) => {
+  const incidents2025 = incidents.filter(i => i.year === year1);
+  const incidents2026 = incidents.filter(i => i.year === year2);
+  
+  const typeCount2025: Record<string, number> = {};
+  const typeCount2026: Record<string, number> = {};
+  
+  incidents2025.forEach(i => {
+    typeCount2025[i.type] = (typeCount2025[i.type] || 0) + 1;
+  });
+  
+  incidents2026.forEach(i => {
+    typeCount2026[i.type] = (typeCount2026[i.type] || 0) + 1;
+  });
+  
+  // Unir todos los tipos
+  const allTypes = new Set([...Object.keys(typeCount2025), ...Object.keys(typeCount2026)]);
+  
+  return Array.from(allTypes).map(type => ({
+    type,
+    shortType: type.length > 15 ? type.substring(0, 15) + '...' : type,
+    [String(year1)]: typeCount2025[type] || 0,
+    [String(year2)]: typeCount2026[type] || 0,
+    diff: (typeCount2026[type] || 0) - (typeCount2025[type] || 0),
+    percentChange: typeCount2025[type] 
+      ? (((typeCount2026[type] || 0) - typeCount2025[type]) / typeCount2025[type] * 100).toFixed(1)
+      : typeCount2026[type] ? '+100' : '0'
+  })).sort((a, b) => (b['2025'] + b['2026']) - (a['2025'] + a['2026']));
+};
+
 // 2. Temporal Heatmap Data
 export const generateTemporalHeatmap = (incidents: Incident[]) => {
   const heatmapData: Record<string, Record<number, number>> = {};
