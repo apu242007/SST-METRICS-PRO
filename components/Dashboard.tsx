@@ -1047,13 +1047,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
               {/* Gráfico de barras agrupadas: Tipos por mes */}
               <div id="chart-types-monthly" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-2 flex items-center">
-                      <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Top 5 Tipos de Incidente por Mes
+                      <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Evolución Mensual por Tipo (2025)
                   </h3>
-                  <p className="text-xs text-gray-500 mb-4">Distribución mensual de los tipos más frecuentes</p>
+                  <p className="text-xs text-gray-500 mb-4">Distribución mensual de los tipos más frecuentes en 2025</p>
                   <div className="h-72">
                       {(() => {
                           const { data: typesMonthlyData, types } = generateTypesByMonthComparison(incidents, 2025, 2026);
-                          const hasData = types.length > 0;
+                          const hasData = types.length > 0 && typesMonthlyData.some((m: any) => 
+                              types.some(t => m[`${t.shortType}_2025`] > 0 || m[`${t.shortType}_2026`] > 0)
+                          );
                           return hasData ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={typesMonthlyData} margin={{ left: 0, right: 10, top: 10, bottom: 5 }}>
@@ -1089,14 +1091,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                           iconSize={8}
                                           wrapperStyle={{ fontSize: '9px', lineHeight: '14px' }}
                                       />
-                                      {types.slice(0, 3).map((t, idx) => (
+                                      {types.slice(0, 5).map((t, idx) => (
                                           <Bar 
-                                              key={`${t.shortType}_2026`}
-                                              dataKey={`${t.shortType}_2026`} 
-                                              name={`${t.shortType} (2026)`}
+                                              key={`${t.shortType}_2025`}
+                                              dataKey={`${t.shortType}_2025`} 
+                                              name={t.shortType}
                                               fill={t.color}
                                               radius={[2, 2, 0, 0]}
-                                              barSize={8}
+                                              barSize={6}
+                                              stackId="stack"
                                           />
                                       ))}
                                   </BarChart>
