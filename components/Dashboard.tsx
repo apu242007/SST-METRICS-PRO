@@ -641,14 +641,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Layers className="w-6 h-6 mr-2" /> Análisis Avanzado - Gráficos Ejecutivos
           </h2>
 
-          {/* Row 1: Severity Distribution */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* 2. Severity Distribution (Donut) */}
+          {/* Row 1: Severity Distribution + Waterfall side by side */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+              {/* 2. Severity Distribution (Donut) - Mejorado */}
               <div id="chart-severity-dist" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <PieIcon className="w-5 h-5 mr-2 text-blue-600" /> Distribución por Tipo
+                      <PieIcon className="w-5 h-5 mr-2 text-blue-600" /> Distribución por Tipo de Incidente
                   </h3>
-                  <div className="h-80">
+                  <div className="h-96">
                       {(() => {
                           const severityData = generateSeverityDistribution(incidents);
                           return severityData.length > 0 ? (
@@ -657,19 +657,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       <Pie
                                           data={severityData}
                                           cx="50%"
-                                          cy="50%"
-                                          innerRadius={70}
-                                          outerRadius={110}
-                                          paddingAngle={3}
+                                          cy="40%"
+                                          innerRadius={60}
+                                          outerRadius={100}
+                                          paddingAngle={2}
                                           dataKey="value"
-                                          label={({name, percent}) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
-                                          labelLine={{ stroke: '#94a3b8', strokeWidth: 1.5 }}
+                                          label={({name, percent, cx, x}) => {
+                                              const displayName = name.length > 18 ? name.substring(0, 18) + '...' : name;
+                                              return `${displayName}: ${((percent ?? 0) * 100).toFixed(0)}%`;
+                                          }}
+                                          labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
                                       >
                                           {severityData.map((entry, index) => (
                                               <Cell key={`cell-${index}`} fill={entry.color} stroke="#fff" strokeWidth={2} />
                                           ))}
                                       </Pie>
                                       <Tooltip 
+                                          formatter={(value: any, name: string) => [value, name]}
                                           contentStyle={{
                                               backgroundColor: '#ffffff',
                                               borderRadius: '12px',
@@ -679,10 +683,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                           }}
                                       />
                                       <Legend 
+                                          layout="horizontal"
                                           verticalAlign="bottom" 
-                                          height={36}
+                                          align="center"
                                           iconType="circle"
-                                          wrapperStyle={{ paddingTop: '15px', fontSize: '12px' }}
+                                          iconSize={8}
+                                          wrapperStyle={{ paddingTop: '20px', fontSize: '11px', lineHeight: '20px' }}
                                       />
                                   </PieChart>
                               </ResponsiveContainer>
@@ -690,21 +696,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       })()}
                   </div>
               </div>
-          </div>
 
-          {/* Row 3: Waterfall */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* 7. Waterfall Chart */}
+              {/* Waterfall Chart - Movido aquí */}
               <div id="chart-waterfall" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
                       <BarChart2 className="w-5 h-5 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
                   </h3>
-                  <div className="h-80">
+                  <div className="h-96">
                       {(() => {
                           const waterfallData = generateWaterfallData(incidents, exposureHours, settings);
                           return waterfallData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={waterfallData} layout="vertical">
+                                  <BarChart data={waterfallData} layout="vertical" margin={{ left: 10, right: 30 }}>
                                       <defs>
                                           <linearGradient id="colorWaterfall" x1="0" y1="0" x2="1" y2="0">
                                               <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.9}/>
@@ -713,8 +716,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       </defs>
                                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false}/>
                                       <XAxis type="number" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }}/>
-                                      <YAxis type="category" dataKey="site" fontSize={10} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} width={90}/>
+                                      <YAxis 
+                                          type="category" 
+                                          dataKey="site" 
+                                          fontSize={10} 
+                                          tickLine={false} 
+                                          axisLine={{ stroke: '#d1d5db' }} 
+                                          tick={{ fill: '#374151', fontWeight: 500 }} 
+                                          width={100}
+                                          tickFormatter={(value) => value.length > 14 ? value.substring(0, 14) + '...' : value}
+                                      />
                                       <Tooltip
+                                          formatter={(value: any) => [value.toFixed(2), 'TRIR']}
                                           contentStyle={{
                                               backgroundColor: '#ffffff',
                                               borderRadius: '12px',
@@ -723,7 +736,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                               padding: '12px'
                                           }}
                                       />
-                                      <Bar dataKey="value" fill="url(#colorWaterfall)" radius={[0, 6, 6, 0]} />
+                                      <Bar dataKey="value" fill="url(#colorWaterfall)" radius={[0, 8, 8, 0]} barSize={20} />
                                   </BarChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
@@ -732,8 +745,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
           </div>
 
-          {/* Row 4: Scatter Plot */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Row 2: Scatter Plot + Radar side by side */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
               {/* 9. Scatter Plot */}
               <div id="chart-scatter" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
@@ -790,59 +803,79 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       })()}
                   </div>
               </div>
-          </div>
 
-          {/* Row 5: Radar Chart (Full Width) */}
-          <div id="chart-radar" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-              <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                  <Target className="w-5 h-5 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
-              </h3>
-              <div className="h-96">
-                  {(() => {
-                      const radarData = generateRadarChartData(incidents, exposureHours, exposureKm, settings);
-                      const sites = Array.from(new Set(radarData.map(d => d.site)));
-                      const metrics = ['TRIR', 'LTIF', 'DART', 'HIPO', 'SLG24h'];
-                      const radarFormatted = metrics.map(metric => {
-                          const obj: any = { metric };
-                          radarData.forEach(site => {
-                              obj[site.site] = site[metric as keyof typeof site];
+              {/* Radar Chart - Al lado del Scatter */}
+              <div id="chart-radar" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
+                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
+                      <Target className="w-5 h-5 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
+                  </h3>
+                  <div className="h-80">
+                      {(() => {
+                          const radarData = generateRadarChartData(incidents, exposureHours, exposureKm, settings);
+                          const sites = Array.from(new Set(radarData.map(d => d.site)));
+                          const metrics = ['TRIR', 'LTIF', 'DART', 'HIPO', 'SLG24h'];
+                          const radarFormatted = metrics.map(metric => {
+                              const obj: any = { metric };
+                              radarData.forEach(site => {
+                                  obj[site.site] = site[metric as keyof typeof site];
+                              });
+                              return obj;
                           });
-                          return obj;
-                      });
-                      
-                      const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6'];
+                          
+                          const COLORS = ['#10b981', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6'];
 
-                      return radarFormatted.length > 0 && sites.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart data={radarFormatted}>
-                                  <PolarGrid stroke="#e5e7eb" />
-                                  <PolarAngleAxis dataKey="metric" fontSize={13} tick={{ fill: '#374151', fontWeight: 500 }} />
-                                  <PolarRadiusAxis fontSize={10} stroke="#d1d5db" tick={{ fill: '#6b7280' }} />
-                                  <Tooltip 
-                                      contentStyle={{
-                                          backgroundColor: '#ffffff',
-                                          borderRadius: '12px',
-                                          border: '1px solid #e5e7eb',
-                                          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                                          padding: '12px'
-                                      }}
-                                  />
-                                  <Legend wrapperStyle={{ paddingTop: '15px' }} iconType="circle" />
-                                  {sites.map((site, idx) => (
-                                      <Radar 
-                                          key={site} 
-                                          name={site} 
-                                          dataKey={site} 
-                                          stroke={COLORS[idx % COLORS.length]} 
-                                          fill={COLORS[idx % COLORS.length]} 
-                                          fillOpacity={0.25}
-                                          strokeWidth={2}
+                          return radarFormatted.length > 0 && sites.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <RadarChart data={radarFormatted} cx="50%" cy="50%" outerRadius="70%">
+                                      <PolarGrid stroke="#d1d5db" strokeDasharray="3 3" />
+                                      <PolarAngleAxis 
+                                          dataKey="metric" 
+                                          fontSize={12} 
+                                          tick={{ fill: '#1f2937', fontWeight: 600 }}
+                                          tickLine={false}
                                       />
-                                  ))}
-                              </RadarChart>
-                          </ResponsiveContainer>
-                      ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos suficientes</div>;
-                  })()}
+                                      <PolarRadiusAxis 
+                                          fontSize={9} 
+                                          stroke="#e5e7eb" 
+                                          tick={{ fill: '#9ca3af' }}
+                                          axisLine={false}
+                                          tickCount={4}
+                                      />
+                                      <Tooltip 
+                                          contentStyle={{
+                                              backgroundColor: '#ffffff',
+                                              borderRadius: '12px',
+                                              border: '1px solid #e5e7eb',
+                                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                              padding: '12px',
+                                              fontSize: '11px'
+                                          }}
+                                          formatter={(value: any) => [typeof value === 'number' ? value.toFixed(2) : value]}
+                                      />
+                                      <Legend 
+                                          layout="horizontal"
+                                          verticalAlign="bottom" 
+                                          align="center"
+                                          iconType="circle"
+                                          iconSize={8}
+                                          wrapperStyle={{ paddingTop: '10px', fontSize: '10px' }}
+                                      />
+                                      {sites.map((site, idx) => (
+                                          <Radar 
+                                              key={site} 
+                                              name={site} 
+                                              dataKey={site} 
+                                              stroke={COLORS[idx % COLORS.length]} 
+                                              fill={COLORS[idx % COLORS.length]} 
+                                              fillOpacity={0.2}
+                                              strokeWidth={2}
+                                          />
+                                      ))}
+                                  </RadarChart>
+                              </ResponsiveContainer>
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos suficientes</div>;
+                      })()}
+                  </div>
               </div>
           </div>
       </div>
