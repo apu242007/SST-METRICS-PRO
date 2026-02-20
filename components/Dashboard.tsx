@@ -356,7 +356,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const activeSite = filters?.site && filters.site !== 'All' ? filters.site.toUpperCase().trim() : null;
   const logoFile = (activeSite && CLIENT_LOGOS[activeSite]) ? CLIENT_LOGOS[activeSite] : DEFAULT_LOGO;
   const logoSrc = `${import.meta.env.BASE_URL}${logoFile}`;
-  const logoAlt = activeSite ? `Logo ${filters.site}` : 'Logo Tacker SRL';
+  const logoAlt = activeSite ? `Logo ${filters?.site ?? activeSite}` : 'Logo Tacker SRL';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
