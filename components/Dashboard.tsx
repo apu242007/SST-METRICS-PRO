@@ -254,6 +254,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [scatterFilter,  setScatterFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [radarFilter,    setRadarFilter]    = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [monthlyFilter,  setMonthlyFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
+  // Estado independiente para la card "Total Incidentes por Cliente" — NO compartir con monthlyFilter
+  const [clienteFilter,  setClienteFilter]  = useState<{ year: string; site: string }>({ year: 'All', site: 'All' });
   const [heatmapFilter,  setHeatmapFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [heatmapComCliente, setHeatmapComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   // ──────────────────────────────────────────────────────────────────────────
@@ -1239,15 +1241,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <h3 className="font-bold text-gray-800 flex items-center">
                           <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Total Incidentes por Cliente
                       </h3>
-                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} />
+                      {/* clienteFilter es completamente independiente de monthlyFilter */}
+                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={clienteFilter} onChange={setClienteFilter} />
                   </div>
                   <p className="text-xs text-gray-500 mb-3">Total acumulado de incidentes por operadora / cliente</p>
                   <div className="h-72">
                       {(() => {
-                          const cbase = monthlyFilter.site !== 'All'
-                              ? comparisonIncidents.filter(i => i.site === monthlyFilter.site)
-                              : monthlyFilter.year !== 'All'
-                                  ? comparisonIncidents.filter(i => i.year === Number(monthlyFilter.year))
+                          const cbase = clienteFilter.site !== 'All'
+                              ? comparisonIncidents.filter(i => i.site === clienteFilter.site)
+                              : clienteFilter.year !== 'All'
+                                  ? comparisonIncidents.filter(i => i.year === Number(clienteFilter.year))
                                   : comparisonIncidents;
                           const clienteData = generateIncidentsByCliente(cbase);
                           if (clienteData.length === 0) {
