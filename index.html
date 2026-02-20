@@ -6,6 +6,44 @@
     <title>SST Metrics Pro</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- ── Reglas de impresión: ocultar elementos UI que no deben aparecer al imprimir ── -->
+    <style>
+      @media print {
+        /* Ocultar header sticky de la app */
+        header {
+          display: none !important;
+        }
+
+        /* Ocultar barra de filtros */
+        .filter-bar,
+        [class*="border-t backdrop-blur"] {
+          display: none !important;
+        }
+
+        /* Ocultar panel flotante de Laboratorio (LabControls) */
+        [class*="fixed bottom-6"] {
+          display: none !important;
+        }
+
+        /* Ocultar todos los elementos fixed/sticky que no sean contenido */
+        *[class*="fixed"],
+        *[class*="sticky"] {
+          position: static !important;
+        }
+
+        /* Asegurar que el contenido principal se imprima completo */
+        main {
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Quitar sombras y bordes que se ven mal en papel */
+        * {
+          box-shadow: none !important;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

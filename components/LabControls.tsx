@@ -32,7 +32,7 @@ export const LabControls: React.FC<LabControlsProps> = ({
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white p-2 rounded-xl shadow-2xl z-50 flex items-center space-x-4 border border-slate-700 animate-in slide-in-from-bottom-5">
+    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white p-2 rounded-xl shadow-2xl z-50 flex items-center space-x-4 border border-slate-700 animate-in slide-in-from-bottom-5 print:hidden">
         <div className="flex items-center px-3 border-r border-slate-700">
             <Beaker className="w-5 h-5 text-amber-400 mr-2 animate-pulse" />
             <div>

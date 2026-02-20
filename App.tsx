@@ -300,7 +300,7 @@ const App: React.FC = () => {
       />
 
       {/* === TOP BAR === */}
-      <header className={`border-b sticky top-0 z-30 shadow-sm transition-colors ${isSandboxMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}>
+      <header className={`border-b sticky top-0 z-30 shadow-sm transition-colors print:hidden ${isSandboxMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}>
         <div className="max-w-7xl mx-auto px-4">
             <div className="flex justify-between items-center h-16">
                 
@@ -369,7 +369,7 @@ const App: React.FC = () => {
 
         {/* === FILTER BAR === */}
         {activeTab !== 'calendar' && activeTab !== 'automation' && activeTab !== 'docs' && (
-        <div className={`border-t backdrop-blur-sm ${isSandboxMode ? 'bg-slate-800/90 border-slate-700' : 'bg-gray-50/50 border-gray-200'}`}>
+        <div className={`border-t backdrop-blur-sm print:hidden ${isSandboxMode ? 'bg-slate-800/90 border-slate-700' : 'bg-gray-50/50 border-gray-200'}` }>
             <div className="max-w-7xl mx-auto px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className={`flex items-center mr-1 ${isSandboxMode ? 'text-slate-500' : 'text-gray-400'}`}><Filter className="w-4 h-4" /></div>
