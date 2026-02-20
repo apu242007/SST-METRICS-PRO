@@ -217,6 +217,85 @@ const ChartFilter: React.FC<ChartFilterProps> = ({ years, sites, value, onChange
   </div>
 );
 
+// ─── Filtro de sitio multi-selección para gráficos individuales ───────────────
+interface ChartMultiSiteFilterProps {
+  sites: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+}
+const ChartMultiSiteFilter: React.FC<ChartMultiSiteFilterProps> = ({ sites, selected, onChange }) => {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggle = (v: string) =>
+    selected.includes(v) ? onChange(selected.filter(s => s !== v)) : onChange([...selected, v]);
+
+  const label = selected.length === 0
+    ? 'Sitio: Todos'
+    : selected.length === 1
+      ? `Sitio: ${selected[0]}`
+      : `Sitio: ${selected.length} selec.`;
+
+  const isActive = selected.length > 0;
+
+  if (sites.length <= 1) return null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`text-[10px] border rounded px-1.5 py-0.5 flex items-center gap-1 min-w-[90px] transition-colors
+          ${isActive
+            ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold'
+            : 'bg-gray-50 border-gray-200 text-gray-600'
+          }`}
+      >
+        <span className="flex-1 text-left truncate max-w-[110px]">{label}</span>
+        <svg className={`w-2.5 h-2.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-xl min-w-[160px] max-h-56 overflow-y-auto">
+          <div className="flex justify-between px-3 py-1 border-b border-gray-100 text-[10px]">
+            <button className="text-blue-500 hover:text-blue-700 font-semibold" onClick={() => onChange([])}>
+              Todos
+            </button>
+            <button className="text-gray-400 hover:text-red-500 font-semibold" onClick={() => onChange(sites)}>
+              Sel. todos
+            </button>
+          </div>
+          {sites.map(s => (
+            <label
+              key={s}
+              className={`flex items-center gap-2 px-3 py-1.5 text-[10px] cursor-pointer transition-colors
+                ${selected.includes(s) ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`}
+            >
+              <input
+                type="checkbox"
+                className="accent-blue-600 w-3 h-3"
+                checked={selected.includes(s)}
+                onChange={() => toggle(s)}
+              />
+              <span className="truncate">{s}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({ 
     incidents, allIncidents, exposureHours, allExposureHours, exposureKm, globalKmRecords, settings,
     filters, onNavigateToExposure, onOpenKmModal, onDrillDown 
@@ -249,7 +328,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // ── Estados locales de filtro por gráfico ──────────────────────────────────
   const [trendFilter,    setTrendFilter]    = useState({ year: 'All', site: 'All' });
   const [paretoFilter,   setParetoFilter]   = useState({ year: 'All', site: 'All' });
-  const [compTypeFilter, setCompTypeFilter] = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
+  // site ahora es string[] para multi-selección; [] significa "Todos"
+  const [compTypeFilter, setCompTypeFilter] = useState<{ year: string; sites: string[]; year2?: string }>({ year: '2025', sites: [], year2: '2026' });
   const [compTypeComCliente, setCompTypeComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   const [waterfallFilter,setWaterfallFilter]= useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [scatterFilter,  setScatterFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
@@ -857,8 +937,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="font-bold text-gray-800 flex items-center">
                         <BarChart2 className="w-5 h-5 mr-2 text-blue-600" /> Comparación por Tipo de Incidente
                     </h3>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={compTypeFilter} onChange={setCompTypeFilter} showYear2 />
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {/* Año 1 */}
+                      <select
+                        title="Filtrar por año 1"
+                        className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={compTypeFilter.year}
+                        onChange={e => setCompTypeFilter(prev => ({ ...prev, year: e.target.value }))}
+                      >
+                        <option value="All">Año: Todos</option>
+                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                      </select>
+                      {/* Año 2 */}
+                      <select
+                        title="Filtrar por año 2"
+                        className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={compTypeFilter.year2 ?? 'All'}
+                        onChange={e => setCompTypeFilter(prev => ({ ...prev, year2: e.target.value }))}
+                      >
+                        <option value="All">Año 2: Todos</option>
+                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                      </select>
+                      {/* Sitio: multi-select */}
+                      <ChartMultiSiteFilter
+                        sites={uniqueSites}
+                        selected={compTypeFilter.sites}
+                        onChange={vals => setCompTypeFilter(prev => ({ ...prev, sites: vals }))}
+                      />
+                      {/* Com. Cliente */}
                       <select
                         title="Filtrar por comunicación con cliente"
                         className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
@@ -869,6 +975,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <option value="SI">Com. Cliente: SI</option>
                         <option value="NO">Com. Cliente: NO</option>
                       </select>
+                      {/* Botón limpiar */}
+                      {(compTypeFilter.year !== 'All' || compTypeFilter.sites.length > 0 || (compTypeFilter.year2 && compTypeFilter.year2 !== 'All') || compTypeComCliente !== 'All') && (
+                        <button
+                          onClick={() => { setCompTypeFilter({ year: '2025', sites: [], year2: '2026' }); setCompTypeComCliente('All'); }}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600"
+                        >✕</button>
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-gray-500 mb-3">
@@ -878,8 +991,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {(() => {
                           const y1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
                           const y2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
-                          let base = compTypeFilter.site !== 'All'
-                            ? comparisonIncidents.filter(i => i.site === compTypeFilter.site)
+                          // Filtro de sitios múltiple: si hay selección aplica includes, si está vacío = todos
+                          let base = compTypeFilter.sites.length > 0
+                            ? comparisonIncidents.filter(i => compTypeFilter.sites.includes(i.site))
                             : comparisonIncidents;
                           // Aplicar filtro Com. Cliente
                           if (compTypeComCliente !== 'All') {
@@ -966,7 +1080,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {(() => {
                           const cy1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
                           const cy2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
-                          const cbase = compTypeFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === compTypeFilter.site) : comparisonIncidents;
+                          const cbase = compTypeFilter.sites.length > 0
+                            ? comparisonIncidents.filter(i => compTypeFilter.sites.includes(i.site))
+                            : comparisonIncidents;
                           const dataY1 = cbase.filter(i => i.year === cy1).length;
                           const dataY2 = cbase.filter(i => i.year === cy2).length;
                           const diff = dataY2 - dataY1;
