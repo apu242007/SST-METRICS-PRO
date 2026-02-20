@@ -88,7 +88,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
       
       // Función auxiliar para verificar espacio y agregar página si es necesario
       const checkSpace = (requiredSpace: number, currentY: number): number => {
-        if (currentY + requiredSpace > pageHeight - margin - 15) {
+        if (currentY + requiredSpace > pageHeight - margin - 20) {
           pdf.addPage();
           return margin + 5;
         }
@@ -149,9 +149,9 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
       })} a las ${new Date().toLocaleTimeString('es-ES')}`, pageWidth / 2, 64, { align: 'center' });
       
       // Sección de alcance con mejor diseño
-      let yPos = 90;
+      let yPos = 80;
       pdf.setFillColor(245, 247, 250);
-      pdf.roundedRect(margin, yPos, contentWidth, 65, 3, 3, 'F');
+      pdf.roundedRect(margin, yPos, contentWidth, 58, 3, 3, 'F');
       
       yPos += 8;
       pdf.setFont("helvetica", "bold");
@@ -183,7 +183,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
       // Resumen ejecutivo en portada
       yPos += 10;
       pdf.setFillColor(254, 242, 242);
-      pdf.roundedRect(margin, yPos, contentWidth, 55, 3, 3, 'F');
+      pdf.roundedRect(margin, yPos, contentWidth, 48, 3, 3, 'F');
       
       yPos += 8;
       pdf.setFont("helvetica", "bold");
@@ -209,23 +209,13 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
         yPos += 6;
       });
 
+      // Verificación desbordamiento portada
+      if (yPos > pageHeight - 20) { yPos = pageHeight - 20; }
+
       setProgress(10);
 
       // ========== ÍNDICE DE CONTENIDOS ==========
       if (includeFullData || selectedCharts.length > 0) {
-        pdf.addPage();
-        let currentY = margin + 10;
-        
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(18);
-        pdf.setTextColor(239, 68, 68);
-        pdf.text("Índice de Contenidos", margin, currentY);
-        currentY += 15;
-        
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(11);
-        pdf.setTextColor(71, 85, 105);
-        
         const tocItems = [
           { title: "1. Indicadores Clave de Desempeño (KPIs)", show: includeFullData },
           { title: "2. Seguridad de Procesos (API RP 754)", show: includeFullData },
@@ -235,12 +225,33 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           { title: "6. Configuración del Sistema", show: includeFullData },
           { title: "7. Análisis Gráfico", show: selectedCharts.length > 0 }
         ];
-        
-        tocItems.filter(item => item.show).forEach(item => {
+        const visibleTocItems = tocItems.filter(item => item.show);
+
+        // Insertar índice al final de portada si hay espacio; si no, nueva página
+        let currentY: number;
+        if (yPos + visibleTocItems.length * 8 + 30 < pageHeight - 20) {
+          yPos = drawSeparator(yPos + 5);
+          currentY = yPos;
+        } else {
+          pdf.addPage();
+          currentY = margin + 10;
+        }
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(18);
+        pdf.setTextColor(239, 68, 68);
+        pdf.text("Índice de Contenidos", margin, currentY);
+        currentY += 15;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(11);
+        pdf.setTextColor(71, 85, 105);
+
+        visibleTocItems.forEach(item => {
           pdf.text(`• ${item.title}`, margin + 5, currentY);
-          currentY += 10;
+          currentY += 8;
         });
-        
+
         setProgress(15);
       }
 
@@ -256,7 +267,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
         pdf.setDrawColor(239, 68, 68);
         pdf.setLineWidth(0.8);
         pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
-        currentY += 12;
+        currentY += 10;
 
         const kpiData = [
           ['TRIR (OSHA)', metrics.trir?.toFixed(2) || '—', 'Base 200,000 Horas', 'Total Recordable Incident Rate'],
@@ -297,11 +308,11 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           margin: { left: margin, right: margin },
         });
 
-        currentY = (pdf as any).lastAutoTable.finalY + 12;
+        currentY = (pdf as any).lastAutoTable.finalY + 8;
         setProgress(25);
 
         // ========== SECCIÓN 2: SEGURIDAD DE PROCESOS ==========
-        if (currentY + 60 > pageHeight - margin - 15) {
+        if (currentY + 80 > pageHeight - margin - 20) {
           pdf.addPage();
           currentY = margin + 5;
         }
@@ -313,7 +324,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
         pdf.setDrawColor(100, 116, 139);
         pdf.setLineWidth(0.8);
         pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
-        currentY += 12;
+        currentY += 10;
 
         const processSafetyData = [
           [
@@ -357,12 +368,12 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           margin: { left: margin, right: margin },
         });
 
-        currentY = (pdf as any).lastAutoTable.finalY + 12;
+        currentY = (pdf as any).lastAutoTable.finalY + 8;
         setProgress(35);
 
         // ========== SECCIÓN 3: TOP 5 SITIOS ==========
         if (metrics.top5Sites && metrics.top5Sites.length > 0) {
-          if (currentY + 70 > pageHeight - margin - 15) {
+          if (currentY + 90 > pageHeight - margin - 20) {
             pdf.addPage();
             currentY = margin + 5;
           }
@@ -374,7 +385,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           pdf.setDrawColor(245, 158, 11);
           pdf.setLineWidth(0.8);
           pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
-          currentY += 12;
+          currentY += 10;
 
           const top5Data = metrics.top5Sites.map((site, idx) => {
             const percentage = ((site.count / incidents.length) * 100).toFixed(1);
@@ -409,10 +420,11 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
               2: { halign: 'center', cellWidth: 30, fontStyle: 'bold' },
               3: { halign: 'center', cellWidth: 30, textColor: [220, 38, 38] }
             },
+            rowPageBreak: 'avoid',
             margin: { left: margin, right: margin },
           });
 
-          currentY = (pdf as any).lastAutoTable.finalY + 12;
+          currentY = (pdf as any).lastAutoTable.finalY + 8;
         }
 
         setProgress(45);
@@ -429,7 +441,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           pdf.setDrawColor(59, 130, 246);
           pdf.setLineWidth(0.8);
           pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
-          currentY += 12;
+          currentY += 10;
 
           const incidentData = incidents.slice(0, 25).map(inc => [
             inc.incident_id,
@@ -476,7 +488,8 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
 
         // ========== SECCIÓN 5: DATOS DE EXPOSICIÓN ==========
         if (exposureHours.length > 0) {
-          if (currentY + 80 > pageHeight - margin - 15) {
+          const estimatedHeight = Math.min(exposureHours.length, 20) * 10 + 30;
+          if (currentY + estimatedHeight > pageHeight - margin - 20) {
             pdf.addPage();
             currentY = margin + 5;
           }
@@ -488,7 +501,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           pdf.setDrawColor(16, 185, 129);
           pdf.setLineWidth(0.8);
           pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
-          currentY += 12;
+          currentY += 10;
 
           // Calcular totales
           const totalHours = exposureHours.reduce((sum, exp) => sum + exp.hours, 0);
@@ -524,6 +537,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
               fontStyle: 'bold',
               fontSize: 10
             },
+            showFoot: 'lastPage',
             columnStyles: {
               0: { cellWidth: 'auto' },
               1: { halign: 'center', cellWidth: 35 },
@@ -532,13 +546,13 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
             margin: { left: margin, right: margin },
           });
 
-          currentY = (pdf as any).lastAutoTable.finalY + 12;
+          currentY = (pdf as any).lastAutoTable.finalY + 8;
         }
 
         setProgress(65);
 
         // ========== SECCIÓN 6: CONFIGURACIÓN DEL SISTEMA ==========
-        if (currentY + 50 > pageHeight - margin - 15) {
+        if (currentY + 50 > pageHeight - margin - 20) {
           pdf.addPage();
           currentY = margin + 5;
         }
@@ -550,7 +564,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
         pdf.setDrawColor(139, 92, 246);
         pdf.setLineWidth(0.8);
         pdf.line(margin, currentY + 2, pageWidth - margin, currentY + 2);
-        currentY += 12;
+        currentY += 10;
 
         const configData = [
           ['Base IF (Injury Frequency)', settings.base_if?.toLocaleString('es-ES') || '1,000,000', 'Horas'],
@@ -583,7 +597,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           margin: { left: margin, right: margin },
         });
 
-        currentY = (pdf as any).lastAutoTable.finalY + 12;
+currentY = (pdf as any).lastAutoTable.finalY + 8;
         setProgress(70);
       }
 
@@ -599,7 +613,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
         pdf.setDrawColor(239, 68, 68);
         pdf.setLineWidth(1);
         pdf.line(margin, currentY + 3, pageWidth - margin, currentY + 3);
-        currentY += 15;
+        currentY += 10;
 
         for (let i = 0; i < selectedCharts.length; i++) {
           const chart = selectedCharts[i];
@@ -617,28 +631,37 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
             // Esperar un frame para que los estilos .pdf-mode se apliquen
             await new Promise(resolve => requestAnimationFrame(resolve));
 
+            // Forzar ancho real del elemento para evitar colapso responsive
+            const originalWidth = element.style.width;
+            const originalOverflow = element.style.overflow;
+            element.style.width = `${element.offsetWidth}px`;
+            element.style.overflow = 'visible';
+
+            const scale = chart.id.startsWith('kpi-') ? 2 : 2.5;
             const canvas = await html2canvas(element, {
-              scale: 3,                              // 3× → nitidez HiDPI en A4
+              scale,                                 // kpi-cards: 2×, gráficos: 2.5×
               backgroundColor: '#ffffff',
               logging: false,
               useCORS: true,
               allowTaint: false,
               imageTimeout: 15000,
-              windowWidth: element.scrollWidth,
+              windowWidth: Math.max(element.scrollWidth, 1200),
               windowHeight: element.scrollHeight,
               // Ignorar sombras CSS que ensucian la captura
               ignoreElements: (el) => el.hasAttribute('data-no-print'),
             });
 
             // Restaurar estilos originales
+            element.style.width = originalWidth;
+            element.style.overflow = originalOverflow;
             element.classList.remove('pdf-mode');
 
             const imgData = canvas.toDataURL('image/png');
             const imgWidth = maxWidth;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
             
-            // Limitar altura máxima del gráfico
-            const maxImgHeight = pageHeight - margin * 2 - 40;
+            // Limitar altura máxima del gráfico (dinámica según posición actual)
+            const maxImgHeight = pageHeight - currentY - margin - 25;
             let finalImgHeight = imgHeight;
             let finalImgWidth = imgWidth;
             
@@ -648,7 +671,7 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
             }
 
             // Verificar espacio y crear nueva página si es necesario
-            if (currentY + finalImgHeight + 30 > pageHeight - margin - 15) {
+            if (currentY + finalImgHeight + 30 > pageHeight - margin - 20) {
               pdf.addPage();
               currentY = margin + 5;
             }
@@ -711,9 +734,8 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           pdf.setFontSize(8);
           pdf.setTextColor(120, 120, 120);
           
-          // Izquierda: Empresa y fecha
-          pdf.text('SST Metrics Pro - TACKER SRL', margin, pageHeight - 12);
-          pdf.text(`Generado: ${currentDate}`, margin, pageHeight - 7);
+          // Izquierda: empresa, app y fecha en una sola línea (evita superposición)
+          pdf.text(`SST Metrics Pro · TACKER SRL · Generado: ${currentDate}`, margin, pageHeight - 10);
           
           // Centro: Número de página
           pdf.setFont("helvetica", "bold");
