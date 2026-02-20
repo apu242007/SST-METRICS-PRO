@@ -1843,49 +1843,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
       </div>
 
-      {/* SUGGESTED ACTIONS */}
-      {metrics.suggestedActions && metrics.suggestedActions.length > 0 && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
-              <h3 className="text-sm font-bold text-blue-800 uppercase flex items-center mb-4">
-                  <ShieldCheck className="w-5 h-5 mr-2" /> Acciones Correctivas Sugeridas (IA)
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {metrics.suggestedActions.map((suggestion, idx) => {
-                      const reasonConfig = {
-                          deterioration: { icon: TrendingDown, label: 'Deterioro Detectado', color: 'text-red-600' },
-                          trend_alert: { icon: AlertTriangle, label: 'Tendencia Creciente', color: 'text-orange-600' }
-                      }[suggestion.reason];
-                      const Icon = reasonConfig.icon;
-
-                      return (
-                          <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border border-blue-200">
-                              <div className="flex items-start justify-between mb-3">
-                                  <h4 className="font-bold text-gray-800 text-sm">{suggestion.site}</h4>
-                                  <span className={`flex items-center text-xs font-bold ${reasonConfig.color}`}>
-                                      <Icon className="w-3 h-3 mr-1" />
-                                      {reasonConfig.label}
-                                  </span>
-                              </div>
-                              <ul className="space-y-2">
-                                  {suggestion.actions.slice(0, 3).map((action, actionIdx) => (
-                                      <li key={actionIdx} className="flex items-start text-xs text-gray-700">
-                                          <CheckCircle2 className="w-3 h-3 mr-2 mt-0.5 text-blue-500 flex-shrink-0" />
-                                          <span>{action}</span>
-                                      </li>
-                                  ))}
-                              </ul>
-                              {suggestion.actions.length > 3 && (
-                                  <p className="text-xs text-blue-600 font-bold mt-2">
-                                      + {suggestion.actions.length - 3} acciones más
-                                  </p>
-                              )}
-                          </div>
-                      );
-                  })}
-              </div>
-          </div>
-      )}
-
       {metrics.trendAlerts && metrics.trendAlerts.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-6">
               <h3 className="text-sm font-bold text-red-800 uppercase flex items-center mb-4">
