@@ -75,6 +75,33 @@ progress.site-progress[data-rank="blue"]::-moz-progress-bar { background: #3b82f
   width: var(--progress-width, 0%);
 }
 
+/* Barra de progreso exportación PDF */
+.pdf-progress-bar {
+  width: var(--pdf-progress, 0%);
+}
+
+progress.pdf-export-progress {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e5e7eb;
+  border: none;
+  border-radius: 9999px;
+  overflow: hidden;
+  display: block;
+  width: 100%;
+  height: 8px;
+}
+progress.pdf-export-progress::-webkit-progress-bar {
+  background: #e5e7eb;
+  border-radius: 9999px;
+}
+progress.pdf-export-progress::-webkit-progress-value,
+progress.pdf-export-progress::-moz-progress-bar {
+  background: linear-gradient(to right, #3b82f6, #6366f1);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
 /* ============================================================
    ESTILOS DE IMPRESIÓN / EXPORTACIÓN PDF
    Mejoran la nitidez y legibilidad al imprimir o capturar con
