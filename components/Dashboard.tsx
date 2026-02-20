@@ -342,6 +342,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const isT1Good = metrics.t1_pser !== null && metrics.t1_pser <= targets.t1_pser;
   const isT2Good = metrics.t2_pser !== null && metrics.t2_pser <= targets.t2_pser;
 
+  // ── Mapa de logos por cliente/sitio ──────────────────────────────────────────────
+  // Para agregar un nuevo cliente: añadir entrada con el nombre EXACTO del sitio
+  // tal como aparece en el filtro, apuntando al archivo en public/
+  const CLIENT_LOGOS: Record<string, string> = {
+    'JACWELL': 'jacwell.png',
+    // 'OTRO_CLIENTE': 'otro-cliente.png',  ← plantilla para nuevos clientes
+  };
+
+  const DEFAULT_LOGO = 'logo-single.png';
+
+  // Determinar qué logo mostrar según el filtro de sitio activo
+  const activeSite = filters?.site && filters.site !== 'All' ? filters.site.toUpperCase().trim() : null;
+  const logoFile = (activeSite && CLIENT_LOGOS[activeSite]) ? CLIENT_LOGOS[activeSite] : DEFAULT_LOGO;
+  const logoSrc = `${import.meta.env.BASE_URL}${logoFile}`;
+  const logoAlt = activeSite ? `Logo ${filters.site}` : 'Logo Tacker SRL';
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       
@@ -350,11 +366,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* TOP BAR: Scenario & Alerts */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
            <div className="flex items-center gap-3">
-               {/* Logo Tacker — usa BASE_URL para funcionar tanto en dev como en GitHub Pages */}
+               {/* Logo dinámico: cambia según el cliente/sitio seleccionado en el filtro */}
                <img
-                 src={`${import.meta.env.BASE_URL}logo-single.png`}
-                 alt="Logo Tacker SRL"
-                 className="h-10 w-auto object-contain flex-shrink-0"
+                 key={logoSrc}
+                 src={logoSrc}
+                 alt={logoAlt}
+                 className="h-10 w-auto object-contain flex-shrink-0 transition-opacity duration-300"
                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                />
                <div>
