@@ -74,3 +74,87 @@ progress.site-progress[data-rank="blue"]::-moz-progress-bar { background: #3b82f
 .h-2.rounded-full.absolute {
   width: var(--progress-width, 0%);
 }
+
+/* ============================================================
+   ESTILOS DE IMPRESIÓN / EXPORTACIÓN PDF
+   Mejoran la nitidez y legibilidad al imprimir o capturar con
+   html2canvas. Se activan en @media print y también se pueden
+   activar programáticamente añadiendo la clase .pdf-mode al
+   elemento raíz antes de capturar.
+   ============================================================ */
+
+@page {
+  size: A4 portrait;
+  margin: 15mm 12mm 18mm 12mm;
+}
+
+@media print {
+  /* Preservar colores exactos (fondos, badges) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ocultar elementos interactivos que no aportan al documento */
+  button,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Asegurar fondo blanco en toda la página */
+  body {
+    background-color: #ffffff !important;
+  }
+
+  /* Cards: evitar cortes entre páginas */
+  .rounded-xl,
+  .rounded-lg,
+  [class*="shadow"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Eliminar sombras (se ven sucias al imprimir) */
+  .shadow,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: none !important;
+    border: 1px solid #d1d5db !important;
+  }
+
+  /* Mejorar contraste: grises claros → más oscuros */
+  .text-gray-400 { color: #6b7280 !important; }
+  .text-gray-500 { color: #4b5563 !important; }
+  .text-gray-600 { color: #374151 !important; }
+
+  /* Forzar salto de página antes de grandes secciones */
+  [data-print-break-before] {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* KPI cards en 3 columnas fijas en A4 */
+  .print\:grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* Clase activada programáticamente (.pdf-mode) para html2canvas */
+.pdf-mode * {
+  -webkit-filter: none !important;
+  filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.pdf-mode .shadow,
+.pdf-mode .shadow-sm,
+.pdf-mode .shadow-md,
+.pdf-mode .shadow-lg,
+.pdf-mode .shadow-xl {
+  box-shadow: 0 0 0 1px #d1d5db !important;
+}
+.pdf-mode .text-gray-400 { color: #6b7280 !important; }
+.pdf-mode .text-gray-500 { color: #4b5563 !important; }
+.pdf-mode .text-gray-600 { color: #374151 !important; }

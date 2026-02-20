@@ -612,14 +612,26 @@ export const PDFExportCenter: React.FC<PDFExportCenterProps> = ({
           }
 
           try {
+            // Activar modo PDF para mejorar el renderizado antes de capturar
+            element.classList.add('pdf-mode');
+            // Esperar un frame para que los estilos .pdf-mode se apliquen
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
             const canvas = await html2canvas(element, {
-              scale: 2,
+              scale: 3,                              // 3× → nitidez HiDPI en A4
               backgroundColor: '#ffffff',
               logging: false,
               useCORS: true,
+              allowTaint: false,
+              imageTimeout: 15000,
               windowWidth: element.scrollWidth,
-              windowHeight: element.scrollHeight
+              windowHeight: element.scrollHeight,
+              // Ignorar sombras CSS que ensucian la captura
+              ignoreElements: (el) => el.hasAttribute('data-no-print'),
             });
+
+            // Restaurar estilos originales
+            element.classList.remove('pdf-mode');
 
             const imgData = canvas.toDataURL('image/png');
             const imgWidth = maxWidth;
