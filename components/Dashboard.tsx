@@ -349,14 +349,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* TOP BAR: Scenario & Alerts */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-           <div>
-               <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                   <Activity className="w-6 h-6 mr-2 text-blue-600" />
-                   Tablero Corporativo HSE
-               </h2>
-               <p className="text-xs text-gray-500 mt-1">
-                   Estándares: OSHA (200k), IOGP (1M), API RP 754, ISO 45001.
-               </p>
+           <div className="flex items-center gap-3">
+               {/* Logo Tacker */}
+               <img
+                 src="/files/logo-single.png"
+                 alt="Logo Tacker SRL"
+                 className="h-10 w-auto object-contain flex-shrink-0"
+                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+               />
+               <div>
+                   <h2 className="text-xl font-bold text-gray-800 flex items-center">
+                       <Activity className="w-6 h-6 mr-2 text-blue-600" />
+                       Tablero Corporativo HSE
+                   </h2>
+                   <p className="text-xs text-gray-500 mt-1">
+                       Estándares: OSHA (200k), IOGP (1M), API RP 754, ISO 45001.
+                   </p>
+               </div>
            </div>
            
            <div className="flex items-center space-x-4">
