@@ -22,9 +22,9 @@ import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Tro
 import { HeatmapMatrix } from './HeatmapMatrix';
 
 interface DashboardFilters {
-  site: string;
-  year: string;
-  month: string;
+  site: string | string[];
+  year: string | string[];
+  month: string | string[];
 }
 
 interface DashboardProps {
@@ -353,10 +353,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const DEFAULT_LOGO = 'logo-single.png';
 
   // Determinar qué logo mostrar según el filtro de sitio activo
-  const activeSite = filters?.site && filters.site !== 'All' ? filters.site.toUpperCase().trim() : null;
+  // Solo muestra logo de cliente cuando hay exactamente 1 sitio seleccionado
+  const activeSite = (filters?.site && Array.isArray(filters.site) && filters.site.length === 1)
+    ? filters.site[0].toUpperCase().trim()
+    : (typeof filters?.site === 'string' && filters.site !== 'All')
+      ? filters.site.toUpperCase().trim()
+      : null;
   const logoFile = (activeSite && CLIENT_LOGOS[activeSite]) ? CLIENT_LOGOS[activeSite] : DEFAULT_LOGO;
   const logoSrc = `${import.meta.env.BASE_URL}${logoFile}`;
-  const logoAlt = activeSite ? `Logo ${filters?.site ?? activeSite}` : 'Logo Tacker SRL';
+  const logoAlt = activeSite ? `Logo ${activeSite}` : 'Logo Tacker SRL';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -1412,19 +1417,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   let { sites, periods, dataMap, siteTotals, periodTotals, grandTotal } = summary;
                   
                   // Aplicar filtro de sitio (si hay)
-                  if (filters?.site && filters.site !== 'All') {
-                      sites = sites.filter(s => s === filters.site);
+                  if (filters?.site) {
+                      const siteArr = Array.isArray(filters.site) ? filters.site : (filters.site !== 'All' ? [filters.site] : []);
+                      if (siteArr.length > 0) sites = sites.filter(s => siteArr.includes(s));
                   }
-                  
+
                   // Aplicar filtro de año (si hay) - filtrar períodos que empiecen con ese año
-                  if (filters?.year && filters.year !== 'All') {
-                      periods = periods.filter(p => p.startsWith(`${filters.year}-`));
+                  if (filters?.year) {
+                      const yearArr = Array.isArray(filters.year) ? filters.year : (filters.year !== 'All' ? [filters.year] : []);
+                      if (yearArr.length > 0) periods = periods.filter(p => yearArr.some(y => p.startsWith(`${y}-`)));
                   }
-                  
+
                   // Aplicar filtro de mes (si hay) - filtrar períodos que terminen en ese mes
-                  if (filters?.month && filters.month !== 'All') {
-                      const monthStr = String(filters.month).padStart(2, '0');
-                      periods = periods.filter(p => p.endsWith(`-${monthStr}`));
+                  if (filters?.month) {
+                      const monthArr = Array.isArray(filters.month) ? filters.month : (filters.month !== 'All' ? [filters.month] : []);
+                      if (monthArr.length > 0) periods = periods.filter(p => monthArr.some(m => p.endsWith(`-${String(m).padStart(2, '0')}`)));
                   }
                   
                   // Recalcular totales con los filtros aplicados

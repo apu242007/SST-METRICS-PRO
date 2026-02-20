@@ -17,6 +17,104 @@ import { PendingTasks } from './components/PendingTasks';
 import { ExposureManager } from './components/ExposureManager';
 import { PDFExportCenter } from './components/PDFExportCenter';
 
+// ── Componente de filtro multi-selección con dropdown ─────────────────────────
+interface MultiSelectFilterProps {
+  id: string;
+  label: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  isSandbox?: boolean;
+}
+
+const MultiSelectFilter: React.FC<MultiSelectFilterProps> = ({
+  id, label, options, selected, onChange, isSandbox = false
+}) => {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggle = (value: string) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter(v => v !== value));
+    } else {
+      onChange([...selected, value]);
+    }
+  };
+
+  const displayText = selected.length === 0
+    ? `${label}: Todos`
+    : selected.length === 1
+      ? `${label}: ${options.find(o => o.value === selected[0])?.label ?? selected[0]}`
+      : `${label}: ${selected.length} selec.`;
+
+  const isActive = selected.length > 0;
+
+  return (
+    <div ref={ref} className="relative" id={id}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`text-xs border rounded-md shadow-sm py-1.5 px-2 flex items-center gap-1.5 min-w-[110px] transition-colors
+          ${isActive
+            ? 'bg-blue-50 border-blue-300 text-blue-700 font-semibold'
+            : isSandbox
+              ? 'bg-slate-700 border-slate-600 text-slate-300'
+              : 'bg-white border-gray-300 text-gray-700'
+          }`}
+      >
+        <span className="flex-1 text-left truncate">{displayText}</span>
+        <svg className={`w-3 h-3 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+
+      {open && (
+        <div className={`absolute top-full left-0 mt-1 z-50 rounded-lg shadow-xl border min-w-[180px] max-h-64 overflow-y-auto
+          ${isSandbox ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}>
+          <div className={`flex justify-between px-3 py-1.5 border-b text-[10px] ${isSandbox ? 'border-slate-600' : 'border-gray-100'}`}>
+            <button
+              className="text-blue-500 hover:text-blue-700 font-semibold"
+              onClick={() => onChange(options.map(o => o.value))}
+            >
+              Todos
+            </button>
+            <button
+              className="text-gray-400 hover:text-red-500 font-semibold"
+              onClick={() => onChange([])}
+            >
+              Limpiar
+            </button>
+          </div>
+          {options.map(opt => (
+            <label
+              key={opt.value}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer transition-colors
+                ${selected.includes(opt.value)
+                  ? isSandbox ? 'bg-blue-900/40 text-blue-300' : 'bg-blue-50 text-blue-700'
+                  : isSandbox ? 'text-slate-300 hover:bg-slate-700' : 'text-gray-700 hover:bg-gray-50'
+                }`}
+            >
+              <input
+                type="checkbox"
+                className="accent-blue-600 w-3 h-3"
+                checked={selected.includes(opt.value)}
+                onChange={() => toggle(opt.value)}
+              />
+              <span className="truncate">{opt.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const App: React.FC = () => {
   // --- 1. GLOBAL STATE ---
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -44,14 +142,14 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'raw' | 'normalized' | 'kpis' | 'pending' | 'automation' | 'calendar' | 'docs'>('automation');
   
   const [filters, setFilters] = useState({
-    site: 'All',
-    year: 'All',
-    month: 'All',
-    type: 'All',
-    location: 'All',
-    comCliente: 'All' as 'All' | 'SI' | 'NO', // Updated to Uppercase SI/NO
-    search: '',
-    category: 'All' as 'All' | 'LTI' | 'Recordable' | 'Transit'
+    site:       [] as string[],
+    year:       [] as string[],
+    month:      [] as string[],
+    type:       'All' as string,
+    location:   'All' as string,
+    search:     '',
+    category:   'All' as 'All' | 'LTI' | 'Recordable' | 'Transit',
+    comCliente: 'All' as 'All' | 'SI' | 'NO',
   });
 
   const [modalMode, setModalMode] = useState<'exposure_hh' | 'exposure_km' | 'review_incident' | 'pdf_export' | null>(null);
@@ -188,30 +286,25 @@ const App: React.FC = () => {
   }, [incidents]);
 
   const filteredIncidents = useMemo(() => {
-    let result = incidents;
-    return result.filter(i => {
-        if (filters.site !== 'All' && i.site !== filters.site) return false;
-        if (filters.year !== 'All' && String(i.year) !== filters.year) return false;
-        if (filters.month !== 'All' && String(i.month) !== filters.month) return false;
-        if (filters.type !== 'All' && i.type !== filters.type) return false;
-        if (filters.location !== 'All' && i.location !== filters.location) return false;
-        if (filters.category === 'LTI' && !i.lti_case) return false;
+    return incidents.filter(i => {
+        if (filters.site.length > 0  && !filters.site.includes(i.site))           return false;
+        if (filters.year.length > 0  && !filters.year.includes(String(i.year)))  return false;
+        if (filters.month.length > 0 && !filters.month.includes(String(i.month))) return false;
+        if (filters.type !== 'All'     && i.type !== filters.type)                 return false;
+        if (filters.location !== 'All' && i.location !== filters.location)         return false;
+        if (filters.category === 'LTI'        && !i.lti_case)        return false;
         if (filters.category === 'Recordable' && !i.recordable_osha) return false;
-        if (filters.category === 'Transit' && !i.is_transit) return false;
-        
-        // Com. Cliente Filter (Strict SI/NO logic mapped to boolean data)
+        if (filters.category === 'Transit'    && !i.is_transit)      return false;
         if (filters.comCliente !== 'All') {
             const wantTrue = filters.comCliente === 'SI';
-            // We check the boolean field `com_cliente` populated by importHelpers
             if (i.com_cliente !== wantTrue) return false;
         }
-
         if (filters.search) {
             const term = filters.search.toLowerCase();
             return (
                 i.incident_id.toLowerCase().includes(term) ||
                 i.name.toLowerCase().includes(term) ||
-                i.description.toLowerCase().includes(term) 
+                i.description.toLowerCase().includes(term)
             );
         }
         return true;
@@ -220,11 +313,10 @@ const App: React.FC = () => {
 
   const filteredExposureHours = useMemo(() => {
       return exposureHours.filter(h => {
-          if (filters.site !== 'All' && h.site !== filters.site) return false;
-          if (filters.year !== 'All' && !h.period.startsWith(`${filters.year}-`)) return false;
-          if (filters.month !== 'All') {
-              const m = String(filters.month).padStart(2, '0');
-              if (!h.period.endsWith(`-${m}`)) return false;
+          if (filters.site.length > 0  && !filters.site.includes(h.site)) return false;
+          if (filters.year.length > 0  && !filters.year.some(y => h.period.startsWith(`${y}-`))) return false;
+          if (filters.month.length > 0) {
+              if (!filters.month.some(m => h.period.endsWith(`-${String(m).padStart(2, '0')}`))) return false;
           }
           return true;
       });
@@ -232,11 +324,10 @@ const App: React.FC = () => {
 
   const filteredExposureKm = useMemo(() => {
       return exposureKm.filter(k => {
-          if (filters.site !== 'All' && k.site !== filters.site) return false;
-          if (filters.year !== 'All' && !k.period.startsWith(`${filters.year}-`)) return false;
-          if (filters.month !== 'All') {
-              const m = String(filters.month).padStart(2, '0');
-              if (!k.period.endsWith(`-${m}`)) return false;
+          if (filters.site.length > 0  && !filters.site.includes(k.site)) return false;
+          if (filters.year.length > 0  && !filters.year.some(y => k.period.startsWith(`${y}-`))) return false;
+          if (filters.month.length > 0) {
+              if (!filters.month.some(m => k.period.endsWith(`-${String(m).padStart(2, '0')}`))) return false;
           }
           return true;
       });
@@ -244,15 +335,9 @@ const App: React.FC = () => {
 
   const filteredGlobalKm = useMemo(() => {
       return globalKm.filter(k => {
-          // Filtro por año
-          if (filters.year !== 'All') {
-              const year = parseInt(filters.year);
-              if (k.year !== year) return false;
-          }
-          // Filtro por mes (si tiene período mensual)
-          if (filters.month !== 'All' && k.period) {
-              const m = String(filters.month).padStart(2, '0');
-              if (!k.period.endsWith(`-${m}`)) return false;
+          if (filters.year.length > 0  && !filters.year.includes(String(k.year))) return false;
+          if (filters.month.length > 0 && k.period) {
+              if (!filters.month.some(m => k.period!.endsWith(`-${String(m).padStart(2, '0')}`))) return false;
           }
           return true;
       });
@@ -276,13 +361,13 @@ const App: React.FC = () => {
       const newFilters = { ...filters };
       if (criteria.period) {
           const [year, month] = criteria.period.split('-').map(Number);
-          newFilters.year = String(year);
-          newFilters.month = String(month);
+          newFilters.year = [String(year)];
+          newFilters.month = [String(month)];
       }
       if (criteria.type) newFilters.type = criteria.type;
       if (criteria.category) newFilters.category = criteria.category;
       setFilters(newFilters);
-      setActiveTab('normalized'); 
+      setActiveTab('normalized');
   };
 
   if (!isLoaded) return <div className="flex h-screen items-center justify-center text-gray-500 font-medium">Iniciando sistema SST...</div>;
@@ -373,38 +458,74 @@ const App: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className={`flex items-center mr-1 ${isSandboxMode ? 'text-slate-500' : 'text-gray-400'}`}><Filter className="w-4 h-4" /></div>
-                    <label htmlFor="filter-site" className="sr-only">Filtrar por sitio</label>
-                    <select id="filter-site" className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.site} onChange={e => setFilters({...filters, site: e.target.value})}>
-                        <option value="All">Sitio: Todos</option>
-                        {uniqueValues.sites.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <label htmlFor="filter-year" className="sr-only">Filtrar por año</label>
-                    <select id="filter-year" className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.year} onChange={e => setFilters({...filters, year: e.target.value})}>
-                        <option value="All">Año: Todos</option>
-                        {uniqueValues.years.map(y => <option key={y} value={String(y)}>{y}</option>)}
-                    </select>
-                    <label htmlFor="filter-month" className="sr-only">Filtrar por mes</label>
-                    <select id="filter-month" className="text-xs border rounded-md shadow-sm py-1.5 px-2" value={filters.month} onChange={e => setFilters({...filters, month: e.target.value})}>
-                        <option value="All">Mes: Todos</option>
-                        {MONTHS.map((m, idx) => <option key={idx} value={String(idx + 1)}>{m}</option>)}
-                    </select>
+
+                    {/* ── Sitio: multi-select ── */}
+                    <MultiSelectFilter
+                        id="filter-site"
+                        label="Sitio"
+                        options={uniqueValues.sites.map(s => ({ value: s, label: s }))}
+                        selected={filters.site}
+                        onChange={vals => setFilters(prev => ({ ...prev, site: vals }))}
+                        isSandbox={isSandboxMode}
+                    />
+
+                    {/* ── Año: multi-select ── */}
+                    <MultiSelectFilter
+                        id="filter-year"
+                        label="Año"
+                        options={uniqueValues.years.map(y => ({ value: String(y), label: String(y) }))}
+                        selected={filters.year}
+                        onChange={vals => setFilters(prev => ({ ...prev, year: vals }))}
+                        isSandbox={isSandboxMode}
+                    />
+
+                    {/* ── Mes: multi-select ── */}
+                    <MultiSelectFilter
+                        id="filter-month"
+                        label="Mes"
+                        options={MONTHS.map((m, idx) => ({ value: String(idx + 1), label: m }))}
+                        selected={filters.month}
+                        onChange={vals => setFilters(prev => ({ ...prev, month: vals }))}
+                        isSandbox={isSandboxMode}
+                    />
+
+                    {/* ── Com. Cliente: select simple (solo 3 opciones) ── */}
                     <label htmlFor="filter-comCliente" className="sr-only">Filtrar por comunicación con cliente</label>
                     <select
                         id="filter-comCliente"
                         className="text-xs border rounded-md shadow-sm py-1.5 px-2"
                         value={filters.comCliente}
-                        onChange={(e) => setFilters(prev => ({...prev, comCliente: e.target.value as 'All' | 'SI' | 'NO'}))}
+                        onChange={e => setFilters(prev => ({ ...prev, comCliente: e.target.value as 'All' | 'SI' | 'NO' }))}
                     >
                         <option value="All">Com. Cliente: Todos</option>
                         <option value="SI">Com. Cliente: SI</option>
                         <option value="NO">Com. Cliente: NO</option>
                     </select>
+
+                    {/* ── Buscador ── */}
                     <div className="relative flex-1 min-w-[200px]">
                         <Search className="w-3.5 h-3.5 absolute left-3 top-2 text-gray-400" />
-                        <input type="text" placeholder="Buscar..." className="w-full pl-9 pr-2 py-1.5 text-xs border rounded-md shadow-sm" value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+                        <input
+                            type="text"
+                            placeholder="Buscar..."
+                            className="w-full pl-9 pr-2 py-1.5 text-xs border rounded-md shadow-sm"
+                            value={filters.search}
+                            onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                        />
                     </div>
-                    {(filters.site !== 'All' || filters.year !== 'All' || filters.month !== 'All' || filters.search !== '' || filters.comCliente !== 'All') && (
-                        <button onClick={() => setFilters({site: 'All', year: 'All', month: 'All', type: 'All', location: 'All', search: '', category: 'All', comCliente: 'All'})} className="text-xs px-2 py-1.5 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-700 flex items-center"><X className="w-3 h-3 mr-1" /> Limpiar</button>
+
+                    {/* ── Botón Limpiar ── */}
+                    {(filters.site.length > 0 || filters.year.length > 0 || filters.month.length > 0 || filters.search !== '' || filters.comCliente !== 'All') && (
+                        <button
+                            onClick={() => setFilters({
+                                site: [], year: [], month: [],
+                                type: 'All', location: 'All',
+                                search: '', category: 'All', comCliente: 'All'
+                            })}
+                            className="text-xs px-2 py-1.5 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-700 flex items-center"
+                        >
+                            <X className="w-3 h-3 mr-1" /> Limpiar
+                        </button>
                     )}
                 </div>
             </div>
