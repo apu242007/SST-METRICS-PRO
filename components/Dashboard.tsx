@@ -325,19 +325,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return { fi, fh };
   };
 
+  // Helper: aplica filtro de año + múltiples sitios
+  const applyMultiFilter = (
+    incs: typeof comparisonIncidents,
+    hrs: typeof comparisonExposureHours,
+    f: { year: string; sites: string[] }
+  ) => {
+    const fi = incs.filter(i =>
+      (f.year === 'All' || String(i.year) === f.year) &&
+      (f.sites.length === 0 || f.sites.includes(i.site))
+    );
+    const fh = hrs.filter(h =>
+      (f.year === 'All' || h.period.startsWith(`${f.year}-`)) &&
+      (f.sites.length === 0 || f.sites.includes(h.site))
+    );
+    return { fi, fh };
+  };
+
   // ── Estados locales de filtro por gráfico ──────────────────────────────────
   const [trendFilter,    setTrendFilter]    = useState({ year: 'All', site: 'All' });
   const [paretoFilter,   setParetoFilter]   = useState({ year: 'All', site: 'All' });
   // site ahora es string[] para multi-selección; [] significa "Todos"
   const [compTypeFilter, setCompTypeFilter] = useState<{ year: string; sites: string[]; year2?: string }>({ year: '2025', sites: [], year2: '2026' });
   const [compTypeComCliente, setCompTypeComCliente] = useState<'All' | 'SI' | 'NO'>('All');
-  const [waterfallFilter,setWaterfallFilter]= useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
-  const [scatterFilter,  setScatterFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
-  const [radarFilter,    setRadarFilter]    = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
-  const [monthlyFilter,  setMonthlyFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
+  const [waterfallFilter, setWaterfallFilter] = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
+  const [scatterFilter,   setScatterFilter]   = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
+  const [radarFilter,     setRadarFilter]     = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
+  const [monthlyFilter,   setMonthlyFilter]   = useState<{ year: string; sites: string[]; year2?: string }>({ year: '2025', sites: [], year2: '2026' });
   const [monthlyComCliente, setMonthlyComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   // Estado COMPLETAMENTE independiente para "Total Incidentes por Cliente" — nunca comparte estado con monthlyFilter
-  const [clienteFilter,  setClienteFilter]  = useState<{ year: string; site: string }>({ year: 'All', site: 'All' });
+  const [clienteFilter,   setClienteFilter]   = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
   const [heatmapFilter,  setHeatmapFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [heatmapComCliente, setHeatmapComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   // ──────────────────────────────────────────────────────────────────────────
@@ -367,12 +384,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const monthlyChartData = useMemo(() => {
     const my1 = monthlyFilter.year  !== 'All' ? Number(monthlyFilter.year)  : 2025;
     const my2 = monthlyFilter.year2 && monthlyFilter.year2 !== 'All' ? Number(monthlyFilter.year2) : 2026;
-    // mbase: filtrar base por sitio; el año lo separa internamente generateMonthlyComparison
-    const mbase = monthlyFilter.site !== 'All'
-      ? comparisonIncidents.filter(i => i.site === monthlyFilter.site)
-      : comparisonIncidents.slice(); // slice() → copia inmutable, evita mutaciones accidentales
+    let mbase = monthlyFilter.sites.length > 0
+      ? comparisonIncidents.filter(i => monthlyFilter.sites.includes(i.site))
+      : comparisonIncidents.slice();
+    if (monthlyComCliente !== 'All') {
+      const wantTrue = monthlyComCliente === 'SI';
+      mbase = mbase.filter(i => i.com_cliente === wantTrue);
+    }
     return { data: generateMonthlyComparison(mbase, my1, my2), my1, my2 };
-  }, [comparisonIncidents, monthlyFilter]);
+  }, [comparisonIncidents, monthlyFilter, monthlyComCliente]);
 
   // ── Total Incidentes por Cliente — depende SÓLO de clienteFilter ────────────
   const clienteChartData = useMemo(() => {
@@ -380,7 +400,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     // Bug anterior: if-else chain que ignoraba el año cuando el sitio estaba activo
     const cbase = comparisonIncidents.filter(i =>
       (clienteFilter.year === 'All' || i.year === Number(clienteFilter.year)) &&
-      (clienteFilter.site === 'All' || i.site === clienteFilter.site)
+      (clienteFilter.sites.length === 0 || clienteFilter.sites.includes(i.site))
     );
     return generateIncidentsByCliente(cbase);
   }, [comparisonIncidents, clienteFilter]);
@@ -1115,11 +1135,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="font-bold text-gray-800 flex items-center">
                         <BarChart2 className="w-5 h-5 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
                     </h3>
-                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={waterfallFilter} onChange={setWaterfallFilter} showSite={true} />
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={waterfallFilter.year} onChange={e => setWaterfallFilter(prev => ({ ...prev, year: e.target.value }))}>
+                        <option value="All">Año: Todos</option>
+                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                      </select>
+                      <ChartMultiSiteFilter sites={uniqueSites} selected={waterfallFilter.sites}
+                        onChange={vals => setWaterfallFilter(prev => ({ ...prev, sites: vals }))} />
+                      {(waterfallFilter.year !== 'All' || waterfallFilter.sites.length > 0) && (
+                        <button onClick={() => setWaterfallFilter({ year: 'All', sites: [] })}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600">✕</button>
+                      )}
+                    </div>
                   </div>
                   <div className="h-80">
                       {(() => {
-                          const { fi: wfInc, fh: wfHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, waterfallFilter);
+                          const { fi: wfInc, fh: wfHrs } = applyMultiFilter(comparisonIncidents, comparisonExposureHours, waterfallFilter);
                           const waterfallData = generateWaterfallData(wfInc, wfHrs, settings);
                           return waterfallData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
@@ -1169,11 +1201,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="font-bold text-gray-800 flex items-center">
                         <Target className="w-5 h-5 mr-2 text-orange-600" /> Frecuencia vs Severidad (por Sitio)
                     </h3>
-                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={scatterFilter} onChange={setScatterFilter} />
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={scatterFilter.year} onChange={e => setScatterFilter(prev => ({ ...prev, year: e.target.value }))}>
+                        <option value="All">Año: Todos</option>
+                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                      </select>
+                      <ChartMultiSiteFilter sites={uniqueSites} selected={scatterFilter.sites}
+                        onChange={vals => setScatterFilter(prev => ({ ...prev, sites: vals }))} />
+                      {(scatterFilter.year !== 'All' || scatterFilter.sites.length > 0) && (
+                        <button onClick={() => setScatterFilter({ year: 'All', sites: [] })}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600">✕</button>
+                      )}
+                    </div>
                   </div>
                   <div className="h-72">
                       {(() => {
-                          const { fi: scInc, fh: scHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, scatterFilter);
+                          const { fi: scInc, fh: scHrs } = applyMultiFilter(comparisonIncidents, comparisonExposureHours, scatterFilter);
                           const scatterData = generateScatterPlotData(scInc, scHrs);
                           return scatterData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
@@ -1321,18 +1365,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="font-bold text-gray-800 flex items-center">
                         <Calendar className="w-5 h-5 mr-2 text-purple-600" /> Comparación Mensual de Eventos
                     </h3>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} showYear2 />
-                      <select
-                        title="Filtrar por comunicación con cliente"
-                        className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
-                        value={monthlyComCliente}
-                        onChange={e => setMonthlyComCliente(e.target.value as 'All' | 'SI' | 'NO')}
-                      >
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <select title="Año 1" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={monthlyFilter.year} onChange={e => setMonthlyFilter(prev => ({ ...prev, year: e.target.value }))}>
+                        <option value="All">Año: Todos</option>
+                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                      </select>
+                      <select title="Año 2" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={monthlyFilter.year2 ?? 'All'} onChange={e => setMonthlyFilter(prev => ({ ...prev, year2: e.target.value }))}>
+                        <option value="All">Año 2: Todos</option>
+                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                      </select>
+                      <ChartMultiSiteFilter sites={uniqueSites} selected={monthlyFilter.sites}
+                        onChange={vals => setMonthlyFilter(prev => ({ ...prev, sites: vals }))} />
+                      <select title="Com. Cliente" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={monthlyComCliente} onChange={e => setMonthlyComCliente(e.target.value as 'All' | 'SI' | 'NO')}>
                         <option value="All">Com. Cliente: Todos</option>
                         <option value="SI">Com. Cliente: SI</option>
                         <option value="NO">Com. Cliente: NO</option>
                       </select>
+                      {(monthlyFilter.year !== 'All' || monthlyFilter.sites.length > 0 || (monthlyFilter.year2 && monthlyFilter.year2 !== 'All') || monthlyComCliente !== 'All') && (
+                        <button onClick={() => { setMonthlyFilter({ year: '2025', sites: [], year2: '2026' }); setMonthlyComCliente('All'); }}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600">✕</button>
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-gray-500 mb-3">Incidentes por mes</p>
@@ -1440,8 +1495,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <h3 className="font-bold text-gray-800 flex items-center">
                           <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Total Incidentes por Cliente
                       </h3>
-                      {/* clienteFilter es completamente independiente de monthlyFilter */}
-                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={clienteFilter} onChange={setClienteFilter} />
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                          value={clienteFilter.year} onChange={e => setClienteFilter(prev => ({ ...prev, year: e.target.value }))}>
+                          <option value="All">Año: Todos</option>
+                          {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        </select>
+                        <ChartMultiSiteFilter sites={uniqueSites} selected={clienteFilter.sites}
+                          onChange={vals => setClienteFilter(prev => ({ ...prev, sites: vals }))} />
+                        {(clienteFilter.year !== 'All' || clienteFilter.sites.length > 0) && (
+                          <button onClick={() => setClienteFilter({ year: 'All', sites: [] })}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600">✕</button>
+                        )}
+                      </div>
                   </div>
                   <p className="text-xs text-gray-500 mb-3">Total acumulado de incidentes por operadora / cliente</p>
                   <div className="h-72">
