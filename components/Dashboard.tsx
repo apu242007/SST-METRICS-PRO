@@ -355,7 +355,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [monthlyComCliente, setMonthlyComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   // Estado COMPLETAMENTE independiente para "Total Incidentes por Cliente" — nunca comparte estado con monthlyFilter
   const [clienteFilter,   setClienteFilter]   = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
-  const [heatmapFilter,  setHeatmapFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
+  const [heatmapFilter,     setHeatmapFilter]     = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
   const [heatmapComCliente, setHeatmapComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   // ──────────────────────────────────────────────────────────────────────────
   
@@ -1630,12 +1630,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           </button>
                       ))}
                   </div>
-                  <ChartFilter years={uniqueYears} sites={uniqueSites} value={heatmapFilter} onChange={setHeatmapFilter} />
+                  {/* Filtro Año */}
+                  <select
+                      title="Filtrar por año"
+                      className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                      value={heatmapFilter.year}
+                      onChange={e => setHeatmapFilter(prev => ({ ...prev, year: e.target.value }))}
+                  >
+                      <option value="All">Año: Todos</option>
+                      {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                  </select>
+                  {/* Filtro Sitio: multi-select */}
+                  <ChartMultiSiteFilter
+                      sites={uniqueSites}
+                      selected={heatmapFilter.sites}
+                      onChange={vals => setHeatmapFilter(prev => ({ ...prev, sites: vals }))}
+                  />
+                  {/* Botón limpiar */}
+                  {(heatmapFilter.year !== 'All' || heatmapFilter.sites.length > 0) && (
+                      <button
+                          onClick={() => setHeatmapFilter({ year: 'All', sites: [] })}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600"
+                      >✕</button>
+                  )}
               </div>
           </div>
           <div className="min-h-[500px] w-full">
               {(() => {
-                  const { fi: hmIncBase, fh: hmHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, heatmapFilter);
+                  const { fi: hmIncBase, fh: hmHrs } = applyMultiFilter(comparisonIncidents, comparisonExposureHours, heatmapFilter);
                   const hmInc = heatmapComCliente === 'All'
                       ? hmIncBase
                       : heatmapComCliente === 'SI'
