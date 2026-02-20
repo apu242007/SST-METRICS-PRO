@@ -20,6 +20,40 @@ body {
   border: 0;
 }
 
+/* Dynamic bar fill - uses CSS custom property to avoid inline style */
+.bar-fill {
+  width: var(--bar-fill-width, 0%);
+}
+
+/* Progress bar for site ranking */
+progress.site-progress {
+  appearance: none;
+  -webkit-appearance: none;
+  background: #e5e7eb;
+  border: none;
+  border-radius: 9999px;
+  overflow: hidden;
+  display: block;
+}
+progress.site-progress::-webkit-progress-bar {
+  background: #e5e7eb;
+  border-radius: 9999px;
+}
+progress.site-progress::-webkit-progress-value,
+progress.site-progress::-moz-progress-bar {
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+  background: #3b82f6;
+}
+progress.site-progress[data-rank="red"]::-webkit-progress-value,
+progress.site-progress[data-rank="red"]::-moz-progress-bar { background: #ef4444; }
+progress.site-progress[data-rank="orange"]::-webkit-progress-value,
+progress.site-progress[data-rank="orange"]::-moz-progress-bar { background: #f97316; }
+progress.site-progress[data-rank="yellow"]::-webkit-progress-value,
+progress.site-progress[data-rank="yellow"]::-moz-progress-bar { background: #eab308; }
+progress.site-progress[data-rank="blue"]::-webkit-progress-value,
+progress.site-progress[data-rank="blue"]::-moz-progress-bar { background: #3b82f6; }
+
 /* Custom Scrollbar for matrix table */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

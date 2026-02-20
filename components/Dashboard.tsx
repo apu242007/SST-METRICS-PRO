@@ -1310,12 +1310,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {metrics.top5Sites.map((site, idx) => {
                       const maxCount = metrics.top5Sites[0].count;
                       const percentage = (site.count / maxCount) * 100;
-                      const colorClass = idx === 0 ? 'bg-red-500' : idx === 1 ? 'bg-orange-500' : idx === 2 ? 'bg-yellow-500' : 'bg-blue-500';
+                      const badgeClass = idx === 0 ? 'bg-red-500' : idx === 1 ? 'bg-orange-500' : idx === 2 ? 'bg-yellow-500' : 'bg-blue-500';
+                      const rankColor = idx === 0 ? 'red' : idx === 1 ? 'orange' : idx === 2 ? 'yellow' : 'blue';
                       
                       return (
                           <div key={idx} className="flex items-center space-x-3">
                               <div className="flex-shrink-0 w-8 text-center">
-                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white ${colorClass}`}>
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white ${badgeClass}`}>
                                       {site.rank}
                                   </span>
                               </div>
@@ -1324,13 +1325,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       <span className="text-sm font-bold text-gray-800">{site.site}</span>
                                       <span className="text-sm font-mono text-gray-600">{site.count} incidentes</span>
                                   </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
-                                      {/* Dynamic width requires inline style — unavoidable with Tailwind */}
-                                      <div 
-                                          className={`h-2 rounded-full absolute top-0 left-0 transition-all ${colorClass}`} 
-                                          style={{ width: `${percentage}%` }}
-                                      ></div>
-                                  </div>
+                                  <progress
+                                      className="site-progress w-full h-2 rounded-full"
+                                      data-rank={rankColor}
+                                      value={percentage}
+                                      max={100}
+                                  />
                               </div>
                           </div>
                       );
