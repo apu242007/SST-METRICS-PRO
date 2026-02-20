@@ -32,7 +32,21 @@ const DEFAULT_SHAREPOINT_CONFIG: SharePointConfig = {
 };
 
 // Default KM: Empty
-const SEED_GLOBAL_KM: GlobalKmRecord[] = [];
+const SEED_GLOBAL_KM: GlobalKmRecord[] = [
+  // Datos mensuales 2025 (en miles de km)
+  { year: 2025, period: '2025-01', value: 115800, last_updated: '2025-01-31' },
+  { year: 2025, period: '2025-02', value: 217000, last_updated: '2025-02-28' },
+  { year: 2025, period: '2025-03', value: 256400, last_updated: '2025-03-31' },
+  { year: 2025, period: '2025-04', value: 234200, last_updated: '2025-04-30' },
+  { year: 2025, period: '2025-05', value: 264900, last_updated: '2025-05-31' },
+  { year: 2025, period: '2025-06', value: 245000, last_updated: '2025-06-30' },
+  { year: 2025, period: '2025-07', value: 217000, last_updated: '2025-07-31' },
+  { year: 2025, period: '2025-08', value: 232000, last_updated: '2025-08-31' },
+  { year: 2025, period: '2025-09', value: 227500, last_updated: '2025-09-30' },
+  { year: 2025, period: '2025-10', value: 196000, last_updated: '2025-10-31' },
+  { year: 2025, period: '2025-11', value: 221000, last_updated: '2025-11-30' },
+  { year: 2025, period: '2025-12', value: 216000, last_updated: '2025-12-31' },
+];
 
 export const loadState = (): AppState => {
   try {

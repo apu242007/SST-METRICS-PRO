@@ -11,6 +11,144 @@ const calcRate = (numerator: number, factor: number, denominator: number): numbe
   return isFinite(result) ? parseFloat(result.toFixed(2)) : 0;
 };
 
+/**
+ * Completa las horas hombre faltantes para todos los sitios y períodos
+ * usando el valor más frecuente (moda) de cada sitio
+ * @param exposureHours - Horas de exposición existentes
+ * @param allSites - Lista opcional de todos los sitios conocidos (ej: de incidentes)
+ */
+export const fillMissingExposureHours = (
+  exposureHours: ExposureHour[], 
+  allSites?: string[]
+): ExposureHour[] => {
+  if (!exposureHours || exposureHours.length === 0) return [];
+  
+  // Obtener todos los sitios y períodos únicos
+  const sitesSet = new Set<string>();
+  const periodsSet = new Set<string>();
+  const dataMap: Record<string, Record<string, number>> = {};
+  
+  exposureHours.forEach(h => {
+    sitesSet.add(h.site);
+    periodsSet.add(h.period);
+    if (!dataMap[h.site]) dataMap[h.site] = {};
+    dataMap[h.site][h.period] = (dataMap[h.site][h.period] || 0) + h.hours;
+  });
+  
+  // Agregar sitios adicionales si se proporcionan
+  if (allSites) {
+    allSites.forEach(site => sitesSet.add(site));
+  }
+  
+  const sites = Array.from(sitesSet);
+  const periods = Array.from(periodsSet).sort();
+  
+  if (sites.length === 0 || periods.length === 0) return exposureHours;
+  
+  // Calcular el valor estándar por sitio (moda - valor más frecuente)
+  // Para sitios sin datos, usar el promedio global
+  const allValues = exposureHours.map(h => h.hours).filter(v => v > 0);
+  const globalAverage = allValues.length > 0 
+    ? allValues.reduce((a, b) => a + b, 0) / allValues.length 
+    : 0;
+  
+  const siteStandardValue: Record<string, number> = {};
+  sites.forEach(site => {
+    const values = Object.values(dataMap[site] || {}).filter(v => v > 0);
+    if (values.length > 0) {
+      const counts: Record<number, number> = {};
+      values.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+      const moda = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      siteStandardValue[site] = parseFloat(moda[0]);
+    } else {
+      // Sitio sin datos: usar promedio global o 0
+      siteStandardValue[site] = globalAverage;
+    }
+  });
+  
+  // Crear array con todas las horas completadas
+  const filledHours: ExposureHour[] = [];
+  const existingKeys = new Set(exposureHours.map(h => `${h.site}|${h.period}`));
+  
+  // Primero agregar las horas originales
+  exposureHours.forEach(h => filledHours.push(h));
+  
+  // Luego agregar las horas faltantes
+  sites.forEach(site => {
+    periods.forEach(period => {
+      const key = `${site}|${period}`;
+      if (!existingKeys.has(key) && siteStandardValue[site] > 0) {
+        filledHours.push({
+          id: `FILLED-${site}-${period}`,
+          site,
+          period,
+          worker_type: 'total',
+          hours: siteStandardValue[site]
+        });
+      }
+    });
+  });
+  
+  return filledHours;
+};
+
+/**
+ * Obtiene el resumen de horas hombre por sitio y período con valores completados
+ * @param exposureHours - Horas de exposición
+ * @param allSites - Lista opcional de todos los sitios conocidos (ej: de incidentes)
+ */
+export const getExposureHoursSummary = (
+  exposureHours: ExposureHour[],
+  allSites?: string[]
+) => {
+  const filledHours = fillMissingExposureHours(exposureHours, allSites);
+  
+  const sitesSet = new Set<string>();
+  const periodsSet = new Set<string>();
+  const dataMap: Record<string, Record<string, { value: number, isFilled: boolean }>> = {};
+  const originalKeys = new Set(exposureHours.map(h => `${h.site}|${h.period}`));
+  
+  filledHours.forEach(h => {
+    sitesSet.add(h.site);
+    periodsSet.add(h.period);
+    if (!dataMap[h.site]) dataMap[h.site] = {};
+    const key = `${h.site}|${h.period}`;
+    const isFilled = !originalKeys.has(key);
+    dataMap[h.site][h.period] = { 
+      value: (dataMap[h.site][h.period]?.value || 0) + h.hours,
+      isFilled 
+    };
+  });
+  
+  const sites = Array.from(sitesSet).sort();
+  const periods = Array.from(periodsSet).sort().reverse();
+  
+  // Calcular totales
+  const siteTotals: Record<string, number> = {};
+  sites.forEach(site => {
+    siteTotals[site] = periods.reduce((acc, p) => acc + (dataMap[site]?.[p]?.value || 0), 0);
+  });
+  
+  const periodTotals: Record<string, number> = {};
+  periods.forEach(period => {
+    periodTotals[period] = sites.reduce((acc, s) => acc + (dataMap[s]?.[period]?.value || 0), 0);
+  });
+  
+  const grandTotal = Object.values(siteTotals).reduce((a, b) => a + b, 0);
+  const totalFilledHours = filledHours.reduce((acc, h) => acc + h.hours, 0);
+  
+  return {
+    sites,
+    periods,
+    dataMap,
+    siteTotals,
+    periodTotals,
+    grandTotal,
+    totalFilledHours,
+    filledHours
+  };
+};
+
 export const calculateKPIs = (
   incidents: Incident[],
   exposureHours: ExposureHour[],
@@ -18,7 +156,8 @@ export const calculateKPIs = (
   exposureKm: ExposureKm[], 
   settings: AppSettings,
   targets?: KPITargets,
-  globalKmRecords?: GlobalKmRecord[]
+  globalKmRecords?: GlobalKmRecord[],
+  useFillHours: boolean = true // Nueva opción para usar horas completadas
 ): DashboardMetrics => {
   
   // --- 1. DATA EXISTENCE CHECK (Backend Logic) ---
@@ -28,15 +167,24 @@ export const calculateKPIs = (
       return EMPTY_DASHBOARD_METRICS;
   }
 
-  // --- 2. EXPOSURE CALCULATION ---
-  const totalManHours = exposureHours ? exposureHours.reduce((sum, e) => sum + (e.hours || 0), 0) : 0;
+  // --- 2. EXPOSURE CALCULATION (con horas completadas) ---
+  const hoursToUse = useFillHours ? fillMissingExposureHours(exposureHours) : exposureHours;
+  const totalManHours = hoursToUse ? hoursToUse.reduce((sum, e) => sum + (e.hours || 0), 0) : 0;
   
   // GLOBAL KM LOGIC:
+  // Promedio mensual de 2025: 2,642,800 km / 12 = 220,233 km/mes
+  const KM_MONTHLY_AVERAGE_2025 = 220233;
   let totalKM = 0;
   if (globalKmRecords && globalKmRecords.length > 0) {
       totalKM = globalKmRecords.reduce((acc, r) => acc + r.value, 0);
+  } else if (exposureKm && exposureKm.length > 0) {
+      totalKM = exposureKm.reduce((sum, e) => sum + (e.km || 0), 0);
   } else {
-      totalKM = exposureKm ? exposureKm.reduce((sum, e) => sum + (e.km || 0), 0) : 0;
+      // Si no hay datos de KM, estimar basado en meses de incidentes
+      const monthsWithData = new Set(incidents.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)).size;
+      if (monthsWithData > 0) {
+          totalKM = monthsWithData * KM_MONTHLY_AVERAGE_2025;
+      }
   }
 
   // --- 3. SAFETY CHECK FOR DIVISION ---

@@ -243,12 +243,20 @@ const App: React.FC = () => {
   }, [exposureKm, filters]);
 
   const filteredGlobalKm = useMemo(() => {
-      if (filters.year !== 'All') {
-          const year = parseInt(filters.year);
-          return globalKm.filter(k => k.year === year);
-      }
-      return globalKm;
-  }, [globalKm, filters.year]);
+      return globalKm.filter(k => {
+          // Filtro por año
+          if (filters.year !== 'All') {
+              const year = parseInt(filters.year);
+              if (k.year !== year) return false;
+          }
+          // Filtro por mes (si tiene período mensual)
+          if (filters.month !== 'All' && k.period) {
+              const m = String(filters.month).padStart(2, '0');
+              if (!k.period.endsWith(`-${m}`)) return false;
+          }
+          return true;
+      });
+  }, [globalKm, filters.year, filters.month]);
 
   const currentMetrics = useMemo(() => calculateKPIs(filteredIncidents, filteredExposureHours, filteredExposureKm, settings, TARGET_SCENARIOS['Realista 2025'], filteredGlobalKm), [filteredIncidents, filteredExposureHours, filteredExposureKm, settings, filteredGlobalKm]);
   const currentMissingImpact = useMemo(() => getMissingExposureImpact(incidents, exposureHours), [incidents, exposureHours]);
@@ -422,11 +430,14 @@ const App: React.FC = () => {
                 )}
                 {activeTab === 'kpis' && (
                     <Dashboard 
-                        incidents={filteredIncidents} 
-                        exposureHours={filteredExposureHours} 
+                        incidents={filteredIncidents}
+                        allIncidents={incidents}
+                        exposureHours={filteredExposureHours}
+                        allExposureHours={exposureHours}
                         exposureKm={filteredExposureKm} 
                         globalKmRecords={filteredGlobalKm}
-                        settings={settings} 
+                        settings={settings}
+                        filters={{ site: filters.site, year: filters.year, month: filters.month }}
                         onNavigateToExposure={(site) => { setFocusSite(site); setModalMode('exposure_hh'); }}
                         onOpenKmModal={() => setModalMode('exposure_km')} 
                         onDrillDown={handleDrillDown} 
@@ -466,6 +477,7 @@ const App: React.FC = () => {
                             exposureKm={exposureKm} 
                             globalKmRecords={globalKm}
                             sites={uniqueValues.sites} 
+                            years={uniqueValues.years}
                             missingKeys={getMissingExposureKeys(incidents, exposureHours)} 
                             initialSite={focusSite}
                             viewMode="full"

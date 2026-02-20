@@ -114,9 +114,10 @@ export interface ExposureHour {
   hours: number;
 }
 
-// SIMPLIFIED: Global KM Entry (Annual or YTD)
+// Global KM Entry - Supports monthly (period: YYYY-MM) or annual (year only)
 export interface GlobalKmRecord {
   year: number;
+  period?: string; // YYYY-MM for monthly data, undefined for annual totals
   value: number;
   last_updated: string;
 }

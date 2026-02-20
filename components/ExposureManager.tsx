@@ -9,6 +9,7 @@ interface ExposureManagerProps {
   exposureKm: ExposureKm[];
   globalKmRecords: GlobalKmRecord[];
   sites: string[];
+  years: (string | number)[];
   missingKeys?: MissingExposureKey[];
   initialSite?: string; // Optional site to focus on
   viewMode?: 'full' | 'km_only'; // NEW: Control display mode
@@ -16,10 +17,13 @@ interface ExposureManagerProps {
 }
 
 export const ExposureManager: React.FC<ExposureManagerProps> = ({ 
-    exposureHours, exposureKm, globalKmRecords, sites, missingKeys = [], initialSite, viewMode = 'full', onUpdate 
+    exposureHours, exposureKm, globalKmRecords, sites, years, missingKeys = [], initialSite, viewMode = 'full', onUpdate 
 }) => {
   const [newSite, setNewSite] = useState(initialSite || sites[0] || '');
-  const [newPeriod, setNewPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [newPeriod, setNewPeriod] = useState({
+    year: new Date().getFullYear().toString(),
+    month: (new Date().getMonth() + 1).toString().padStart(2, '0'),
+  });
   
   const [hoursList, setHoursList] = useState(exposureHours);
   const [kmList, setKmList] = useState(exposureKm);
@@ -162,8 +166,9 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
   };
 
   const addNew = () => {
-    if (!newSite || !newPeriod) return;
-    const exists = hoursList.some(h => h.site === newSite && h.period === newPeriod);
+    const period = `${newPeriod.year}-${newPeriod.month}`;
+    if (!newSite || !period) return;
+    const exists = hoursList.some(h => h.site === newSite && h.period === period);
     
     if (exists) {
       alert("La entrada ya existe");
@@ -171,9 +176,9 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
     }
     
     const autoHH = getAutoHH(newSite);
-    const newId = autoHH > 0 ? `EXP-H-${newSite}-${newPeriod}-AUTO-${Date.now()}` : `EXP-H-${newSite}-${newPeriod}-${Date.now()}`;
+    const newId = autoHH > 0 ? `EXP-H-${newSite}-${period}-AUTO-${Date.now()}` : `EXP-H-${newSite}-${period}-${Date.now()}`;
     
-    setHoursList(prev => [...prev, { id: newId, site: newSite, period: newPeriod, worker_type: 'total', hours: autoHH }]);
+    setHoursList(prev => [...prev, { id: newId, site: newSite, period, worker_type: 'total', hours: autoHH }]);
   };
 
   return (
@@ -240,11 +245,13 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
                 {/* Bulk Fill Tool */}
                 <div className="bg-white p-2 rounded shadow-sm border border-blue-100 flex items-end gap-2">
                     <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase">Carga Masiva (HH)</label>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase" id="bulk-site-label">Carga Masiva (HH)</label>
                         <select 
                             value={bulkSite} 
                             onChange={e => setBulkSite(e.target.value)}
                             className="text-xs border-gray-300 rounded shadow-sm py-1 max-w-[150px]"
+                            title="Seleccionar sitio para carga masiva"
+                            aria-labelledby="bulk-site-label"
                         >
                             {sites.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -276,28 +283,50 @@ export const ExposureManager: React.FC<ExposureManagerProps> = ({
             {/* Add New Form */}
             <div className="flex gap-2 items-end">
                 <div>
-                    <label className="block text-[10px] font-bold text-gray-500 mb-1">Sitio (Nuevo)</label>
-                    <input type="text" list="site-suggestions" value={newSite} onChange={e => setNewSite(e.target.value)} className="border-gray-300 rounded-md shadow-sm border p-1.5 text-xs w-32"/>
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1" htmlFor="new-site-input">Sitio (Nuevo)</label>
+                    <input type="text" id="new-site-input" list="site-suggestions" value={newSite} onChange={e => setNewSite(e.target.value)} className="border-gray-300 rounded-md shadow-sm border p-1.5 text-xs w-32" placeholder="Nombre del sitio" title="Ingresar nombre del sitio"/>
                     <datalist id="site-suggestions">
                         {sites.map(s => <option key={s} value={s}/>)}
                     </datalist>
                 </div>
                 <div>
-                    <label className="block text-[10px] font-bold text-gray-500 mb-1">Período</label>
-                    <input type="month" value={newPeriod} onChange={e => setNewPeriod(e.target.value)} className="border-gray-300 rounded-md shadow-sm border p-1.5 text-xs"/>
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1" htmlFor="new-period-year-input">Año</label>
+                    <select
+                        id="new-period-year-input"
+                        value={newPeriod.year}
+                        onChange={e => setNewPeriod(prev => ({ ...prev, year: e.target.value }))}
+                        className="border-gray-300 rounded-md shadow-sm border p-1.5 text-xs"
+                    >
+                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
                 </div>
-                <button onClick={addNew} className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-bold rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700">
+                <div>
+                    <label className="block text-[10px] font-bold text-gray-500 mb-1" htmlFor="new-period-month-input">Mes</label>
+                    <select
+                        id="new-period-month-input"
+                        value={newPeriod.month}
+                        onChange={e => setNewPeriod(prev => ({ ...prev, month: e.target.value }))}
+                        className="border-gray-300 rounded-md shadow-sm border p-1.5 text-xs"
+                    >
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                            <option key={m} value={m.toString().padStart(2, '0')}>{m.toString().padStart(2, '0')}</option>
+                        ))}
+                    </select>
+                </div>
+                <button onClick={addNew} className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-bold rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700" title="Agregar nuevo registro" aria-label="Agregar nuevo registro de horas">
                     <Plus className="w-3 h-3"/>
                 </button>
             </div>
 
             {/* Filter View */}
             <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-gray-400" />
+                <Filter className="w-4 h-4 text-gray-400" aria-hidden="true" />
                 <select 
                     value={tableFilterSite} 
                     onChange={e => setTableFilterSite(e.target.value)}
                     className="text-xs border-gray-300 rounded shadow-sm py-1 px-2"
+                    title="Filtrar por sitio"
+                    aria-label="Filtrar tabla por sitio"
                 >
                     <option value="ALL">Mostrar Todos</option>
                     {sites.map(s => <option key={s} value={s}>{s}</option>)}

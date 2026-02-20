@@ -13,6 +13,11 @@ export interface ChartSelection {
 }
 
 const AVAILABLE_CHARTS: ChartSelection[] = [
+  { id: 'kpi-occupational-safety', name: 'KPIs de Seguridad Ocupacional', elementId: 'kpi-occupational-safety', selected: true },
+  { id: 'kpi-process-safety', name: 'KPIs de Seguridad de Procesos', elementId: 'kpi-process-safety', selected: true },
+  { id: 'kpi-regulatory', name: 'KPIs Regulatorios', elementId: 'kpi-regulatory', selected: true },
+  { id: 'kpi-environmental-safety', name: 'KPIs de Seguridad Ambiental', elementId: 'kpi-environmental-safety', selected: true },
+  { id: 'kpi-leading-indicators', name: 'KPIs de Indicadores Proactivos', elementId: 'kpi-leading-indicators', selected: true },
   { id: 'risk-trend', name: 'Evolución Índice de Riesgo', elementId: 'chart-risk-trend', selected: true },
   { id: 'pareto', name: 'Análisis Pareto 80/20', elementId: 'chart-pareto', selected: true },
   { id: 'severity-dist', name: 'Distribución por Tipo (Donut)', elementId: 'chart-severity-dist', selected: true },

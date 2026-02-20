@@ -12,19 +12,29 @@ import {
   generateTemporalHeatmap,
   generateWaterfallData, generateScatterPlotData,
   generateRadarChartData, generateYearComparisonByType,
-  generateMonthlyComparison, generateTypesByMonthComparison
+  generateMonthlyComparison, generateTypesByMonthComparison,
+  getExposureHoursSummary, fillMissingExposureHours
 } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
 import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon, PieChart as PieIcon, Layers, Calendar } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
 
+interface DashboardFilters {
+  site: string;
+  year: string;
+  month: string;
+}
+
 interface DashboardProps {
   incidents: Incident[];
+  allIncidents?: Incident[]; // Para gráficos de comparación entre años
   exposureHours: ExposureHour[];
+  allExposureHours?: ExposureHour[]; // Para tabla de resumen sin filtro de año
   exposureKm: ExposureKm[];
   globalKmRecords: GlobalKmRecord[];
   settings: AppSettings;
+  filters?: DashboardFilters; // Filtros globales (sitio, mes)
   onNavigateToExposure?: (site?: string) => void;
   onOpenKmModal?: () => void; // NEW PROP
   onDrillDown?: (criteria: { type?: string, period?: string, category?: 'LTI' | 'Recordable' | 'Transit' }) => void;
@@ -155,9 +165,14 @@ const MetricDetailModal = ({ detail, onClose }: { detail: any, onClose: () => vo
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ 
-    incidents, exposureHours, exposureKm, globalKmRecords, settings, 
-    onNavigateToExposure, onOpenKmModal, onDrillDown 
+    incidents, allIncidents, exposureHours, allExposureHours, exposureKm, globalKmRecords, settings,
+    filters, onNavigateToExposure, onOpenKmModal, onDrillDown 
 }) => {
+  // Usar allIncidents para comparaciones, con fallback a incidents
+  const comparisonIncidents = allIncidents || incidents;
+  // Usar allExposureHours para tabla de resumen, con fallback a exposureHours
+  const comparisonExposureHours = allExposureHours || exposureHours;
+  
   const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
   const [paretoView, setParetoView] = useState<'location' | 'type'>('type');
   const [selectedMetric, setSelectedMetric] = useState<any | null>(null);
@@ -310,7 +325,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* A. OCCUPATIONAL SAFETY */}
-      <div className="space-y-4">
+      <div id="kpi-occupational-safety" className="space-y-4">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
               <HeartPulse className="w-4 h-4 mr-2" /> Seguridad Ocupacional (Lagging)
           </h3>
@@ -372,10 +387,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   onClick={() => handleCardClick('far', metrics.far, metrics.totalFatalities, metrics.totalManHours)}
               />
           </div>
+          {/* Descripción de KPIs OSHA */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 mt-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                  <span className="font-semibold text-blue-700">TRIR:</span> Tasa de incidentes registrables totales por 200,000 horas trabajadas (OSHA). &nbsp;
+                  <span className="font-semibold text-orange-600">LTIF:</span> Frecuencia de lesiones con tiempo perdido por 1,000,000 horas (IOGP). &nbsp;
+                  <span className="font-semibold text-indigo-600">DART:</span> Días de ausencia, restricción o transferencia por 200,000 horas. &nbsp;
+                  <span className="font-semibold text-gray-600">SR:</span> Severidad - días perdidos por cada 1,000 horas trabajadas (OIT). &nbsp;
+                  <span className="font-semibold text-red-600">FAR:</span> Tasa de accidentes fatales por 100,000,000 horas.
+              </p>
+          </div>
       </div>
 
       {/* B. PROCESS SAFETY */}
-      <div className="space-y-4">
+      <div id="kpi-process-safety" className="space-y-4">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
               <Flame className="w-4 h-4 mr-2" /> Seguridad de Procesos (API RP 754)
           </h3>
@@ -415,7 +440,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* C. REGULATORY */}
-      <div className="space-y-4">
+      <div id="kpi-regulatory" className="space-y-4">
            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
               <Scale className="w-4 h-4 mr-2" /> Regulatorio (SRT Argentina)
           </h3>
@@ -455,10 +480,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   unit="días"
               />
           </div>
+          {/* Descripción de KPIs Regulatorios */}
+          <div className="bg-gradient-to-r from-teal-50 to-green-50 p-4 rounded-lg border border-teal-200 mt-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                  <span className="font-semibold text-teal-600">Índice de Incidencia:</span> Casos reportables por cada 1,000 trabajadores (SRT). &nbsp;
+                  <span className="font-semibold text-green-600">SLG-24h:</span> Porcentaje de incidentes denunciados a la SRT dentro de las 24 horas. &nbsp;
+                  <span className="font-semibold text-purple-600">ALOS:</span> Promedio de días de baja por accidente (Average Length Of Stay).
+              </p>
+          </div>
       </div>
 
       {/* D. ENVIRONMENTAL SAFETY */}
-      <div className="space-y-4">
+      <div id="kpi-environmental-safety" className="space-y-4">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
               <Leaf className="w-4 h-4 mr-2" /> Seguridad Ambiental
           </h3>
@@ -496,10 +529,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-xs text-gray-500 mt-2">Índice promedio de probabilidad</p>
               </div>
           </div>
+          {/* Descripción de KPIs Ambientales */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200 mt-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                  <span className="font-semibold text-red-600">Incidentes Mayores:</span> Eventos con alto impacto ambiental (derrames significativos, emisiones, daño a ecosistemas). &nbsp;
+                  <span className="font-semibold text-yellow-600">Incidentes Menores:</span> Eventos de bajo impacto controlados localmente. &nbsp;
+                  <span className="font-semibold text-green-600">Clasificación Riesgo:</span> Nivel promedio de riesgo ambiental basado en la probabilidad de ocurrencia.
+              </p>
+          </div>
       </div>
 
       {/* E. LEADING INDICATORS (PROACTIVE) */}
-      <div className="space-y-4">
+      <div id="kpi-leading-indicators" className="space-y-4">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center border-b border-gray-200 pb-2">
               <Microscope className="w-4 h-4 mr-2" /> Indicadores Proactivos (Leading)
           </h3>
@@ -541,6 +582,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       </div>
                   </div>
               </div>
+          </div>
+          {/* Descripción de Indicadores Proactivos */}
+          <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-lg border border-orange-200 mt-3">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                  <span className="font-semibold text-orange-600">HIPO Count:</span> Cantidad de incidentes de alta potencialidad (podrían haber causado lesiones graves). &nbsp;
+                  <span className="font-semibold text-amber-600">HIPO Rate:</span> Porcentaje de eventos HIPO sobre el total de incidentes. &nbsp;
+                  <span className="font-semibold text-indigo-600">Pronóstico:</span> Proyección anual basada en tendencia actual de tasas e incidentes.
+              </p>
           </div>
       </div>
 
@@ -650,9 +699,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <BarChart2 className="w-5 h-5 mr-2 text-blue-600" /> Comparación por Tipo de Incidente
                   </h3>
                   <p className="text-xs text-gray-500 mb-4">2025 vs 2026 - Análisis de tendencia por categoría</p>
-                  <div className="h-80">
+                  <div className="h-72">
                       {(() => {
-                          const comparisonData = generateYearComparisonByType(incidents, 2025, 2026);
+                          const comparisonData = generateYearComparisonByType(comparisonIncidents, 2025, 2026);
                           return comparisonData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart 
@@ -761,7 +810,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
                       <BarChart2 className="w-5 h-5 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
                   </h3>
-                  <div className="h-96">
+                  <div className="h-80">
                       {(() => {
                           const waterfallData = generateWaterfallData(incidents, exposureHours, settings);
                           return waterfallData.length > 0 ? (
@@ -811,12 +860,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
                       <Target className="w-5 h-5 mr-2 text-orange-600" /> Frecuencia vs Severidad (por Sitio)
                   </h3>
-                  <div className="h-80">
+                  <div className="h-72">
                       {(() => {
                           const scatterData = generateScatterPlotData(incidents, exposureHours);
                           return scatterData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
-                                  <ScatterChart>
+                                  <ScatterChart margin={{ left: 10, right: 20, top: 10, bottom: 30 }}>
                                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
                                       <XAxis 
                                           type="number" 
@@ -826,7 +875,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                           tickLine={false} 
                                           axisLine={{ stroke: '#d1d5db' }} 
                                           tick={{ fill: '#6b7280' }}
-                                          label={{ value: 'Cantidad de Incidentes', position: 'bottom', offset: 0, style: { fill: '#6b7280', fontSize: 11 } }} 
+                                          label={{ value: 'Cantidad de Incidentes', position: 'insideBottom', offset: -20, style: { fill: '#6b7280', fontSize: 11 } }} 
                                       />
                                       <YAxis 
                                           type="number" 
@@ -868,7 +917,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center">
                       <Target className="w-5 h-5 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
                   </h3>
-                  <div className="h-80">
+                  <div className="h-72">
                       {(() => {
                           const radarData = generateRadarChartData(incidents, exposureHours, exposureKm, settings);
                           const sites = Array.from(new Set(radarData.map(d => d.site)));
@@ -935,6 +984,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos suficientes</div>;
                       })()}
                   </div>
+                  {/* Descripción de métricas del Radar */}
+                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-3 rounded-lg border border-indigo-200 mt-3">
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                          <span className="font-semibold text-blue-600">TRIR:</span> Tasa de incidentes registrables (OSHA). &nbsp;
+                          <span className="font-semibold text-orange-600">LTIF:</span> Frecuencia de lesiones con tiempo perdido. &nbsp;
+                          <span className="font-semibold text-indigo-600">DART:</span> Días ausencia/restricción/transferencia. &nbsp;
+                          <span className="font-semibold text-amber-600">HIPO:</span> Incidentes de alta potencialidad. &nbsp;
+                          <span className="font-semibold text-green-600">SLG24h:</span> % de incidentes denunciados a la SRT dentro de 24hs.
+                      </p>
+                  </div>
               </div>
           </div>
 
@@ -948,7 +1007,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-xs text-gray-500 mb-4">Cantidad de incidentes por mes - 2025 vs 2026</p>
                   <div className="h-72">
                       {(() => {
-                          const monthlyData = generateMonthlyComparison(incidents, 2025, 2026);
+                          const monthlyData = generateMonthlyComparison(comparisonIncidents, 2025, 2026);
                           const hasData = monthlyData.some(m => m['2025'] > 0 || m['2026'] > 0);
                           return hasData ? (
                               <ResponsiveContainer width="100%" height="100%">
@@ -1044,21 +1103,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
               </div>
 
-              {/* Gráfico de barras agrupadas: Tipos por mes */}
+              {/* Gráfico de barras agrupadas: Comparación 2025 vs 2026 TOTALES por mes */}
               <div id="chart-types-monthly" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <h3 className="font-bold text-gray-800 mb-2 flex items-center">
-                      <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Evolución Mensual por Tipo (2025)
+                      <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Total Incidentes por Mes (2025 vs 2026)
                   </h3>
-                  <p className="text-xs text-gray-500 mb-4">Distribución mensual de los tipos más frecuentes en 2025</p>
+                  <p className="text-xs text-gray-500 mb-4">Comparación de totales mensuales entre años</p>
                   <div className="h-72">
                       {(() => {
-                          const { data: typesMonthlyData, types } = generateTypesByMonthComparison(incidents, 2025, 2026);
-                          const hasData = types.length > 0 && typesMonthlyData.some((m: any) => 
-                              types.some(t => m[`${t.shortType}_2025`] > 0 || m[`${t.shortType}_2026`] > 0)
-                          );
+                          const monthlyData = generateMonthlyComparison(comparisonIncidents, 2025, 2026);
+                          const hasData = monthlyData.some((m: any) => m['2025'] > 0 || m['2026'] > 0);
                           return hasData ? (
                               <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={typesMonthlyData} margin={{ left: 0, right: 10, top: 10, bottom: 5 }}>
+                                  <BarChart data={monthlyData} margin={{ left: 0, right: 10, top: 10, bottom: 5 }}>
+                                      <defs>
+                                          <linearGradient id="colorBar2025" x1="0" y1="0" x2="0" y2="1">
+                                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9}/>
+                                              <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.6}/>
+                                          </linearGradient>
+                                          <linearGradient id="colorBar2026" x1="0" y1="0" x2="0" y2="1">
+                                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.9}/>
+                                              <stop offset="95%" stopColor="#34d399" stopOpacity={0.6}/>
+                                          </linearGradient>
+                                      </defs>
                                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false}/>
                                       <XAxis 
                                           dataKey="month" 
@@ -1083,28 +1150,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                               padding: '12px',
                                               fontSize: '11px'
                                           }}
+                                          formatter={(value: any, name: string) => [value, `Año ${name}`]}
                                       />
                                       <Legend 
                                           verticalAlign="top" 
-                                          height={40}
+                                          height={30}
                                           iconType="square"
-                                          iconSize={8}
-                                          wrapperStyle={{ fontSize: '9px', lineHeight: '14px' }}
+                                          iconSize={10}
+                                          wrapperStyle={{ fontSize: '10px' }}
+                                          formatter={(value: string) => `Año ${value}`}
                                       />
-                                      {types.slice(0, 5).map((t, idx) => (
-                                          <Bar 
-                                              key={`${t.shortType}_2025`}
-                                              dataKey={`${t.shortType}_2025`} 
-                                              name={t.shortType}
-                                              fill={t.color}
-                                              radius={[2, 2, 0, 0]}
-                                              barSize={6}
-                                              stackId="stack"
-                                          />
-                                      ))}
+                                      <Bar 
+                                          dataKey="2025"
+                                          name="2025"
+                                          fill="url(#colorBar2025)"
+                                          radius={[4, 4, 0, 0]}
+                                          barSize={16}
+                                      />
+                                      <Bar 
+                                          dataKey="2026"
+                                          name="2026"
+                                          fill="url(#colorBar2026)"
+                                          radius={[4, 4, 0, 0]}
+                                          barSize={16}
+                                      />
                                   </BarChart>
                               </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos</div>;
+                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos para comparar</div>;
                       })()}
                   </div>
               </div>
@@ -1116,6 +1188,104 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="min-h-[500px] w-full">
               <HeatmapMatrix incidents={incidents} exposureHours={exposureHours} />
           </div>
+      </div>
+
+      {/* 7.5 RESUMEN HORAS HOMBRE POR SITIO Y MES */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
+              <Clock className="w-5 h-5 mr-2 text-blue-500" /> Resumen Horas Hombre por Sitio y Mes
+          </h3>
+          <div className="overflow-x-auto">
+              {(() => {
+                  // Obtener todos los sitios conocidos de incidentes
+                  const allKnownSites = Array.from(new Set(comparisonIncidents.map(i => i.site)));
+                  // Usar función centralizada con TODOS los datos y sitios
+                  const summary = getExposureHoursSummary(comparisonExposureHours, allKnownSites);
+                  let { sites, periods, dataMap, siteTotals, periodTotals, grandTotal } = summary;
+                  
+                  // Aplicar filtro de sitio (si hay)
+                  if (filters?.site && filters.site !== 'All') {
+                      sites = sites.filter(s => s === filters.site);
+                  }
+                  
+                  // Aplicar filtro de año (si hay) - filtrar períodos que empiecen con ese año
+                  if (filters?.year && filters.year !== 'All') {
+                      periods = periods.filter(p => p.startsWith(`${filters.year}-`));
+                  }
+                  
+                  // Aplicar filtro de mes (si hay) - filtrar períodos que terminen en ese mes
+                  if (filters?.month && filters.month !== 'All') {
+                      const monthStr = String(filters.month).padStart(2, '0');
+                      periods = periods.filter(p => p.endsWith(`-${monthStr}`));
+                  }
+                  
+                  // Recalcular totales con los filtros aplicados
+                  const filteredSiteTotals: Record<string, number> = {};
+                  sites.forEach(site => {
+                      filteredSiteTotals[site] = periods.reduce((acc, p) => acc + (dataMap[site]?.[p]?.value || 0), 0);
+                  });
+                  
+                  const filteredPeriodTotals: Record<string, number> = {};
+                  periods.forEach(period => {
+                      filteredPeriodTotals[period] = sites.reduce((acc, s) => acc + (dataMap[s]?.[period]?.value || 0), 0);
+                  });
+                  
+                  const filteredGrandTotal = Object.values(filteredSiteTotals).reduce((a, b) => a + b, 0);
+                  
+                  if (sites.length === 0 || periods.length === 0) {
+                      return <p className="text-gray-400 text-sm text-center py-4">No hay horas hombre cargadas</p>;
+                  }
+                  
+                  return (
+                      <table className="w-full text-xs">
+                          <thead>
+                              <tr className="bg-gray-50">
+                                  <th className="text-left p-2 font-bold text-gray-700 sticky left-0 bg-gray-50">Sitio</th>
+                                  {periods.map(p => (
+                                      <th key={p} className="text-right p-2 font-bold text-gray-600">{p}</th>
+                                  ))}
+                                  <th className="text-right p-2 font-bold text-blue-700 bg-blue-50">TOTAL</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              {sites.map((site, idx) => (
+                                  <tr key={site} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                      <td className={`p-2 font-medium text-gray-800 sticky left-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>{site}</td>
+                                      {periods.map(p => {
+                                          const cell = dataMap[site]?.[p];
+                                          return (
+                                              <td key={p} className={`text-right p-2 font-mono ${cell?.isFilled ? 'text-blue-500 italic' : 'text-gray-600'}`}>
+                                                  {cell?.value && cell.value > 0 ? cell.value.toLocaleString() : <span className="text-gray-300">-</span>}
+                                              </td>
+                                          );
+                                      })}
+                                      <td className="text-right p-2 font-bold text-blue-700 bg-blue-50 font-mono">
+                                          {filteredSiteTotals[site]?.toLocaleString() || 0}
+                                      </td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                          <tfoot>
+                              <tr className="bg-gray-100 border-t-2 border-gray-300">
+                                  <td className="p-2 font-bold text-gray-800 sticky left-0 bg-gray-100">TOTAL</td>
+                                  {periods.map(p => (
+                                      <td key={p} className="text-right p-2 font-bold text-gray-700 font-mono">
+                                          {filteredPeriodTotals[p]?.toLocaleString() || 0}
+                                      </td>
+                                  ))}
+                                  <td className="text-right p-2 font-bold text-green-700 bg-green-100 font-mono">
+                                      {filteredGrandTotal.toLocaleString()}
+                                  </td>
+                              </tr>
+                          </tfoot>
+                      </table>
+                  );
+              })()}
+          </div>
+          <p className="text-xs text-gray-400 mt-3 flex items-center">
+              <Info className="w-3 h-3 mr-1" /> 
+              Valores en <span className="text-blue-500 italic mx-1">azul cursiva</span> = completados automáticamente. Este total se usa para calcular TRIR, LTIF, DART.
+          </p>
       </div>
 
       {/* 8. MANAGEMENT INDICATORS */}
