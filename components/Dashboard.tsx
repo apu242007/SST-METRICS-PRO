@@ -343,8 +343,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   // ── Estados locales de filtro por gráfico ──────────────────────────────────
-  const [trendFilter,    setTrendFilter]    = useState({ year: 'All', site: 'All' });
-  const [paretoFilter,   setParetoFilter]   = useState({ year: 'All', site: 'All' });
+  const [trendFilter,  setTrendFilter]  = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
+  const [paretoFilter, setParetoFilter] = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
   // site ahora es string[] para multi-selección; [] significa "Todos"
   const [compTypeFilter, setCompTypeFilter] = useState<{ year: string; sites: string[]; year2?: string }>({ year: '2025', sites: [], year2: '2026' });
   const [compTypeComCliente, setCompTypeComCliente] = useState<'All' | 'SI' | 'NO'>('All');
@@ -376,7 +376,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // CHART DATA GENERATORS
   const paretoData = useMemo(() => {
-    const { fi } = applyChartFilter(comparisonIncidents, comparisonExposureHours, paretoFilter);
+    const { fi } = applyMultiFilter(comparisonIncidents, comparisonExposureHours, paretoFilter);
     return generateParetoData(fi, paretoView);
   }, [comparisonIncidents, comparisonExposureHours, paretoFilter, paretoView]);
 
@@ -407,7 +407,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Risk Trend Data — filtro local propio
   const trendData = useMemo(() => {
-    const { fi, fh } = applyChartFilter(comparisonIncidents, comparisonExposureHours, trendFilter);
+    const { fi, fh } = applyMultiFilter(comparisonIncidents, comparisonExposureHours, trendFilter);
     const periods = Array.from(new Set([
         ...fh.map(e => e.period),
         ...fi.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
@@ -875,7 +875,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                  <h3 className="font-bold text-gray-800 flex items-center">
                      <TrendingUp className="w-5 h-5 mr-2 text-orange-500" /> Evolución Índice de Riesgo
                  </h3>
-                 <ChartFilter years={uniqueYears} sites={uniqueSites} value={trendFilter} onChange={setTrendFilter} />
+                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                   <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                     value={trendFilter.year} onChange={e => setTrendFilter(prev => ({ ...prev, year: e.target.value }))}>
+                     <option value="All">Año: Todos</option>
+                     {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                   </select>
+                   <ChartMultiSiteFilter sites={uniqueSites} selected={trendFilter.sites}
+                     onChange={vals => setTrendFilter(prev => ({ ...prev, sites: vals }))} />
+                   {(trendFilter.year !== 'All' || trendFilter.sites.length > 0) && (
+                     <button onClick={() => setTrendFilter({ year: 'All', sites: [] })}
+                       className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600">✕</button>
+                   )}
+                 </div>
                </div>
                <div className="h-64 w-full min-w-0 relative">
                    {trendData.length > 0 ? (
@@ -915,7 +927,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                        <button onClick={() => setParetoView('location')} className={`px-2 py-1 rounded font-medium transition-all ${paretoView==='location'?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Por Ubicación</button>
                    </div>
                  </div>
-                 <ChartFilter years={uniqueYears} sites={uniqueSites} value={paretoFilter} onChange={setParetoFilter} />
+                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                   <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                     value={paretoFilter.year} onChange={e => setParetoFilter(prev => ({ ...prev, year: e.target.value }))}>
+                     <option value="All">Año: Todos</option>
+                     {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                   </select>
+                   <ChartMultiSiteFilter sites={uniqueSites} selected={paretoFilter.sites}
+                     onChange={vals => setParetoFilter(prev => ({ ...prev, sites: vals }))} />
+                   {(paretoFilter.year !== 'All' || paretoFilter.sites.length > 0) && (
+                     <button onClick={() => setParetoFilter({ year: 'All', sites: [] })}
+                       className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600">✕</button>
+                   )}
+                 </div>
                </div>
                <div className="h-64 w-full min-w-0 relative">
                    {paretoData.length > 0 ? (
