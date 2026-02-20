@@ -27,8 +27,8 @@ body {
 
 /* Progress bar for site ranking */
 progress.site-progress {
-  appearance: none;
   -webkit-appearance: none;
+  appearance: none;
   background: #e5e7eb;
   border: none;
   border-radius: 9999px;
