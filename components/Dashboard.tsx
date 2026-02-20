@@ -250,10 +250,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [trendFilter,    setTrendFilter]    = useState({ year: 'All', site: 'All' });
   const [paretoFilter,   setParetoFilter]   = useState({ year: 'All', site: 'All' });
   const [compTypeFilter, setCompTypeFilter] = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
+  const [compTypeComCliente, setCompTypeComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   const [waterfallFilter,setWaterfallFilter]= useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [scatterFilter,  setScatterFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [radarFilter,    setRadarFilter]    = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [monthlyFilter,  setMonthlyFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
+  const [monthlyComCliente, setMonthlyComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   // Estado COMPLETAMENTE independiente para "Total Incidentes por Cliente" — nunca comparte estado con monthlyFilter
   const [clienteFilter,  setClienteFilter]  = useState<{ year: string; site: string }>({ year: 'All', site: 'All' });
   const [heatmapFilter,  setHeatmapFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
@@ -855,7 +857,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="font-bold text-gray-800 flex items-center">
                         <BarChart2 className="w-5 h-5 mr-2 text-blue-600" /> Comparación por Tipo de Incidente
                     </h3>
-                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={compTypeFilter} onChange={setCompTypeFilter} showYear2 />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={compTypeFilter} onChange={setCompTypeFilter} showYear2 />
+                      <select
+                        title="Filtrar por comunicación con cliente"
+                        className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={compTypeComCliente}
+                        onChange={e => setCompTypeComCliente(e.target.value as 'All' | 'SI' | 'NO')}
+                      >
+                        <option value="All">Com. Cliente: Todos</option>
+                        <option value="SI">Com. Cliente: SI</option>
+                        <option value="NO">Com. Cliente: NO</option>
+                      </select>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mb-3">
                     {compTypeFilter.year !== 'All' ? compTypeFilter.year : '2025'} vs {compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? compTypeFilter.year2 : '2026'} — Análisis de tendencia por categoría
@@ -864,7 +878,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {(() => {
                           const y1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
                           const y2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
-                          const base = compTypeFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === compTypeFilter.site) : comparisonIncidents;
+                          let base = compTypeFilter.site !== 'All'
+                            ? comparisonIncidents.filter(i => i.site === compTypeFilter.site)
+                            : comparisonIncidents;
+                          // Aplicar filtro Com. Cliente
+                          if (compTypeComCliente !== 'All') {
+                            const wantTrue = compTypeComCliente === 'SI';
+                            base = base.filter(i => i.com_cliente === wantTrue);
+                          }
                           const comparisonData = generateYearComparisonByType(base, y1, y2);
                           return comparisonData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
@@ -1184,7 +1205,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="font-bold text-gray-800 flex items-center">
                         <Calendar className="w-5 h-5 mr-2 text-purple-600" /> Comparación Mensual de Eventos
                     </h3>
-                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} showYear2 />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} showYear2 />
+                      <select
+                        title="Filtrar por comunicación con cliente"
+                        className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                        value={monthlyComCliente}
+                        onChange={e => setMonthlyComCliente(e.target.value as 'All' | 'SI' | 'NO')}
+                      >
+                        <option value="All">Com. Cliente: Todos</option>
+                        <option value="SI">Com. Cliente: SI</option>
+                        <option value="NO">Com. Cliente: NO</option>
+                      </select>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mb-3">Incidentes por mes</p>
                   <div className="h-72">
