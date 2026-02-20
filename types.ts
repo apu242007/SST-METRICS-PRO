@@ -82,6 +82,9 @@ export interface Incident {
   // NEW: Client Communication Flag
   com_cliente: boolean;
 
+  // Operator / Client name (e.g. GeoPark, Pluspetrol)
+  cliente?: string;
+
   fatality: boolean;
   
   days_away: number;

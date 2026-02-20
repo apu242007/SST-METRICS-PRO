@@ -689,6 +689,31 @@ export const generateTypesByMonthComparison = (incidents: Incident[], year1: num
   };
 };
 
+// Incidentes por Cliente / Operadora
+export const generateIncidentsByCliente = (incidents: Incident[]): { cliente: string; total: number; color: string }[] => {
+  const counts: Record<string, number> = {};
+  incidents.forEach(i => {
+    // Fallback: try to parse from raw_json if the dedicated field is absent
+    let name: string | undefined = i.cliente;
+    if (!name) {
+      try {
+        const raw = JSON.parse(i.raw_json || '{}');
+        const clienteKey = Object.keys(raw).find(k => /^cliente$|^operadora$|^operator$|^client$/i.test(k));
+        if (clienteKey && raw[clienteKey]) {
+          const v = String(raw[clienteKey]).trim();
+          if (v && v.toLowerCase() !== 'total') name = v;
+        }
+      } catch {}
+    }
+    if (name) counts[name] = (counts[name] || 0) + 1;
+  });
+
+  const clienteColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316'];
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([cliente, total], idx) => ({ cliente, total, color: clienteColors[idx % clienteColors.length] }));
+};
+
 // 2. Temporal Heatmap Data
 export const generateTemporalHeatmap = (incidents: Incident[]) => {
   const heatmapData: Record<string, Record<number, number>> = {};

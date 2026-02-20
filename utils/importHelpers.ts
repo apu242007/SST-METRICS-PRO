@@ -431,6 +431,13 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
     const comKey = findColumn(row, ["Comunicación Cliente", "Comunicacion Cliente", "Com. Cliente", "Com.Cliente", "Com Cliente", "Reportado al Cliente"]) || "Comunicación Cliente";
     const comCliente = parseBoolean(row[comKey]);
 
+    // --- PARSE CLIENTE (OPERATOR / CLIENT NAME) ---
+    const clienteKey = findColumn(row, ["Cliente", "Operadora", "Operator", "Client", "Empresa Cliente"]) || "Cliente";
+    const clienteRaw = row[clienteKey];
+    const cliente = clienteRaw && String(clienteRaw).trim() !== '' && String(clienteRaw).trim().toLowerCase() !== 'total'
+      ? String(clienteRaw).trim()
+      : undefined;
+
     // Initial Object
     const incidentObj: Incident = {
       incident_id: id,
@@ -457,6 +464,7 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       
       // New Field
       com_cliente: comCliente,
+      cliente: cliente,
 
       fatality: isFatal,
       job_transfer: false,

@@ -13,6 +13,7 @@ import {
   generateWaterfallData, generateScatterPlotData,
   generateRadarChartData, generateYearComparisonByType,
   generateMonthlyComparison, generateTypesByMonthComparison,
+  generateIncidentsByCliente,
   getExposureHoursSummary, fillMissingExposureHours
 } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
@@ -1231,49 +1232,55 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
               </div>
 
-              {/* Gráfico de barras agrupadas: Comparación 2025 vs 2026 TOTALES por mes */}
-              <div id="chart-types-monthly" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
+              {/* Gráfico de barras horizontales: Total Incidentes por Cliente */}
+              <div id="chart-incidents-by-cliente" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
                   <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
-                    <h3 className="font-bold text-gray-800 flex items-center">
-                        <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Total Incidentes por Mes
-                    </h3>
-                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} showYear2 />
+                      <h3 className="font-bold text-gray-800 flex items-center">
+                          <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Total Incidentes por Cliente
+                      </h3>
+                      <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} />
                   </div>
-                  <p className="text-xs text-gray-500 mb-3">Comparación de totales mensuales entre años</p>
+                  <p className="text-xs text-gray-500 mb-3">Total acumulado de incidentes por operadora / cliente</p>
                   <div className="h-72">
                       {(() => {
-                          const mbase2 = monthlyFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === monthlyFilter.site) : comparisonIncidents;
-                          const bmy1 = monthlyFilter.year !== 'All' ? Number(monthlyFilter.year) : 2025;
-                          const bmy2 = monthlyFilter.year2 && monthlyFilter.year2 !== 'All' ? Number(monthlyFilter.year2) : 2026;
-                          const monthlyData = generateMonthlyComparison(mbase2, bmy1, bmy2);
-                          const hasData = monthlyData.some((m: any) => (m[String(bmy1)] || 0) > 0 || (m[String(bmy2)] || 0) > 0);
-                          return hasData ? (
+                          const cbase = monthlyFilter.site !== 'All'
+                              ? comparisonIncidents.filter(i => i.site === monthlyFilter.site)
+                              : monthlyFilter.year !== 'All'
+                                  ? comparisonIncidents.filter(i => i.year === Number(monthlyFilter.year))
+                                  : comparisonIncidents;
+                          const clienteData = generateIncidentsByCliente(cbase);
+                          if (clienteData.length === 0) {
+                              return (
+                                  <div className="h-full flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
+                                      <span>Sin datos de cliente en los registros</span>
+                                      <span className="text-xs text-gray-300">Asegúrese de que la columna "Cliente" esté presente en el Excel importado</span>
+                                  </div>
+                              );
+                          }
+                          return (
                               <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart data={monthlyData} margin={{ left: 0, right: 10, top: 10, bottom: 5 }}>
-                                      <defs>
-                                          <linearGradient id="colorBar2025" x1="0" y1="0" x2="0" y2="1">
-                                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9}/>
-                                              <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.6}/>
-                                          </linearGradient>
-                                          <linearGradient id="colorBar2026" x1="0" y1="0" x2="0" y2="1">
-                                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.9}/>
-                                              <stop offset="95%" stopColor="#34d399" stopOpacity={0.6}/>
-                                          </linearGradient>
-                                      </defs>
-                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false}/>
-                                      <XAxis 
-                                          dataKey="month" 
-                                          fontSize={10} 
-                                          tickLine={false} 
-                                          axisLine={{ stroke: '#d1d5db' }} 
-                                          tick={{ fill: '#6b7280' }}
-                                      />
-                                      <YAxis 
-                                          fontSize={10} 
-                                          tickLine={false} 
-                                          axisLine={{ stroke: '#d1d5db' }} 
+                                  <BarChart
+                                      data={clienteData}
+                                      layout="vertical"
+                                      margin={{ left: 8, right: 40, top: 10, bottom: 5 }}
+                                  >
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                                      <XAxis
+                                          type="number"
+                                          fontSize={10}
+                                          tickLine={false}
+                                          axisLine={{ stroke: '#d1d5db' }}
                                           tick={{ fill: '#6b7280' }}
                                           allowDecimals={false}
+                                      />
+                                      <YAxis
+                                          type="category"
+                                          dataKey="cliente"
+                                          fontSize={11}
+                                          tickLine={false}
+                                          axisLine={false}
+                                          tick={{ fill: '#374151', fontWeight: 500 }}
+                                          width={120}
                                       />
                                       <Tooltip
                                           contentStyle={{
@@ -1284,33 +1291,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                               padding: '12px',
                                               fontSize: '11px'
                                           }}
-                                          formatter={(value: any, name?: string) => [value, `Año ${name ?? ''}`]}
+                                          formatter={(value: any) => [value, 'Incidentes']}
                                       />
-                                      <Legend 
-                                          verticalAlign="top" 
-                                          height={30}
-                                          iconType="square"
-                                          iconSize={10}
-                                          wrapperStyle={{ fontSize: '10px' }}
-                                          formatter={(value: string) => `Año ${value}`}
-                                      />
-                                      <Bar 
-                                          dataKey={String(bmy1)}
-                                          name={String(bmy1)}
-                                          fill="url(#colorBar2025)"
-                                          radius={[4, 4, 0, 0]}
-                                          barSize={16}
-                                      />
-                                      <Bar 
-                                          dataKey={String(bmy2)}
-                                          name={String(bmy2)}
-                                          fill="url(#colorBar2026)"
-                                          radius={[4, 4, 0, 0]}
-                                          barSize={16}
-                                      />
+                                      <Bar
+                                          dataKey="total"
+                                          name="Incidentes"
+                                          radius={[0, 6, 6, 0]}
+                                          barSize={22}
+                                          label={{ position: 'right', fontSize: 11, fill: '#374151', fontWeight: 600 }}
+                                      >
+                                          {clienteData.map((entry, index) => (
+                                              <Cell key={`cell-cliente-${index}`} fill={entry.color} />
+                                          ))}
+                                      </Bar>
                                   </BarChart>
                               </ResponsiveContainer>
-                          ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos para comparar</div>;
+                          );
                       })()}
                   </div>
               </div>
