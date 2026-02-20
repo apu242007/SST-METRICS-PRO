@@ -46,7 +46,7 @@ const TARGET_COMPARISON_DATA = [
   { label: 'LTIF (IOGP)', m25: '5.0', m26: '2.5', var: '↓ 50%' },
   { label: 'DART (OSHA)', m25: '1.2', m26: '0.6', var: '↓ 50%' },
   { label: 'SR (Severidad)', m25: '0.20', m26: '0.15', var: '↓ 25%' },
-  { label: 'FAR (Fatalidad)', m25: '2', m26: '0', var: '↓ 100% (objetivo “cero”)' },
+  { label: 'FAR (Fatalidad)', m25: '0', m26: '0', var: '= Objetivo fijo "cero"' },
   { label: 'T1 PSER (Tier 1)', m25: '0.5', m26: '0.1', var: '↓ 80%' },
   { label: 'T2 PSER (Tier 2)', m25: '1.5', m26: '1.0', var: '↓ 33%' },
   { label: 'SLG-24H', m25: '100%', m26: '100%', var: '= (sin cambios)' },
@@ -369,28 +369,59 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </h3>
               </div>
               <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 text-sm">
-                      <thead className="bg-gray-50">
-                          <tr>
-                              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Indicador</th>
-                              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Meta 2025</th>
-                              <th className="px-6 py-3 text-right text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50/50">Meta 2026</th>
-                              <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Variación</th>
-                          </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                          {TARGET_COMPARISON_DATA.map((row, idx) => (
-                              <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                                  <td className="px-6 py-3 text-gray-900 font-bold">{row.label}</td>
-                                  <td className="px-6 py-3 text-right text-gray-600 font-mono">{row.m25}</td>
-                                  <td className="px-6 py-3 text-right text-blue-700 font-mono font-bold bg-blue-50/30">{row.m26}</td>
-                                  <td className={`px-6 py-3 text-right font-bold text-xs ${row.var.includes('↓') ? 'text-green-600' : 'text-gray-400'}`}>
-                                      {row.var}
-                                  </td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
+                  {(() => {
+                      // Map each indicator to its real current value from metrics
+                      const blocked = isRatesBlocked;
+                      const fmt = (v: number | null | undefined, decimals = 2) =>
+                          v === null || v === undefined || blocked ? '—' : v.toFixed(decimals);
+                      const realValues: Record<string, { value: string; good: boolean | null }> = {
+                          'TRIR (OSHA)':     { value: fmt(metrics.trir), good: blocked ? null : metrics.trir !== null && metrics.trir !== undefined && metrics.trir <= 1.2 },
+                          'LTIF (IOGP)':     { value: fmt(metrics.ltif), good: blocked ? null : metrics.ltif !== null && metrics.ltif !== undefined && metrics.ltif <= 2.5 },
+                          'DART (OSHA)':     { value: fmt(metrics.dart), good: blocked ? null : metrics.dart !== null && metrics.dart !== undefined && metrics.dart <= 0.6 },
+                          'SR (Severidad)':  { value: fmt(metrics.sr, 2), good: blocked ? null : metrics.sr !== null && metrics.sr !== undefined && metrics.sr <= 0.15 },
+                          'FAR (Fatalidad)': { value: fmt(metrics.far, 2), good: blocked ? null : metrics.far !== null && metrics.far !== undefined && metrics.far === 0 },
+                          'T1 PSER (Tier 1)':{ value: fmt(metrics.t1_pser), good: blocked ? null : metrics.t1_pser !== null && metrics.t1_pser !== undefined && metrics.t1_pser <= 0.1 },
+                          'T2 PSER (Tier 2)':{ value: fmt(metrics.t2_pser), good: blocked ? null : metrics.t2_pser !== null && metrics.t2_pser !== undefined && metrics.t2_pser <= 1.0 },
+                          'SLG-24H':         { value: `${metrics.slg24h ?? '—'}%`, good: metrics.slg24h !== null && metrics.slg24h !== undefined && metrics.slg24h >= 100 },
+                      };
+                      return (
+                          <table className="min-w-full divide-y divide-gray-200 text-sm">
+                              <thead className="bg-gray-50">
+                                  <tr>
+                                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Indicador</th>
+                                      <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Meta 2025</th>
+                                      <th className="px-6 py-3 text-right text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50/50">Meta 2026</th>
+                                      <th className="px-6 py-3 text-right text-xs font-bold text-emerald-700 uppercase tracking-wider bg-emerald-50/50">Real Actual</th>
+                                      <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Var. Meta</th>
+                                  </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                  {TARGET_COMPARISON_DATA.map((row, idx) => {
+                                      const real = realValues[row.label];
+                                      const statusCls = real?.good === null
+                                          ? 'text-gray-400 font-mono'
+                                          : real?.good
+                                              ? 'text-green-700 font-mono font-bold bg-green-50'
+                                              : 'text-red-700 font-mono font-bold bg-red-50';
+                                      const statusIcon = real?.good === null ? '' : real?.good ? ' ✓' : ' ✗';
+                                      return (
+                                          <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                              <td className="px-6 py-3 text-gray-900 font-bold">{row.label}</td>
+                                              <td className="px-6 py-3 text-right text-gray-600 font-mono">{row.m25}</td>
+                                              <td className="px-6 py-3 text-right text-blue-700 font-mono font-bold bg-blue-50/30">{row.m26}</td>
+                                              <td className={`px-6 py-3 text-right text-xs rounded-sm ${statusCls}`}>
+                                                  {real?.value ?? '—'}{statusIcon}
+                                              </td>
+                                              <td className={`px-6 py-3 text-right font-bold text-xs ${row.var.includes('↓') || row.var.includes('=') ? 'text-green-600' : 'text-gray-400'}`}>
+                                                  {row.var}
+                                              </td>
+                                          </tr>
+                                      );
+                                  })}
+                              </tbody>
+                          </table>
+                      );
+                  })()}
               </div>
           </div>
       )}
