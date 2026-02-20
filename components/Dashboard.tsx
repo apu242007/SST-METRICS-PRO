@@ -1100,9 +1100,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {(() => {
                           const cy1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
                           const cy2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
-                          const cbase = compTypeFilter.sites.length > 0
+                          let cbase = compTypeFilter.sites.length > 0
                             ? comparisonIncidents.filter(i => compTypeFilter.sites.includes(i.site))
                             : comparisonIncidents;
+                          if (compTypeComCliente !== 'All') {
+                            const wantTrue = compTypeComCliente === 'SI';
+                            cbase = cbase.filter(i => i.com_cliente === wantTrue);
+                          }
                           const dataY1 = cbase.filter(i => i.year === cy1).length;
                           const dataY2 = cbase.filter(i => i.year === cy2).length;
                           const diff = dataY2 - dataY1;
