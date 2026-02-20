@@ -350,9 +350,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* TOP BAR: Scenario & Alerts */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
            <div className="flex items-center gap-3">
-               {/* Logo Tacker */}
+               {/* Logo Tacker — usa BASE_URL para funcionar tanto en dev como en GitHub Pages */}
                <img
-                 src="/files/logo-single.png"
+                 src={`${import.meta.env.BASE_URL}logo-single.png`}
                  alt="Logo Tacker SRL"
                  className="h-10 w-auto object-contain flex-shrink-0"
                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
