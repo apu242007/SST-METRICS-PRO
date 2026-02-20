@@ -254,7 +254,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [scatterFilter,  setScatterFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [radarFilter,    setRadarFilter]    = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [monthlyFilter,  setMonthlyFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
-  // Estado independiente para la card "Total Incidentes por Cliente" — NO compartir con monthlyFilter
+  // Estado COMPLETAMENTE independiente para "Total Incidentes por Cliente" — nunca comparte estado con monthlyFilter
   const [clienteFilter,  setClienteFilter]  = useState<{ year: string; site: string }>({ year: 'All', site: 'All' });
   const [heatmapFilter,  setHeatmapFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [heatmapComCliente, setHeatmapComCliente] = useState<'All' | 'SI' | 'NO'>('All');
@@ -280,7 +280,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const { fi } = applyChartFilter(comparisonIncidents, comparisonExposureHours, paretoFilter);
     return generateParetoData(fi, paretoView);
   }, [comparisonIncidents, comparisonExposureHours, paretoFilter, paretoView]);
-  
+
+  // ── Comparación Mensual de Eventos — depende SÓLO de monthlyFilter ─────────
+  const monthlyChartData = useMemo(() => {
+    const my1 = monthlyFilter.year  !== 'All' ? Number(monthlyFilter.year)  : 2025;
+    const my2 = monthlyFilter.year2 && monthlyFilter.year2 !== 'All' ? Number(monthlyFilter.year2) : 2026;
+    // mbase: filtrar base por sitio; el año lo separa internamente generateMonthlyComparison
+    const mbase = monthlyFilter.site !== 'All'
+      ? comparisonIncidents.filter(i => i.site === monthlyFilter.site)
+      : comparisonIncidents.slice(); // slice() → copia inmutable, evita mutaciones accidentales
+    return { data: generateMonthlyComparison(mbase, my1, my2), my1, my2 };
+  }, [comparisonIncidents, monthlyFilter]);
+
+  // ── Total Incidentes por Cliente — depende SÓLO de clienteFilter ────────────
+  const clienteChartData = useMemo(() => {
+    // Aplicar año Y sitio simultáneamente (AND lógico)
+    // Bug anterior: if-else chain que ignoraba el año cuando el sitio estaba activo
+    const cbase = comparisonIncidents.filter(i =>
+      (clienteFilter.year === 'All' || i.year === Number(clienteFilter.year)) &&
+      (clienteFilter.site === 'All' || i.site === clienteFilter.site)
+    );
+    return generateIncidentsByCliente(cbase);
+  }, [comparisonIncidents, clienteFilter]);
+
   // Risk Trend Data — filtro local propio
   const trendData = useMemo(() => {
     const { fi, fh } = applyChartFilter(comparisonIncidents, comparisonExposureHours, trendFilter);
@@ -1136,10 +1158,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-xs text-gray-500 mb-3">Incidentes por mes</p>
                   <div className="h-72">
                       {(() => {
-                          const my1 = monthlyFilter.year !== 'All' ? Number(monthlyFilter.year) : 2025;
-                          const my2 = monthlyFilter.year2 && monthlyFilter.year2 !== 'All' ? Number(monthlyFilter.year2) : 2026;
-                          const mbase = monthlyFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === monthlyFilter.site) : comparisonIncidents;
-                          const monthlyData = generateMonthlyComparison(mbase, my1, my2);
+                          const { data: monthlyData, my1, my2 } = monthlyChartData;
                           const hasData = monthlyData.some((m: any) => (m[String(my1)] || 0) > 0 || (m[String(my2)] || 0) > 0);
                           return hasData ? (
                               <ResponsiveContainer width="100%" height="100%">
@@ -1247,12 +1266,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <p className="text-xs text-gray-500 mb-3">Total acumulado de incidentes por operadora / cliente</p>
                   <div className="h-72">
                       {(() => {
-                          const cbase = clienteFilter.site !== 'All'
-                              ? comparisonIncidents.filter(i => i.site === clienteFilter.site)
-                              : clienteFilter.year !== 'All'
-                                  ? comparisonIncidents.filter(i => i.year === Number(clienteFilter.year))
-                                  : comparisonIncidents;
-                          const clienteData = generateIncidentsByCliente(cbase);
+                          // clienteChartData ya está memoizado con sólo clienteFilter como dependencia
+                          const clienteData = clienteChartData;
                           if (clienteData.length === 0) {
                               return (
                                   <div className="h-full flex flex-col items-center justify-center text-gray-400 text-sm gap-2">
