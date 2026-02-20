@@ -191,17 +191,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // CHART DATA GENERATORS
   const paretoData = useMemo(() => generateParetoData(incidents, paretoView), [incidents, paretoView]);
   
-  // Risk Trend Data
+  // Risk Trend Data - usa datos completos (sin filtro de año) para siempre mostrar la tendencia
   const trendData = useMemo(() => {
     const periods = Array.from(new Set([
-        ...exposureHours.map(e => e.period),
-        ...incidents.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
+        ...comparisonExposureHours.map(e => e.period),
+        ...comparisonIncidents.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
     ])).sort();
 
     return periods.map(period => {
         const [year, month] = period.split('-').map(Number);
-        const sliceIncidents = incidents.filter(i => i.year === year && i.month === month);
-        const sliceHours = exposureHours.filter(e => e.period === period);
+        const sliceIncidents = comparisonIncidents.filter(i => i.year === year && i.month === month);
+        const sliceHours = comparisonExposureHours.filter(e => e.period === period);
         
         const m = calculateKPIs(sliceIncidents, sliceHours, [], settings);
         
@@ -213,7 +213,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             TargetTRIR: targets.trir
         };
     });
-  }, [incidents, exposureHours, settings, targets]);
+  }, [comparisonIncidents, comparisonExposureHours, settings, targets]);
 
   const handleCardClick = (kpiKey: keyof typeof KPI_DEFINITIONS, value: any, num: number, den: number) => {
       const def = KPI_DEFINITIONS[kpiKey];
@@ -779,8 +779,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {/* Mini resumen */}
                   <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
                       {(() => {
-                          const data2025 = incidents.filter(i => i.year === 2025).length;
-                          const data2026 = incidents.filter(i => i.year === 2026).length;
+                          const data2025 = comparisonIncidents.filter(i => i.year === 2025).length;
+                          const data2026 = comparisonIncidents.filter(i => i.year === 2026).length;
                           const diff = data2026 - data2025;
                           const pct = data2025 > 0 ? ((diff / data2025) * 100).toFixed(1) : 'N/A';
                           return (
@@ -812,7 +812,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </h3>
                   <div className="h-80">
                       {(() => {
-                          const waterfallData = generateWaterfallData(incidents, exposureHours, settings);
+                          const waterfallData = generateWaterfallData(comparisonIncidents, comparisonExposureHours, settings);
                           return waterfallData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={waterfallData} layout="vertical" margin={{ left: 10, right: 30 }}>
@@ -862,7 +862,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </h3>
                   <div className="h-72">
                       {(() => {
-                          const scatterData = generateScatterPlotData(incidents, exposureHours);
+                          const scatterData = generateScatterPlotData(comparisonIncidents, comparisonExposureHours);
                           return scatterData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <ScatterChart margin={{ left: 10, right: 20, top: 10, bottom: 30 }}>
@@ -919,7 +919,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </h3>
                   <div className="h-72">
                       {(() => {
-                          const radarData = generateRadarChartData(incidents, exposureHours, exposureKm, settings);
+                          const radarData = generateRadarChartData(comparisonIncidents, comparisonExposureHours, exposureKm, settings);
                           const sites = Array.from(new Set(radarData.map(d => d.site)));
                           const metrics = ['TRIR', 'LTIF', 'DART', 'HIPO', 'SLG24h'];
                           const radarFormatted = metrics.map(metric => {
@@ -1186,7 +1186,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* 7. HEATMAP & TRANSIT */}
       <div className="min-w-0">
           <div className="min-h-[500px] w-full">
-              <HeatmapMatrix incidents={incidents} exposureHours={exposureHours} />
+              <HeatmapMatrix incidents={comparisonIncidents} exposureHours={comparisonExposureHours} />
           </div>
       </div>
 
