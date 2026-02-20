@@ -164,24 +164,97 @@ const MetricDetailModal = ({ detail, onClose }: { detail: any, onClose: () => vo
     );
 };
 
+// ─── Mini filtro reutilizable para cada gráfico ───────────────────────────────
+interface ChartFilterProps {
+  years: number[];
+  sites: string[];
+  value: { year: string; site: string; year2?: string };
+  onChange: (v: { year: string; site: string; year2?: string }) => void;
+  showYear2?: boolean;
+  showSite?: boolean;
+}
+const ChartFilter: React.FC<ChartFilterProps> = ({ years, sites, value, onChange, showYear2 = false, showSite = true }) => (
+  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+    <select
+      title="Filtrar por año"
+      aria-label="Filtrar por año"
+      className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+      value={value.year}
+      onChange={e => onChange({ ...value, year: e.target.value })}
+    >
+      <option value="All">Año: Todos</option>
+      {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
+    </select>
+    {showYear2 && (
+      <select
+        title="Filtrar por segundo año"
+        className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+        value={value.year2 ?? 'All'}
+        onChange={e => onChange({ ...value, year2: e.target.value })}
+      >
+        <option value="All">Año 2: Todos</option>
+        {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
+      </select>
+    )}
+    {showSite && sites.length > 1 && (
+      <select
+        title="Filtrar por sitio"
+        className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
+        value={value.site}
+        onChange={e => onChange({ ...value, site: e.target.value })}
+      >
+        <option value="All">Sitio: Todos</option>
+        {sites.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
+    )}
+    {(value.year !== 'All' || value.site !== 'All' || (value.year2 && value.year2 !== 'All')) && (
+      <button
+        onClick={() => onChange({ year: 'All', site: 'All', year2: value.year2 !== undefined ? 'All' : undefined })}
+        className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-600"
+      >✕</button>
+    )}
+  </div>
+);
+
 export const Dashboard: React.FC<DashboardProps> = ({ 
     incidents, allIncidents, exposureHours, allExposureHours, exposureKm, globalKmRecords, settings,
     filters, onNavigateToExposure, onOpenKmModal, onDrillDown 
 }) => {
-  // Todos los datos sin filtrar (para comparativas 2025 vs 2026)
+  // Todos los datos sin filtrar (base para filtros locales de cada gráfico)
   const comparisonIncidents = allIncidents || incidents;
   const comparisonExposureHours = allExposureHours || exposureHours;
 
-  // Datos filtrados SOLO por sitio (no por año/mes) — para gráficos multi-año por sitio
-  const siteFilteredIncidents = useMemo(() => {
-    if (!filters || filters.site === 'All') return comparisonIncidents;
-    return comparisonIncidents.filter(i => i.site === filters.site);
-  }, [comparisonIncidents, filters]);
+  // Valores únicos para los selectores de cada gráfico
+  const uniqueYears = useMemo(() => Array.from(new Set(comparisonIncidents.map(i => i.year))).sort(), [comparisonIncidents]);
+  const uniqueSites = useMemo(() => Array.from(new Set(comparisonIncidents.map(i => i.site))).sort(), [comparisonIncidents]);
 
-  const siteFilteredExposureHours = useMemo(() => {
-    if (!filters || filters.site === 'All') return comparisonExposureHours;
-    return comparisonExposureHours.filter(h => h.site === filters.site);
-  }, [comparisonExposureHours, filters]);
+  // Helper: filtra incidentes y horas por { year, site }
+  const applyChartFilter = (
+    inc: typeof comparisonIncidents,
+    hrs: typeof comparisonExposureHours,
+    f: { year: string; site: string }
+  ) => {
+    const fi = inc.filter(i =>
+      (f.year === 'All' || i.year === Number(f.year)) &&
+      (f.site === 'All' || i.site === f.site)
+    );
+    const fh = hrs.filter(h =>
+      (f.year === 'All' || h.period.startsWith(f.year + '-')) &&
+      (f.site === 'All' || h.site === f.site)
+    );
+    return { fi, fh };
+  };
+
+  // ── Estados locales de filtro por gráfico ──────────────────────────────────
+  const [trendFilter,    setTrendFilter]    = useState({ year: 'All', site: 'All' });
+  const [paretoFilter,   setParetoFilter]   = useState({ year: 'All', site: 'All' });
+  const [compTypeFilter, setCompTypeFilter] = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
+  const [waterfallFilter,setWaterfallFilter]= useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
+  const [scatterFilter,  setScatterFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
+  const [radarFilter,    setRadarFilter]    = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
+  const [monthlyFilter,  setMonthlyFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
+  const [heatmapFilter,  setHeatmapFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
+  // ──────────────────────────────────────────────────────────────────────────
   
   const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
   const [paretoView, setParetoView] = useState<'location' | 'type'>('type');
@@ -199,22 +272,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const isIfatBlocked = !metrics.totalKM || metrics.totalKM === 0;
 
   // CHART DATA GENERATORS
-  const paretoData = useMemo(() => generateParetoData(incidents, paretoView), [incidents, paretoView]);
+  const paretoData = useMemo(() => {
+    const { fi } = applyChartFilter(comparisonIncidents, comparisonExposureHours, paretoFilter);
+    return generateParetoData(fi, paretoView);
+  }, [comparisonIncidents, comparisonExposureHours, paretoFilter, paretoView]);
   
-  // Risk Trend Data - filtrado por sitio (si hay), muestra todos los períodos
+  // Risk Trend Data — filtro local propio
   const trendData = useMemo(() => {
+    const { fi, fh } = applyChartFilter(comparisonIncidents, comparisonExposureHours, trendFilter);
     const periods = Array.from(new Set([
-        ...siteFilteredExposureHours.map(e => e.period),
-        ...siteFilteredIncidents.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
+        ...fh.map(e => e.period),
+        ...fi.map(i => `${i.year}-${String(i.month).padStart(2, '0')}`)
     ])).sort();
 
     return periods.map(period => {
         const [year, month] = period.split('-').map(Number);
-        const sliceIncidents = siteFilteredIncidents.filter(i => i.year === year && i.month === month);
-        const sliceHours = siteFilteredExposureHours.filter(e => e.period === period);
-        
+        const sliceIncidents = fi.filter(i => i.year === year && i.month === month);
+        const sliceHours = fh.filter(e => e.period === period);
         const m = calculateKPIs(sliceIncidents, sliceHours, [], settings);
-        
         return {
             name: period,
             Risk: m.risk_index_total,
@@ -223,7 +298,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             TargetTRIR: targets.trir
         };
     });
-  }, [siteFilteredIncidents, siteFilteredExposureHours, settings, targets]);
+  }, [comparisonIncidents, comparisonExposureHours, trendFilter, settings, targets]);
 
   const handleCardClick = (kpiKey: keyof typeof KPI_DEFINITIONS, value: any, num: number, den: number) => {
       const def = KPI_DEFINITIONS[kpiKey];
@@ -606,9 +681,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* 6. CHARTS ROW (Risk Trend & Pareto) */}
       <div id="dashboard-charts-container" className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white p-2 rounded-xl min-w-0">
           <div id="chart-risk-trend" className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 min-w-0 flex flex-col">
-               <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                   <TrendingUp className="w-5 h-5 mr-2 text-orange-500" /> Evolución Índice de Riesgo
-               </h3>
+               <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
+                 <h3 className="font-bold text-gray-800 flex items-center">
+                     <TrendingUp className="w-5 h-5 mr-2 text-orange-500" /> Evolución Índice de Riesgo
+                 </h3>
+                 <ChartFilter years={uniqueYears} sites={uniqueSites} value={trendFilter} onChange={setTrendFilter} />
+               </div>
                <div className="h-64 w-full min-w-0 relative">
                    {trendData.length > 0 ? (
                        <ResponsiveContainer width="100%" height="100%">
@@ -623,16 +701,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }}/>
                                <YAxis yAxisId="left" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} label={{ value: 'Puntos Riesgo', angle: -90, position: 'insideLeft', style: { fill: '#6b7280', fontSize: 11 } }}/>
                                <YAxis yAxisId="right" orientation="right" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} label={{ value: 'Tasas', angle: 90, position: 'insideRight', style: { fill: '#6b7280', fontSize: 11 } }}/>
-                               <Tooltip 
-                                   contentStyle={{
-                                       backgroundColor: '#ffffff',
-                                       borderRadius: '12px', 
-                                       border: '1px solid #e5e7eb',
-                                       boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
-                                       padding: '12px'
-                                   }}
-                                   labelStyle={{ fontWeight: 'bold', color: '#374151', marginBottom: '8px' }}
-                               />
+                               <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', padding: '12px' }} labelStyle={{ fontWeight: 'bold', color: '#374151', marginBottom: '8px' }} />
                                <Legend wrapperStyle={{ paddingTop: '10px' }} iconType="circle" />
                                <Bar yAxisId="left" dataKey="Risk" name="Puntos Riesgo" fill="url(#colorRisk)" radius={[6,6,0,0]} barSize={24} />
                                {!isRatesBlocked && <Line yAxisId="right" type="monotone" dataKey="TRIR" name="TRIR" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />}
@@ -640,22 +709,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                            </ComposedChart>
                        </ResponsiveContainer>
                    ) : (
-                       <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm italic">
-                           Sin datos para visualizar tendencias.
-                       </div>
+                       <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm italic">Sin datos para visualizar tendencias.</div>
                    )}
                </div>
           </div>
 
           <div id="chart-pareto" className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 min-w-0 flex flex-col">
-               <div className="flex justify-between items-center mb-4">
+               <div className="flex flex-wrap justify-between items-start gap-2 mb-3">
+                 <div className="flex items-center gap-3">
                    <h3 className="font-bold text-gray-800 flex items-center">
                        <BarChart2 className="w-5 h-5 mr-2 text-blue-500" /> Análisis Pareto 80/20
                    </h3>
-                   <div className="flex space-x-2 text-xs">
-                       <button onClick={() => setParetoView('type')} className={`px-3 py-1.5 rounded-lg font-medium transition-all ${paretoView==='type'?'bg-blue-600 text-white shadow-md':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Por Tipo</button>
-                       <button onClick={() => setParetoView('location')} className={`px-3 py-1.5 rounded-lg font-medium transition-all ${paretoView==='location'?'bg-blue-600 text-white shadow-md':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Por Ubicación</button>
+                   <div className="flex space-x-1 text-xs">
+                       <button onClick={() => setParetoView('type')} className={`px-2 py-1 rounded font-medium transition-all ${paretoView==='type'?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Por Tipo</button>
+                       <button onClick={() => setParetoView('location')} className={`px-2 py-1 rounded font-medium transition-all ${paretoView==='location'?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Por Ubicación</button>
                    </div>
+                 </div>
+                 <ChartFilter years={uniqueYears} sites={uniqueSites} value={paretoFilter} onChange={setParetoFilter} />
                </div>
                <div className="h-64 w-full min-w-0 relative">
                    {paretoData.length > 0 ? (
@@ -671,30 +741,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} interval={0} angle={-15} textAnchor="end" height={40}/>
                                <YAxis yAxisId="left" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} label={{ value: 'Cantidad', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}/>
                                <YAxis yAxisId="right" orientation="right" unit="%" fontSize={11} tickLine={false} axisLine={{ stroke: '#d1d5db' }} tick={{ fill: '#6b7280' }} domain={[0, 100]} label={{ value: '% Acumulado', angle: 90, position: 'insideRight', style: { fill: '#6b7280' } }}/>
-                               <Tooltip 
-                                   cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} 
-                                   contentStyle={{
-                                       backgroundColor: '#ffffff',
-                                       borderRadius: '12px',
-                                       border: '1px solid #e5e7eb',
-                                       boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                                       padding: '12px'
-                                   }}
-                               />
+                               <Tooltip cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', padding: '12px' }} />
                                <Legend wrapperStyle={{ paddingTop: '10px' }} iconType="circle" />
                                <Bar yAxisId="left" dataKey="count" name="Cantidad" fill="url(#colorCount)" barSize={32} radius={[6,6,0,0]} />
                                <Line yAxisId="right" type="monotone" dataKey="cumulativePercentage" name="% Acumulado" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, fill: '#fff', strokeWidth: 2 }} activeDot={{ r: 6 }} />
                            </ComposedChart>
                        </ResponsiveContainer>
                    ) : (
-                       <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm italic">
-                           Sin datos para visualizar Pareto.
-                       </div>
+                       <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm italic">Sin datos para visualizar Pareto.</div>
                    )}
                </div>
           </div>
       </div>
-
       {/* NEW ADVANCED CHARTS SECTION */}
       <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6">
           <h2 className="text-lg font-bold text-indigo-900 uppercase flex items-center mb-6">
@@ -705,13 +763,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
               {/* Comparación Año vs Año */}
               <div id="chart-severity-dist" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-2 flex items-center">
-                      <BarChart2 className="w-5 h-5 mr-2 text-blue-600" /> Comparación por Tipo de Incidente
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-4">2025 vs 2026 - Análisis de tendencia por categoría</p>
+                  <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 flex items-center">
+                        <BarChart2 className="w-5 h-5 mr-2 text-blue-600" /> Comparación por Tipo de Incidente
+                    </h3>
+                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={compTypeFilter} onChange={setCompTypeFilter} showYear2 />
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">
+                    {compTypeFilter.year !== 'All' ? compTypeFilter.year : '2025'} vs {compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? compTypeFilter.year2 : '2026'} — Análisis de tendencia por categoría
+                  </p>
                   <div className="h-72">
                       {(() => {
-                          const comparisonData = generateYearComparisonByType(comparisonIncidents, 2025, 2026);
+                          const y1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
+                          const y2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
+                          const base = compTypeFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === compTypeFilter.site) : comparisonIncidents;
+                          const comparisonData = generateYearComparisonByType(base, y1, y2);
                           return comparisonData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart 
@@ -756,11 +822,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                                           <div className="flex items-center gap-4">
                                                               <div className="flex items-center">
                                                                   <span className="w-3 h-3 rounded-full bg-blue-500 mr-1"></span>
-                                                                  <span className="text-gray-600">2025: <span className="font-semibold text-gray-900">{data['2025']}</span></span>
+                                                                  <span className="text-gray-600">{y1}: <span className="font-semibold text-gray-900">{data[String(y1)]}</span></span>
                                                               </div>
                                                               <div className="flex items-center">
                                                                   <span className="w-3 h-3 rounded-full bg-emerald-500 mr-1"></span>
-                                                                  <span className="text-gray-600">2026: <span className="font-semibold text-gray-900">{data['2026']}</span></span>
+                                                                  <span className="text-gray-600">{y2}: <span className="font-semibold text-gray-900">{data[String(y2)]}</span></span>
                                                               </div>
                                                           </div>
                                                           <p className={`mt-2 font-medium ${changeColor}`}>
@@ -779,8 +845,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                           iconSize={10}
                                           wrapperStyle={{ paddingBottom: '10px', fontSize: '11px' }}
                                       />
-                                      <Bar dataKey="2025" name="2025" fill="url(#color2025)" radius={[0, 4, 4, 0]} barSize={12} />
-                                      <Bar dataKey="2026" name="2026" fill="url(#color2026)" radius={[0, 4, 4, 0]} barSize={12} />
+                                      <Bar dataKey={String(y1)} name={String(y1)} fill="url(#color2025)" radius={[0, 4, 4, 0]} barSize={12} />
+                                      <Bar dataKey={String(y2)} name={String(y2)} fill="url(#color2026)" radius={[0, 4, 4, 0]} barSize={12} />
                                   </BarChart>
                               </ResponsiveContainer>
                           ) : <div className="h-full flex items-center justify-center text-gray-400 text-sm">Sin datos para comparar</div>;
@@ -789,19 +855,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {/* Mini resumen */}
                   <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
                       {(() => {
-                          const data2025 = siteFilteredIncidents.filter(i => i.year === 2025).length;
-                          const data2026 = siteFilteredIncidents.filter(i => i.year === 2026).length;
-                          const diff = data2026 - data2025;
-                          const pct = data2025 > 0 ? ((diff / data2025) * 100).toFixed(1) : 'N/A';
+                          const cy1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
+                          const cy2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
+                          const cbase = compTypeFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === compTypeFilter.site) : comparisonIncidents;
+                          const dataY1 = cbase.filter(i => i.year === cy1).length;
+                          const dataY2 = cbase.filter(i => i.year === cy2).length;
+                          const diff = dataY2 - dataY1;
+                          const pct = dataY1 > 0 ? ((diff / dataY1) * 100).toFixed(1) : 'N/A';
                           return (
                               <>
                                   <div className="bg-blue-50 rounded-lg p-2">
-                                      <p className="text-xs text-blue-600 font-medium">2025</p>
-                                      <p className="text-lg font-bold text-blue-700">{data2025}</p>
+                                      <p className="text-xs text-blue-600 font-medium">{cy1}</p>
+                                      <p className="text-lg font-bold text-blue-700">{dataY1}</p>
                                   </div>
                                   <div className="bg-emerald-50 rounded-lg p-2">
-                                      <p className="text-xs text-emerald-600 font-medium">2026</p>
-                                      <p className="text-lg font-bold text-emerald-700">{data2026}</p>
+                                      <p className="text-xs text-emerald-600 font-medium">{cy2}</p>
+                                      <p className="text-lg font-bold text-emerald-700">{dataY2}</p>
                                   </div>
                                   <div className={`${diff <= 0 ? 'bg-green-50' : 'bg-red-50'} rounded-lg p-2`}>
                                       <p className="text-xs text-gray-600 font-medium">Variación</p>
@@ -815,14 +884,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
               </div>
 
-              {/* Waterfall Chart - Movido aquí */}
+              {/* Waterfall Chart */}
               <div id="chart-waterfall" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <BarChart2 className="w-5 h-5 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
-                  </h3>
+                  <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 flex items-center">
+                        <BarChart2 className="w-5 h-5 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
+                    </h3>
+                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={waterfallFilter} onChange={setWaterfallFilter} showSite={false} />
+                  </div>
                   <div className="h-80">
                       {(() => {
-                          const waterfallData = generateWaterfallData(siteFilteredIncidents, siteFilteredExposureHours, settings);
+                          const { fi: wfInc, fh: wfHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, waterfallFilter);
+                          const waterfallData = generateWaterfallData(wfInc, wfHrs, settings);
                           return waterfallData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={waterfallData} layout="vertical" margin={{ left: 10, right: 30 }}>
@@ -867,12 +940,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
               {/* 9. Scatter Plot */}
               <div id="chart-scatter" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <Target className="w-5 h-5 mr-2 text-orange-600" /> Frecuencia vs Severidad (por Sitio)
-                  </h3>
+                  <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 flex items-center">
+                        <Target className="w-5 h-5 mr-2 text-orange-600" /> Frecuencia vs Severidad (por Sitio)
+                    </h3>
+                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={scatterFilter} onChange={setScatterFilter} />
+                  </div>
                   <div className="h-72">
                       {(() => {
-                          const scatterData = generateScatterPlotData(siteFilteredIncidents, siteFilteredExposureHours);
+                          const { fi: scInc, fh: scHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, scatterFilter);
+                          const scatterData = generateScatterPlotData(scInc, scHrs);
                           return scatterData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <ScatterChart margin={{ left: 10, right: 20, top: 10, bottom: 30 }}>
@@ -924,12 +1001,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               {/* Radar Chart - Al lado del Scatter */}
               <div id="chart-radar" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-                      <Target className="w-5 h-5 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
-                  </h3>
+                  <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 flex items-center">
+                        <Target className="w-5 h-5 mr-2 text-indigo-600" /> Radar Comparativo (Top 5 Sitios)
+                    </h3>
+                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={radarFilter} onChange={setRadarFilter} showSite={false} />
+                  </div>
                   <div className="h-72">
                       {(() => {
-                          const radarData = generateRadarChartData(siteFilteredIncidents, siteFilteredExposureHours, exposureKm, settings);
+                          const { fi: rdInc, fh: rdHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, radarFilter);
+                          const radarData = generateRadarChartData(rdInc, rdHrs, exposureKm, settings);
                           const sites = Array.from(new Set(radarData.map(d => d.site)));
                           const metrics = ['TRIR', 'LTIF', 'DART', 'HIPO', 'SLG24h'];
                           const radarFormatted = metrics.map(metric => {
@@ -1011,14 +1092,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
               {/* Gráfico de líneas: Eventos por mes */}
               <div id="chart-monthly-comparison" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-2 flex items-center">
-                      <Calendar className="w-5 h-5 mr-2 text-purple-600" /> Comparación Mensual de Eventos
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-4">Cantidad de incidentes por mes - 2025 vs 2026</p>
+                  <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 flex items-center">
+                        <Calendar className="w-5 h-5 mr-2 text-purple-600" /> Comparación Mensual de Eventos
+                    </h3>
+                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} showYear2 />
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">Incidentes por mes</p>
                   <div className="h-72">
                       {(() => {
-                          const monthlyData = generateMonthlyComparison(comparisonIncidents, 2025, 2026);
-                          const hasData = monthlyData.some(m => m['2025'] > 0 || m['2026'] > 0);
+                          const my1 = monthlyFilter.year !== 'All' ? Number(monthlyFilter.year) : 2025;
+                          const my2 = monthlyFilter.year2 && monthlyFilter.year2 !== 'All' ? Number(monthlyFilter.year2) : 2026;
+                          const mbase = monthlyFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === monthlyFilter.site) : comparisonIncidents;
+                          const monthlyData = generateMonthlyComparison(mbase, my1, my2);
+                          const hasData = monthlyData.some((m: any) => (m[String(my1)] || 0) > 0 || (m[String(my2)] || 0) > 0);
                           return hasData ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <AreaChart data={monthlyData} margin={{ left: 0, right: 20, top: 10, bottom: 5 }}>
@@ -1088,8 +1175,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       />
                                       <Area 
                                           type="monotone" 
-                                          dataKey="2025" 
-                                          name="2025" 
+                                          dataKey={String(my1)} 
+                                          name={String(my1)} 
                                           stroke="#3b82f6" 
                                           strokeWidth={2}
                                           fill="url(#colorArea2025)" 
@@ -1098,8 +1185,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                       />
                                       <Area 
                                           type="monotone" 
-                                          dataKey="2026" 
-                                          name="2026" 
+                                          dataKey={String(my2)} 
+                                          name={String(my2)} 
                                           stroke="#10b981" 
                                           strokeWidth={2}
                                           fill="url(#colorArea2026)" 
@@ -1115,14 +1202,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               {/* Gráfico de barras agrupadas: Comparación 2025 vs 2026 TOTALES por mes */}
               <div id="chart-types-monthly" className="bg-white p-6 rounded-xl shadow-lg border border-indigo-200">
-                  <h3 className="font-bold text-gray-800 mb-2 flex items-center">
-                      <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Total Incidentes por Mes (2025 vs 2026)
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-4">Comparación de totales mensuales entre años</p>
+                  <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                    <h3 className="font-bold text-gray-800 flex items-center">
+                        <BarChart2 className="w-5 h-5 mr-2 text-amber-600" /> Total Incidentes por Mes
+                    </h3>
+                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={monthlyFilter} onChange={setMonthlyFilter} showYear2 />
+                  </div>
+                  <p className="text-xs text-gray-500 mb-3">Comparación de totales mensuales entre años</p>
                   <div className="h-72">
                       {(() => {
-                          const monthlyData = generateMonthlyComparison(comparisonIncidents, 2025, 2026);
-                          const hasData = monthlyData.some((m: any) => m['2025'] > 0 || m['2026'] > 0);
+                          const mbase2 = monthlyFilter.site !== 'All' ? comparisonIncidents.filter(i => i.site === monthlyFilter.site) : comparisonIncidents;
+                          const bmy1 = monthlyFilter.year !== 'All' ? Number(monthlyFilter.year) : 2025;
+                          const bmy2 = monthlyFilter.year2 && monthlyFilter.year2 !== 'All' ? Number(monthlyFilter.year2) : 2026;
+                          const monthlyData = generateMonthlyComparison(mbase2, bmy1, bmy2);
+                          const hasData = monthlyData.some((m: any) => (m[String(bmy1)] || 0) > 0 || (m[String(bmy2)] || 0) > 0);
                           return hasData ? (
                               <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={monthlyData} margin={{ left: 0, right: 10, top: 10, bottom: 5 }}>
@@ -1160,7 +1253,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                               padding: '12px',
                                               fontSize: '11px'
                                           }}
-                                          formatter={(value: any, name: string) => [value, `Año ${name}`]}
+                                          formatter={(value: any, name?: string) => [value, `Año ${name ?? ''}`]}
                                       />
                                       <Legend 
                                           verticalAlign="top" 
@@ -1171,15 +1264,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                           formatter={(value: string) => `Año ${value}`}
                                       />
                                       <Bar 
-                                          dataKey="2025"
-                                          name="2025"
+                                          dataKey={String(bmy1)}
+                                          name={String(bmy1)}
                                           fill="url(#colorBar2025)"
                                           radius={[4, 4, 0, 0]}
                                           barSize={16}
                                       />
                                       <Bar 
-                                          dataKey="2026"
-                                          name="2026"
+                                          dataKey={String(bmy2)}
+                                          name={String(bmy2)}
                                           fill="url(#colorBar2026)"
                                           radius={[4, 4, 0, 0]}
                                           barSize={16}
@@ -1194,9 +1287,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
       
       {/* 7. HEATMAP & TRANSIT */}
-      <div className="min-w-0">
+      <div className="min-w-0 bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+              <h3 className="font-bold text-gray-800 flex items-center text-sm uppercase">
+                  <Target className="w-4 h-4 mr-2 text-red-500" /> Mapa de Calor de Incidentes
+              </h3>
+              <ChartFilter years={uniqueYears} sites={uniqueSites} value={heatmapFilter} onChange={setHeatmapFilter} />
+          </div>
           <div className="min-h-[500px] w-full">
-              <HeatmapMatrix incidents={siteFilteredIncidents} exposureHours={siteFilteredExposureHours} />
+              {(() => {
+                  const { fi: hmInc, fh: hmHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, heatmapFilter);
+                  return <HeatmapMatrix incidents={hmInc} exposureHours={hmHrs} />;
+              })()}
           </div>
       </div>
 
