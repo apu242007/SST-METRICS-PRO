@@ -255,6 +255,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [radarFilter,    setRadarFilter]    = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
   const [monthlyFilter,  setMonthlyFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: '2025', site: 'All', year2: '2026' });
   const [heatmapFilter,  setHeatmapFilter]  = useState<{ year: string; site: string; year2?: string }>({ year: 'All', site: 'All' });
+  const [heatmapComCliente, setHeatmapComCliente] = useState<'All' | 'SI' | 'NO'>('All');
   // ──────────────────────────────────────────────────────────────────────────
   
   const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
@@ -1319,11 +1320,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <h3 className="font-bold text-gray-800 flex items-center text-sm uppercase">
                   <Target className="w-4 h-4 mr-2 text-red-500" /> Mapa de Calor de Incidentes
               </h3>
-              <ChartFilter years={uniqueYears} sites={uniqueSites} value={heatmapFilter} onChange={setHeatmapFilter} />
+              <div className="flex flex-wrap items-center gap-2">
+                  {/* Filtro Com. Cliente */}
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                      <span className="text-xs text-gray-500 px-1">Com. Cliente:</span>
+                      {(['All', 'SI', 'NO'] as const).map(opt => (
+                          <button
+                              key={opt}
+                              onClick={() => setHeatmapComCliente(opt)}
+                              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                                  heatmapComCliente === opt
+                                      ? opt === 'SI' ? 'bg-green-500 text-white' : opt === 'NO' ? 'bg-red-400 text-white' : 'bg-white text-gray-700 shadow'
+                                      : 'text-gray-500 hover:text-gray-700'
+                              }`}
+                          >
+                              {opt === 'All' ? 'Todos' : opt}
+                          </button>
+                      ))}
+                  </div>
+                  <ChartFilter years={uniqueYears} sites={uniqueSites} value={heatmapFilter} onChange={setHeatmapFilter} />
+              </div>
           </div>
           <div className="min-h-[500px] w-full">
               {(() => {
-                  const { fi: hmInc, fh: hmHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, heatmapFilter);
+                  const { fi: hmIncBase, fh: hmHrs } = applyChartFilter(comparisonIncidents, comparisonExposureHours, heatmapFilter);
+                  const hmInc = heatmapComCliente === 'All'
+                      ? hmIncBase
+                      : heatmapComCliente === 'SI'
+                          ? hmIncBase.filter(i => i.com_cliente === true)
+                          : hmIncBase.filter(i => i.com_cliente === false);
                   return <HeatmapMatrix incidents={hmInc} exposureHours={hmHrs} />;
               })()}
           </div>
