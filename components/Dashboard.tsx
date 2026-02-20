@@ -973,7 +973,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="font-bold text-gray-800 flex items-center">
                         <BarChart2 className="w-5 h-5 mr-2 text-cyan-600" /> Contribución por Sitio al TRIR
                     </h3>
-                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={waterfallFilter} onChange={setWaterfallFilter} showSite={false} />
+                    <ChartFilter years={uniqueYears} sites={uniqueSites} value={waterfallFilter} onChange={setWaterfallFilter} showSite={true} />
                   </div>
                   <div className="h-80">
                       {(() => {
