@@ -13,18 +13,29 @@ export interface ChartSelection {
 }
 
 const AVAILABLE_CHARTS: ChartSelection[] = [
-  { id: 'kpi-occupational-safety', name: 'KPIs de Seguridad Ocupacional', elementId: 'kpi-occupational-safety', selected: true },
-  { id: 'kpi-process-safety', name: 'KPIs de Seguridad de Procesos', elementId: 'kpi-process-safety', selected: true },
-  { id: 'kpi-regulatory', name: 'KPIs Regulatorios', elementId: 'kpi-regulatory', selected: true },
-  { id: 'kpi-environmental-safety', name: 'KPIs de Seguridad Ambiental', elementId: 'kpi-environmental-safety', selected: true },
-  { id: 'kpi-leading-indicators', name: 'KPIs de Indicadores Proactivos', elementId: 'kpi-leading-indicators', selected: true },
-  { id: 'risk-trend', name: 'Evolución Índice de Riesgo', elementId: 'chart-risk-trend', selected: true },
-  { id: 'pareto', name: 'Análisis Pareto 80/20', elementId: 'chart-pareto', selected: true },
-  { id: 'severity-dist', name: 'Distribución por Tipo (Donut)', elementId: 'chart-severity-dist', selected: true },
-  { id: 'waterfall', name: 'Contribución por Sitio al TRIR', elementId: 'chart-waterfall', selected: true },
-  { id: 'scatter', name: 'Frecuencia vs Severidad', elementId: 'chart-scatter', selected: true },
-  { id: 'radar', name: 'Radar Comparativo (Top 5 Sitios)', elementId: 'chart-radar', selected: true },
-  { id: 'heatmap', name: 'Mapa de Calor Temporal', elementId: 'heatmap-container', selected: true },
+  // ── KPI Panels ────────────────────────────────────────────────────────
+  { id: 'kpi-occupational-safety',  name: 'KPIs de Seguridad Ocupacional',      elementId: 'kpi-occupational-safety',   selected: true },
+  { id: 'kpi-process-safety',       name: 'KPIs de Seguridad de Procesos',       elementId: 'kpi-process-safety',        selected: true },
+  { id: 'kpi-regulatory',           name: 'KPIs Regulatorios',                   elementId: 'kpi-regulatory',            selected: true },
+  { id: 'kpi-environmental-safety', name: 'KPIs de Seguridad Ambiental',         elementId: 'kpi-environmental-safety',  selected: true },
+  { id: 'kpi-leading-indicators',   name: 'KPIs de Indicadores Proactivos',      elementId: 'kpi-leading-indicators',    selected: true },
+  // ── Análisis de Incidentes ───────────────────────────────────────────
+  { id: 'risk-trend',               name: 'Evolución Índice de Riesgo',           elementId: 'chart-risk-trend',          selected: true },
+  { id: 'pareto',                   name: 'Análisis Pareto 80/20',               elementId: 'chart-pareto',              selected: true },
+  { id: 'severity-dist',            name: 'Distribución por Tipo (Donut)',        elementId: 'chart-severity-dist',       selected: true },
+  { id: 'waterfall',                name: 'Contribución por Sitio al TRIR',      elementId: 'chart-waterfall',           selected: true },
+  { id: 'scatter',                  name: 'Frecuencia vs Severidad',             elementId: 'chart-scatter',             selected: true },
+  { id: 'radar',                    name: 'Radar Comparativo (Top 5 Sitios)',    elementId: 'chart-radar',               selected: true },
+  { id: 'monthly-comparison',       name: 'Comparación Mensual de Eventos',      elementId: 'chart-monthly-comparison',  selected: true },
+  { id: 'clients',                  name: 'Total Incidentes por Cliente',        elementId: 'chart-incidents-by-cliente',selected: true },
+  // ── Heatmaps y Exposición ───────────────────────────────────────────────
+  { id: 'heatmap',                  name: 'Mapa de Calor de Incidentes',        elementId: 'heatmap-container',         selected: true },
+  { id: 'exposure-hh',              name: 'Resumen Horas Hombre por Sitio/Mes', elementId: 'chart-exposure-hh',         selected: true },
+  // ── Paneles de Gestión ──────────────────────────────────────────────────────
+  { id: 'top5-sites',               name: 'Top 5 Sitios con Mayor Incidentalidad', elementId: 'chart-top5-sites',       selected: true },
+  { id: 'risk-panel',               name: 'Panel Consolidado de Riesgo',         elementId: 'chart-risk-panel',          selected: true },
+  { id: 'days-since',               name: 'Días Sin Incidentes por Sitio',       elementId: 'chart-days-since',          selected: true },
+  { id: 'vial-module',              name: 'Módulo de Gestión Vial',              elementId: 'chart-vial-module',         selected: true },
 ];
 
 interface PDFExportCenterProps {
@@ -628,50 +639,56 @@ currentY = (pdf as any).lastAutoTable.finalY + 8;
           try {
             // Activar modo PDF para mejorar el renderizado antes de capturar
             element.classList.add('pdf-mode');
-            // Esperar un frame para que los estilos .pdf-mode se apliquen
-            await new Promise(resolve => requestAnimationFrame(resolve));
 
-            // Forzar ancho real del elemento para evitar colapso responsive
-            const originalWidth = element.style.width;
+            // Escala y ancho forzado por tipo de panel
+            const isKpi     = chart.id.startsWith('kpi-');
+            const isHeatmap = chart.id === 'heatmap' || chart.id === 'exposure-hh';
+            const scale     = isKpi ? 1.8 : isHeatmap ? 1.5 : 2.5;
+            const forcedWidth = isKpi ? 900 : isHeatmap ? 1100 : Math.max(element.offsetWidth, 900);
+
+            // Forzar ancho real para evitar colapso responsive
+            const originalWidth    = element.style.width;
             const originalOverflow = element.style.overflow;
-            element.style.width = `${element.offsetWidth}px`;
+            element.style.width    = `${forcedWidth}px`;
             element.style.overflow = 'visible';
 
-            const scale = chart.id.startsWith('kpi-') ? 2 : 2.5;
+            // Doble rAF para KPI cards (necesitan dos ciclos de layout)
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            if (isKpi) await new Promise(resolve => requestAnimationFrame(resolve));
+
             const canvas = await html2canvas(element, {
-              scale,                                 // kpi-cards: 2×, gráficos: 2.5×
+              scale,
               backgroundColor: '#ffffff',
               logging: false,
               useCORS: true,
               allowTaint: false,
               imageTimeout: 15000,
-              windowWidth: Math.max(element.scrollWidth, 1200),
+              windowWidth: Math.max(element.scrollWidth, forcedWidth),
               windowHeight: element.scrollHeight,
-              // Ignorar sombras CSS que ensucian la captura
               ignoreElements: (el) => el.hasAttribute('data-no-print'),
             });
 
             // Restaurar estilos originales
-            element.style.width = originalWidth;
+            element.style.width    = originalWidth;
             element.style.overflow = originalOverflow;
             element.classList.remove('pdf-mode');
 
-            const imgData = canvas.toDataURL('image/png');
+            const imgData  = canvas.toDataURL('image/png');
             const imgWidth = maxWidth;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            
-            // Limitar altura máxima del gráfico (dinámica según posición actual)
+
+            // Altura máxima dinámica según posición actual en la página
             const maxImgHeight = pageHeight - currentY - margin - 25;
             let finalImgHeight = imgHeight;
-            let finalImgWidth = imgWidth;
-            
+            let finalImgWidth  = imgWidth;
+
             if (imgHeight > maxImgHeight) {
               finalImgHeight = maxImgHeight;
-              finalImgWidth = (canvas.width * maxImgHeight) / canvas.height;
+              finalImgWidth  = (canvas.width * maxImgHeight) / canvas.height;
             }
 
-            // Verificar espacio y crear nueva página si es necesario
-            if (currentY + finalImgHeight + 30 > pageHeight - margin - 20) {
+            // Nueva página si no cabe (incluyendo título ~15mm + imagen)
+            if (currentY + finalImgHeight + 20 > pageHeight - margin - 20) {
               pdf.addPage();
               currentY = margin + 5;
             }
@@ -679,31 +696,30 @@ currentY = (pdf as any).lastAutoTable.finalY + 8;
             // Título del gráfico con fondo
             pdf.setFillColor(245, 247, 250);
             pdf.roundedRect(margin, currentY, contentWidth, 10, 2, 2, 'F');
-            
-            pdf.setFont("helvetica", "bold");
-            pdf.setFontSize(11);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(10);
             pdf.setTextColor(51, 65, 85);
             pdf.text(`7.${i + 1} ${chart.name}`, margin + 3, currentY + 7);
-            currentY += 15;
+            currentY += 12;
 
-            // Centrar imagen si es más pequeña que el ancho máximo
+            // Centrar imagen si es más angosta que el área
             const xOffset = finalImgWidth < maxWidth ? margin + (maxWidth - finalImgWidth) / 2 : margin;
-            
-            // Agregar sombra sutil
+
+            // Sombra sutil
             pdf.setFillColor(240, 240, 240);
             pdf.roundedRect(xOffset + 1, currentY + 1, finalImgWidth, finalImgHeight, 3, 3, 'F');
-            
-            // Agregar imagen
+
             pdf.addImage(imgData, 'PNG', xOffset, currentY, finalImgWidth, finalImgHeight);
-            
-            // Borde del gráfico
+
+            // Borde
             pdf.setDrawColor(220, 220, 220);
             pdf.setLineWidth(0.5);
             pdf.roundedRect(xOffset, currentY, finalImgWidth, finalImgHeight, 3, 3, 'S');
-            
-            currentY += finalImgHeight + 20;
 
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Espacio compacto entre gráficos (era +20, ahora +8)
+            currentY += finalImgHeight + 8;
+
+            await new Promise(resolve => setTimeout(resolve, 80));
           } catch (error) {
             console.error(`Error capturando gráfico ${chart.name}:`, error);
           }

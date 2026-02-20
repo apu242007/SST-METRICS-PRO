@@ -1333,7 +1333,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
       
       {/* 7. HEATMAP & TRANSIT */}
-      <div className="min-w-0 bg-white border border-gray-200 rounded-xl p-4">
+      <div id="heatmap-container" className="min-w-0 bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
               <h3 className="font-bold text-gray-800 flex items-center text-sm uppercase">
                   <Target className="w-4 h-4 mr-2 text-red-500" /> Mapa de Calor de Incidentes
@@ -1373,7 +1373,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* 7.5 RESUMEN HORAS HOMBRE POR SITIO Y MES */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
+      <div id="chart-exposure-hh" className="bg-white border border-gray-200 rounded-xl p-6">
           <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
               <Clock className="w-5 h-5 mr-2 text-blue-500" /> Resumen Horas Hombre por Sitio y Mes
           </h3>
@@ -1474,7 +1474,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       
       {/* TOP 5 SITES RANKING */}
       {metrics.top5Sites && metrics.top5Sites.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div id="chart-top5-sites" className="bg-white border border-gray-200 rounded-xl p-6">
               <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
                   <Trophy className="w-5 h-5 mr-2 text-amber-500" /> Top 5 Sitios con Mayor Incidentalidad
               </h3>
@@ -1512,7 +1512,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* RISK CONSOLIDATED PANEL */}
-      <div className="bg-gradient-to-br from-slate-50 to-gray-100 border border-gray-200 rounded-xl p-6">
+      <div id="chart-risk-panel" className="bg-gradient-to-br from-slate-50 to-gray-100 border border-gray-200 rounded-xl p-6">
           <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
               <Activity className="w-5 h-5 mr-2 text-purple-600" /> Panel Consolidado de Riesgo
           </h3>
@@ -1653,7 +1653,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* DAYS SINCE INCIDENT */}
       {metrics.daysSinceList && metrics.daysSinceList.length > 0 && (
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div id="chart-days-since" className="bg-white border border-gray-200 rounded-xl p-6">
               <h3 className="text-sm font-bold text-gray-700 uppercase flex items-center mb-4">
                   <CalendarCheck className="w-5 h-5 mr-2 text-green-600" /> Días Sin Incidentes por Sitio
               </h3>
@@ -1677,7 +1677,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
       )}
       
-       <div className="bg-slate-50 border border-slate-200 rounded-xl p-6">
+       <div id="chart-vial-module" className="bg-slate-50 border border-slate-200 rounded-xl p-6">
           <div className="flex items-center mb-6">
               <Truck className="w-6 h-6 mr-3 text-purple-600" />
               <div>
