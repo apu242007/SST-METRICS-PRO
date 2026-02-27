@@ -26,6 +26,7 @@ interface DashboardFilters {
   site: string | string[];
   year: string | string[];
   month: string | string[];
+  comCliente?: 'All' | 'SI' | 'NO';
 }
 
 interface DashboardProps {
@@ -301,9 +302,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
     incidents, allIncidents, exposureHours, allExposureHours, exposureKm, globalKmRecords, settings,
     filters, onNavigateToExposure, onOpenKmModal, onDrillDown 
 }) => {
-  // Todos los datos sin filtrar (base para filtros locales de cada gráfico)
-  const comparisonIncidents = allIncidents || incidents;
-  const comparisonExposureHours = allExposureHours || exposureHours;
+  // ── Datos base (todos, sin filtro global) ────────────────────────────────
+  const allRawInc = allIncidents || incidents;
+  const allRawHrs = allExposureHours || exposureHours;
+
+  // ── Helpers para normalizar filtro global ─────────────────────────────────
+  const _gSites  = useMemo(() => Array.isArray(filters?.site)  ? (filters!.site  as string[]) : (filters?.site  ? [filters!.site  as string] : []), [filters?.site]);
+  const _gYears  = useMemo(() => Array.isArray(filters?.year)  ? (filters!.year  as string[]) : (filters?.year  ? [filters!.year  as string] : []), [filters?.year]);
+  const _gMonths = useMemo(() => Array.isArray(filters?.month) ? (filters!.month as string[]).map(Number) : [], [filters?.month]);
+  const _gComCli = filters?.comCliente ?? 'All';
+
+  // ── comparisonIncidents: base de TODOS los gráficos — respeta filtro global
+  const comparisonIncidents = useMemo(() => allRawInc.filter(i => {
+    if (_gSites.length  > 0 && !_gSites.includes(i.site))          return false;
+    if (_gYears.length  > 0 && !_gYears.includes(String(i.year))) return false;
+    if (_gMonths.length > 0 && !_gMonths.includes(i.month))        return false;
+    if (_gComCli !== 'All' && i.com_cliente !== (_gComCli === 'SI')) return false;
+    return true;
+  }), [allRawInc, _gSites, _gYears, _gMonths, _gComCli]);
+
+  // ── comparisonExposureHours: base de horas — respeta filtro global ─────────
+  const comparisonExposureHours = useMemo(() => allRawHrs.filter(h => {
+    if (_gSites.length  > 0 && !_gSites.includes(h.site))                                      return false;
+    if (_gYears.length  > 0 && !_gYears.some(y => h.period.startsWith(`${y}-`)))               return false;
+    if (_gMonths.length > 0 && !_gMonths.some(m => h.period.endsWith(`-${String(m).padStart(2,'0')}`))) return false;
+    return true;
+  }), [allRawHrs, _gSites, _gYears, _gMonths]);
 
   // Valores únicos para los selectores de cada gráfico
   const uniqueYears = useMemo(() => Array.from(new Set(comparisonIncidents.map(i => i.year))).sort(), [comparisonIncidents]);

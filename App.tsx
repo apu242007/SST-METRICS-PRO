@@ -558,7 +558,7 @@ const App: React.FC = () => {
                         exposureKm={filteredExposureKm} 
                         globalKmRecords={filteredGlobalKm}
                         settings={settings}
-                        filters={{ site: filters.site, year: filters.year, month: filters.month }}
+                        filters={{ site: filters.site, year: filters.year, month: filters.month, comCliente: filters.comCliente }}
                         onNavigateToExposure={(site) => { setFocusSite(site); setModalMode('exposure_hh'); }}
                         onOpenKmModal={() => setModalMode('exposure_km')} 
                         onDrillDown={handleDrillDown} 
