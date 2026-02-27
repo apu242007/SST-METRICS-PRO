@@ -837,3 +837,78 @@ export const generateRadarChartData = (
     };
   });
 };
+
+// ─── CAUSAL ANALYSIS HELPERS ──────────────────────────────────────────────────
+
+/**
+ * Generic: counts non-empty values of any string field across incidents.
+ * Returns sorted descending, truncated to topN.
+ */
+export const generateFieldDistribution = (
+  incidents: Incident[],
+  field: keyof Incident,
+  topN = 12
+): { name: string; count: number }[] => {
+  const counts: Record<string, number> = {};
+  incidents.forEach(inc => {
+    const raw = inc[field];
+    if (raw === undefined || raw === null || raw === false) return;
+    const keys = String(raw)
+      .split(/[;,\/]/) // allow multi-value cells separated by ; , /
+      .map(s => s.trim())
+      .filter(s => s && s.toUpperCase() !== 'N/A' && s.toUpperCase() !== 'SIN DATO' && s !== '-');
+    keys.forEach(k => { counts[k] = (counts[k] || 0) + 1; });
+  });
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, topN);
+};
+
+/**
+ * Combines factor_humano + factor_humano2 into one distribution.
+ */
+export const generateCombinedFactorDistribution = (
+  incidents: Incident[],
+  topN = 12
+): { name: string; count: number }[] => {
+  const counts: Record<string, number> = {};
+  incidents.forEach(inc => {
+    for (const val of [inc.factor_humano, inc.factor_humano2]) {
+      if (!val) continue;
+      val.split(/[;,\/]/)
+        .map(s => s.trim())
+        .filter(s => s && s.toUpperCase() !== 'N/A' && s !== '-')
+        .forEach(k => { counts[k] = (counts[k] || 0) + 1; });
+    }
+  });
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, topN);
+};
+
+/**
+ * Distribution of days between incident date and ART report date
+ * (measures SLG-24h compliance in detail).
+ */
+export const generateDaysToReportDistribution = (
+  incidents: Incident[]
+): { bucket: string; count: number }[] => {
+  const buckets: Record<string, number> = {
+    '≤1 día': 0, '2 días': 0, '3-7 días': 0, '>7 días': 0, 'Sin fecha': 0
+  };
+  incidents.forEach(inc => {
+    if (!inc.art_fecha_denuncia || !inc.fecha_evento) { buckets['Sin fecha']++; return; }
+    try {
+      const diff = Math.ceil(
+        (new Date(inc.art_fecha_denuncia).getTime() - new Date(inc.fecha_evento).getTime()) / 86400000
+      );
+      if (diff <= 1) buckets['≤1 día']++;
+      else if (diff <= 2) buckets['2 días']++;
+      else if (diff <= 7) buckets['3-7 días']++;
+      else buckets['>7 días']++;
+    } catch { buckets['Sin fecha']++; }
+  });
+  return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
+};

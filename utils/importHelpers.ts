@@ -438,6 +438,13 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       ? String(clienteRaw).trim()
       : undefined;
 
+    // --- CAUSAL & CONTEXTUAL FIELDS ---
+    const strOrUndef = (val: any): string | undefined => {
+      if (val === undefined || val === null) return undefined;
+      const s = String(val).trim();
+      return s !== '' && s.toLowerCase() !== 'n/a' && s.toLowerCase() !== 'sin dato' ? s : undefined;
+    };
+
     // Initial Object
     const incidentObj: Incident = {
       incident_id: id,
@@ -479,7 +486,30 @@ export const parseIncidentsExcel = (fileData: ArrayBuffer, existingRules: Mappin
       is_verified: false, 
       
       raw_json: JSON.stringify(row),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+
+      // --- CAUSAL & CONTEXTUAL ANALYSIS ---
+      forma_ocurrencia: strOrUndef(row['Forma Ocurrencia'] || row['Forma de Ocurrencia']),
+      art_forma_ocurrencia: strOrUndef(row['Datos ART: FORMA DE OCURRENCIA']),
+      art_gravedad: strOrUndef(row['Datos ART: GRAVEDAD']),
+      art_estado: strOrUndef(row['Datos ART: ESTADO']),
+      art_tipo_siniestro: strOrUndef(row['Datos ART: TIPO SINIESTRO']),
+      art_diagnostico: strOrUndef(row['Datos ART: DIAGNÓSTICO'] || row['Datos ART: DIAGNOSTICO']),
+      art_motivo_alta: strOrUndef(row['Datos ART: MOTIVO DE ALTA']),
+      nivel_entrenamiento: strOrUndef(row['Nivel de Entrenamiento del Involucrado'] || row['Nivel de Entrenamiento']),
+      naturaleza_lesion: strOrUndef(row['Naturaleza de Lesión/Daño'] || row['Naturaleza de Lesion/Dano'] || row['Naturaleza de Lesión'] || row['Naturaleza Lesion']),
+      parte_cuerpo: strOrUndef(row['Parte del cuerpo afectada'] || row['Parte del Cuerpo Afectada']),
+      factor_humano: strOrUndef(row['Factor Humano contribuyente'] || row['Factor Humano Contribuyente']),
+      factor_humano2: strOrUndef(row['Factor Humano Contribuyente2'] || row['Factor Humano 2']),
+      instalacion_tipo: strOrUndef(row['Instalaciones propias o del cliente'] || row['Instalaciones']),
+      condicion_peligrosa: strOrUndef(row['Condicion Peligrosa'] || row['Condición Peligrosa']),
+      acto_inseguro: strOrUndef(row['Acto Inseguro']),
+      funcion: strOrUndef(row['Función'] || row['Funcion']),
+      diagrama_trabajo: strOrUndef(row['Diagrama de Trabajo']),
+      requiere_investigacion: row['Requiere Investigacion final'] !== undefined ? parseBoolean(row['Requiere Investigacion final']) : undefined,
+      realizado_por: strOrUndef(row['Realizado por'] || row['Realizado Por']),
+      art_fecha_denuncia: parseStrictDate(row['Datos ART: FECHA DENUNCIA']) || undefined,
+      ubicacion_lesion: strOrUndef(row['Ubicación Lesión'] || row['Ubicacion Lesion'] || row['Ubicación de la Lesión']),
     };
 
     // Apply Specific Business Rules for Auto-Classification

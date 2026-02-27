@@ -107,6 +107,29 @@ export interface Incident {
 
   // SGI Integration
   linked_documents?: LinkedDocument[];
+
+  // --- CAUSAL & CONTEXTUAL ANALYSIS FIELDS ---
+  forma_ocurrencia?: string;         // "Forma Ocurrencia"
+  art_forma_ocurrencia?: string;     // "Datos ART: FORMA DE OCURRENCIA"
+  art_gravedad?: string;             // "Datos ART: GRAVEDAD"
+  art_estado?: string;               // "Datos ART: ESTADO"
+  art_tipo_siniestro?: string;       // "Datos ART: TIPO SINIESTRO"
+  art_diagnostico?: string;          // "Datos ART: DIAGNÓSTICO"
+  art_motivo_alta?: string;          // "Datos ART: MOTIVO DE ALTA"
+  art_fecha_denuncia?: string;       // "Datos ART: FECHA DENUNCIA" (YYYY-MM-DD)
+  ubicacion_lesion?: string;         // "Ubicación Lesión" (campo libre)
+  nivel_entrenamiento?: string;      // "Nivel de Entrenamiento del Involucrado"
+  naturaleza_lesion?: string;        // "Naturaleza de Lesión/Daño"
+  parte_cuerpo?: string;             // "Parte del cuerpo afectada"
+  factor_humano?: string;            // "Factor Humano contribuyente"
+  factor_humano2?: string;           // "Factor Humano Contribuyente2"
+  instalacion_tipo?: string;         // "Instalaciones propias o del cliente"
+  condicion_peligrosa?: string;      // "Condicion Peligrosa"
+  acto_inseguro?: string;            // "Acto Inseguro"
+  funcion?: string;                  // "Función"
+  diagrama_trabajo?: string;         // "Diagrama de Trabajo"
+  requiere_investigacion?: boolean;  // "Requiere Investigacion final"
+  realizado_por?: string;            // "Realizado por"
 }
 
 export interface ExposureHour {

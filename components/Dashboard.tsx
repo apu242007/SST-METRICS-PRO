@@ -14,7 +14,8 @@ import {
   generateRadarChartData, generateYearComparisonByType,
   generateMonthlyComparison, generateTypesByMonthComparison,
   generateIncidentsByCliente,
-  getExposureHoursSummary, fillMissingExposureHours
+  getExposureHoursSummary, fillMissingExposureHours,
+  generateFieldDistribution, generateCombinedFactorDistribution, generateDaysToReportDistribution
 } from '../utils/calculations';
 import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/importHelpers';
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
@@ -357,6 +358,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [clienteFilter,   setClienteFilter]   = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
   const [heatmapFilter,     setHeatmapFilter]     = useState<{ year: string; sites: string[] }>({ year: 'All', sites: [] });
   const [heatmapComCliente, setHeatmapComCliente] = useState<'All' | 'SI' | 'NO'>('All');
+  const [causalFilter, setCausalFilter] = useState<{
+    year: string; sites: string[];
+    ubicacion: string; tipoSiniestro: string; diagnostico: string; formaOcurrencia: string;
+    funcion: string; gravedad: string; diagramaTrabajo: string;
+    nivelEntrenamiento: string; naturalezaLesion: string; parteCuerpo: string;
+  }>({
+    year: 'All', sites: [],
+    ubicacion: 'All', tipoSiniestro: 'All', diagnostico: 'All', formaOcurrencia: 'All',
+    funcion: 'All', gravedad: 'All', diagramaTrabajo: 'All',
+    nivelEntrenamiento: 'All', naturalezaLesion: 'All', parteCuerpo: 'All',
+  });
   // ──────────────────────────────────────────────────────────────────────────
   
   const [selectedScenario, setSelectedScenario] = useState<TargetScenarioType>('Metas 2026');
@@ -1931,7 +1943,520 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
           </div>
       )}
-      
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          SECCIÓN: ANÁLISIS CAUSAL, ART Y PERFIL DEL INCIDENTE
+          Gráficos basados en: Forma Ocurrencia, Factor Humano, Naturaleza
+          Lesión, Parte Cuerpo, ART Estado/Gravedad/Diagnóstico, etc.
+      ═══════════════════════════════════════════════════════════════════ */}
+      {(() => {
+        const CAUSAL_COLORS = [
+          '#3b82f6','#ef4444','#f59e0b','#10b981','#8b5cf6',
+          '#06b6d4','#ec4899','#84cc16','#f97316','#6366f1','#14b8a6','#e11d48'
+        ];
+
+        // Base: solo año + sitio (para calcular opciones de todos los dropdowns)
+        const causalBaseInc = comparisonIncidents.filter(i =>
+          (causalFilter.year === 'All' || String(i.year) === causalFilter.year) &&
+          (causalFilter.sites.length === 0 || causalFilter.sites.includes(i.site))
+        );
+        // Opciones únicas (derivadas del base para mostrar todo lo disponible)
+        const causalOptUbicacion        = Array.from(new Set(causalBaseInc.map(i => i.ubicacion_lesion).filter(Boolean) as string[])).sort();
+        const causalOptTipo             = Array.from(new Set(causalBaseInc.map(i => i.art_tipo_siniestro).filter(Boolean) as string[])).sort();
+        const causalOptDiagnostico      = Array.from(new Set(causalBaseInc.map(i => i.art_diagnostico).filter(Boolean) as string[])).sort();
+        const causalOptForma            = Array.from(new Set([...causalBaseInc.map(i => i.forma_ocurrencia), ...causalBaseInc.map(i => i.art_forma_ocurrencia)].filter(Boolean) as string[])).sort();
+        const causalOptFuncion          = Array.from(new Set(causalBaseInc.map(i => i.funcion).filter(Boolean) as string[])).sort();
+        const causalOptGravedad         = Array.from(new Set(causalBaseInc.map(i => i.art_gravedad).filter(Boolean) as string[])).sort();
+        const causalOptDiagrama         = Array.from(new Set(causalBaseInc.map(i => i.diagrama_trabajo).filter(Boolean) as string[])).sort();
+        const causalOptNivelEnt         = Array.from(new Set(causalBaseInc.map(i => i.nivel_entrenamiento).filter(Boolean) as string[])).sort();
+        const causalOptNaturaleza       = Array.from(new Set(causalBaseInc.map(i => i.naturaleza_lesion).filter(Boolean) as string[])).sort();
+        const causalOptParteCuerpo      = Array.from(new Set(causalBaseInc.map(i => i.parte_cuerpo).filter(Boolean) as string[])).sort();
+        // Aplicar los 10 filtros causales adicionales
+        const causalInc = causalBaseInc.filter(i =>
+          (causalFilter.ubicacion === 'All'         || i.ubicacion_lesion === causalFilter.ubicacion) &&
+          (causalFilter.tipoSiniestro === 'All'     || i.art_tipo_siniestro === causalFilter.tipoSiniestro) &&
+          (causalFilter.diagnostico === 'All'       || i.art_diagnostico === causalFilter.diagnostico) &&
+          (causalFilter.formaOcurrencia === 'All'   || i.forma_ocurrencia === causalFilter.formaOcurrencia || i.art_forma_ocurrencia === causalFilter.formaOcurrencia) &&
+          (causalFilter.funcion === 'All'           || i.funcion === causalFilter.funcion) &&
+          (causalFilter.gravedad === 'All'          || i.art_gravedad === causalFilter.gravedad) &&
+          (causalFilter.diagramaTrabajo === 'All'   || i.diagrama_trabajo === causalFilter.diagramaTrabajo) &&
+          (causalFilter.nivelEntrenamiento === 'All'|| i.nivel_entrenamiento === causalFilter.nivelEntrenamiento) &&
+          (causalFilter.naturalezaLesion === 'All'  || i.naturaleza_lesion === causalFilter.naturalezaLesion) &&
+          (causalFilter.parteCuerpo === 'All'       || i.parte_cuerpo === causalFilter.parteCuerpo)
+        );
+
+        // Check if any causal field has data
+        const hasCausalData = causalInc.some(i =>
+          i.forma_ocurrencia || i.condicion_peligrosa || i.acto_inseguro ||
+          i.factor_humano || i.naturaleza_lesion || i.parte_cuerpo ||
+          i.nivel_entrenamiento || i.funcion || i.art_gravedad || i.art_estado ||
+          i.art_diagnostico || i.art_tipo_siniestro
+        );
+
+        if (!hasCausalData) return null;
+
+        // ─── Reusable inner renderers ────────────────────────────────────
+        const NoData = () => (
+          <div className="h-full flex items-center justify-center text-gray-300 text-xs italic">
+            Sin datos en el período seleccionado
+          </div>
+        );
+
+        // Horizontal BarChart (for categorical string data)
+        const renderHorizBar = (
+          data: { name: string; count: number }[],
+          color: string,
+          height = 220
+        ) => {
+          if (!data.length) return <NoData />;
+          // Truncate labels for display
+          const display = data.map(d => ({
+            ...d,
+            label: d.name.length > 30 ? d.name.substring(0, 28) + '…' : d.name
+          }));
+          const barH = Math.max(height, display.length * 28 + 40);
+          return (
+            <ResponsiveContainer width="100%" height={barH}>
+              <BarChart
+                data={display}
+                layout="vertical"
+                margin={{ left: 8, right: 40, top: 4, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis
+                  type="number"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={{ stroke: '#e5e7eb' }}
+                  tick={{ fill: '#9ca3af' }}
+                  allowDecimals={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  fontSize={9}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: '#374151' }}
+                  width={160}
+                />
+                <Tooltip
+                  contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                  formatter={(v: any) => [v, 'Casos']}
+                  labelFormatter={(_: any, payload: any) => payload?.[0]?.payload?.name ?? ''}
+                />
+                <Bar
+                  dataKey="count"
+                  radius={[0, 6, 6, 0]}
+                  barSize={14}
+                  label={{ position: 'right', fontSize: 10, fill: '#374151', fontWeight: 600 }}
+                >
+                  {display.map((_, idx) => (
+                    <Cell key={idx} fill={color} fillOpacity={1 - idx * 0.04} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          );
+        };
+
+        // Donut / Pie chart (for few-category fields)
+        const renderDonut = (
+          data: { name: string; count: number }[],
+          height = 200
+        ) => {
+          if (!data.length) return <NoData />;
+          const total = data.reduce((s, d) => s + d.count, 0);
+          return (
+            <ResponsiveContainer width="100%" height={height}>
+              <PieChart>
+                <Pie
+                  data={data}
+                  dataKey="count"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="45%"
+                  outerRadius="70%"
+                  paddingAngle={3}
+                  label={({ name, count }) =>
+                    `${name.length > 14 ? name.substring(0, 12) + '…' : name} (${((count / total) * 100).toFixed(0)}%)`
+                  }
+                  labelLine={false}
+                  fontSize={9}
+                >
+                  {data.map((_, idx) => (
+                    <Cell key={idx} fill={CAUSAL_COLORS[idx % CAUSAL_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                  formatter={(v: any, name: any) => [v, name]}
+                />
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: 9, paddingTop: 4 }}
+                  formatter={(value: string) => value.length > 22 ? value.substring(0, 20) + '…' : value}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          );
+        };
+
+        const ChartCard = ({ id, title, icon: Icon, iconColor, children, scrollable = false }: any) => (
+          <div id={id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col">
+            <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wide flex items-center mb-3">
+              <Icon className={`w-4 h-4 mr-2 ${iconColor}`} />
+              {title}
+            </h4>
+            <div className={scrollable ? 'overflow-y-auto max-h-72' : 'flex-1'}>
+              {children}
+            </div>
+          </div>
+        );
+
+        return (
+          <div className="space-y-4">
+            {/* ── Section Header + Filter ─────────────────────────────── */}
+            <div className="bg-gradient-to-r from-rose-50 to-orange-50 border-2 border-rose-200 rounded-xl p-5">
+              {/* ── Header row ── */}
+              <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
+                <div>
+                  <h2 className="text-base font-bold text-rose-900 uppercase flex items-center">
+                    <Activity className="w-5 h-5 mr-2 text-rose-600" />
+                    Análisis Causal, ART y Perfil del Incidente
+                  </h2>
+                  <p className="text-xs text-rose-600 mt-0.5">
+                    <span className="font-bold">{causalInc.length}</span> de {causalBaseInc.length} incidentes · filtros activos:
+                    {(() => {
+                      const n = [causalFilter.ubicacion, causalFilter.tipoSiniestro, causalFilter.diagnostico,
+                        causalFilter.formaOcurrencia, causalFilter.funcion, causalFilter.gravedad,
+                        causalFilter.diagramaTrabajo, causalFilter.nivelEntrenamiento,
+                        causalFilter.naturalezaLesion, causalFilter.parteCuerpo].filter(v => v !== 'All').length;
+                      return n === 0
+                        ? <span className="ml-1 text-rose-400">ninguno</span>
+                        : <span className="ml-1 font-bold text-rose-700">{n}</span>;
+                    })()}
+                  </p>
+                </div>
+              </div>
+
+              {/* ── Filtros: fila 1 — Año + Sitio ── */}
+              <div className="bg-white/70 border border-rose-100 rounded-lg p-3 mb-3">
+                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wide mb-2">Filtros globales</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    title="Año"
+                    className="text-[10px] border border-rose-200 rounded px-1.5 py-0.5 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-rose-300"
+                    value={causalFilter.year}
+                    onChange={e => setCausalFilter(prev => ({ ...prev, year: e.target.value }))}
+                  >
+                    <option value="All">Año: Todos</option>
+                    {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                  </select>
+                  <ChartMultiSiteFilter
+                    sites={uniqueSites}
+                    selected={causalFilter.sites}
+                    onChange={vals => setCausalFilter(prev => ({ ...prev, sites: vals }))}
+                  />
+                </div>
+              </div>
+
+              {/* ── Filtros causales ── */}
+              <div className="bg-white/70 border border-rose-100 rounded-lg p-3 mb-5">
+                <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wide mb-2">Filtrar por campo causal</p>
+
+                {/* Fila 1: Lesión */}
+                <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Lesión</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+                  {[{
+                    label: 'Ubicación Lesión', key: 'ubicacion' as const, opts: causalOptUbicacion, ph: 'Todas'
+                  },{
+                    label: 'Naturaleza Lesión', key: 'naturalezaLesion' as const, opts: causalOptNaturaleza, ph: 'Todas'
+                  },{
+                    label: 'Parte Cuerpo Afectada', key: 'parteCuerpo' as const, opts: causalOptParteCuerpo, ph: 'Todas'
+                  },{
+                    label: 'Diagnóstico ART', key: 'diagnostico' as const, opts: causalOptDiagnostico, ph: 'Todos'
+                  }].map(({ label, key, opts, ph }) => (
+                    <div key={key} className="flex flex-col gap-0.5">
+                      <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">{label}</label>
+                      <select
+                        title={label}
+                        className={`text-[10px] border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-rose-300 ${
+                          causalFilter[key] !== 'All' ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold' : 'border-gray-200 bg-white text-gray-600'
+                        }`}
+                        value={causalFilter[key]}
+                        onChange={e => setCausalFilter(prev => ({ ...prev, [key]: e.target.value }))}
+                      >
+                        <option value="All">{ph}</option>
+                        {opts.map(v => <option key={v} value={v}>{v.length > 34 ? v.substring(0, 32) + '…' : v}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Fila 2: Causa */}
+                <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Causa / Mecanismo</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+                  {[{
+                    label: 'Forma de Ocurrencia', key: 'formaOcurrencia' as const, opts: causalOptForma, ph: 'Todas'
+                  },{
+                    label: 'Tipo Siniestro ART', key: 'tipoSiniestro' as const, opts: causalOptTipo, ph: 'Todos'
+                  },{
+                    label: 'Gravedad ART', key: 'gravedad' as const, opts: causalOptGravedad, ph: 'Todas'
+                  },{
+                    label: 'Ubicación Lesión (ART)', key: 'ubicacion' as const, opts: causalOptUbicacion, ph: 'Todas'
+                  }].map(({ label, key, opts, ph }) => (
+                    <div key={label} className="flex flex-col gap-0.5">
+                      <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">{label}</label>
+                      <select
+                        title={label}
+                        className={`text-[10px] border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-rose-300 ${
+                          causalFilter[key] !== 'All' ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold' : 'border-gray-200 bg-white text-gray-600'
+                        }`}
+                        value={causalFilter[key]}
+                        onChange={e => setCausalFilter(prev => ({ ...prev, [key]: e.target.value }))}
+                      >
+                        <option value="All">{ph}</option>
+                        {opts.map(v => <option key={v} value={v}>{v.length > 34 ? v.substring(0, 32) + '…' : v}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Fila 3: Perfil del Involucrado */}
+                <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Perfil del Involucrado</p>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                  {[{
+                    label: 'Función / Rol', key: 'funcion' as const, opts: causalOptFuncion, ph: 'Todas'
+                  },{
+                    label: 'Nivel Entrenamiento', key: 'nivelEntrenamiento' as const, opts: causalOptNivelEnt, ph: 'Todos'
+                  },{
+                    label: 'Diagrama de Trabajo', key: 'diagramaTrabajo' as const, opts: causalOptDiagrama, ph: 'Todos'
+                  }].map(({ label, key, opts, ph }) => (
+                    <div key={key} className="flex flex-col gap-0.5">
+                      <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide">{label}</label>
+                      <select
+                        title={label}
+                        className={`text-[10px] border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-rose-300 ${
+                          causalFilter[key] !== 'All' ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold' : 'border-gray-200 bg-white text-gray-600'
+                        }`}
+                        value={causalFilter[key]}
+                        onChange={e => setCausalFilter(prev => ({ ...prev, [key]: e.target.value }))}
+                      >
+                        <option value="All">{ph}</option>
+                        {opts.map(v => <option key={v} value={v}>{v.length > 34 ? v.substring(0, 32) + '…' : v}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Chips activos + limpiar */}
+                {(() => {
+                  const CHIP_META: { key: keyof typeof causalFilter; label: string; color: string; hover: string }[] = [
+                    { key: 'year',             label: 'Año',       color: 'bg-rose-100 text-rose-700',     hover: 'hover:text-rose-900' },
+                    { key: 'ubicacion',        label: 'Ubic',      color: 'bg-teal-100 text-teal-700',     hover: 'hover:text-teal-900' },
+                    { key: 'naturalezaLesion', label: 'Nat',       color: 'bg-pink-100 text-pink-700',     hover: 'hover:text-pink-900' },
+                    { key: 'parteCuerpo',      label: 'Parte',     color: 'bg-cyan-100 text-cyan-700',     hover: 'hover:text-cyan-900' },
+                    { key: 'diagnostico',      label: 'Dx',        color: 'bg-purple-100 text-purple-700', hover: 'hover:text-purple-900' },
+                    { key: 'formaOcurrencia',  label: 'Forma',     color: 'bg-amber-100 text-amber-700',   hover: 'hover:text-amber-900' },
+                    { key: 'tipoSiniestro',    label: 'Tipo',      color: 'bg-indigo-100 text-indigo-700', hover: 'hover:text-indigo-900' },
+                    { key: 'gravedad',         label: 'Grav',      color: 'bg-red-100 text-red-700',       hover: 'hover:text-red-900' },
+                    { key: 'funcion',          label: 'Función',   color: 'bg-blue-100 text-blue-700',     hover: 'hover:text-blue-900' },
+                    { key: 'nivelEntrenamiento', label: 'Nivel',   color: 'bg-green-100 text-green-700',   hover: 'hover:text-green-900' },
+                    { key: 'diagramaTrabajo',  label: 'Diagrama',  color: 'bg-orange-100 text-orange-700', hover: 'hover:text-orange-900' },
+                  ];
+                  const active = CHIP_META.filter(m => {
+                    const v = causalFilter[m.key];
+                    return Array.isArray(v) ? (v as string[]).length > 0 : v !== 'All';
+                  });
+                  if (active.length === 0 && causalFilter.sites.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-2 border-t border-rose-100">
+                      {causalFilter.sites.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[9px] bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                          Sitios: {causalFilter.sites.length}
+                          <button onClick={() => setCausalFilter(prev => ({ ...prev, sites: [] }))} className="hover:text-slate-900 flex-shrink-0">×</button>
+                        </span>
+                      )}
+                      {active.map(m => {
+                        const val = causalFilter[m.key] as string;
+                        return (
+                          <span key={m.key} className={`inline-flex items-center gap-1 text-[9px] ${m.color} font-bold px-2 py-0.5 rounded-full max-w-[180px]`}>
+                            <span className="truncate">{m.label}: {val}</span>
+                            <button onClick={() => setCausalFilter(prev => ({ ...prev, [m.key]: 'All' }))} className={`${m.hover} flex-shrink-0`}>×</button>
+                          </span>
+                        );
+                      })}
+                      <button
+                        onClick={() => setCausalFilter({
+                          year: 'All', sites: [], ubicacion: 'All', tipoSiniestro: 'All', diagnostico: 'All',
+                          formaOcurrencia: 'All', funcion: 'All', gravedad: 'All', diagramaTrabajo: 'All',
+                          nivelEntrenamiento: 'All', naturalezaLesion: 'All', parteCuerpo: 'All',
+                        })}
+                        className="text-[9px] px-2 py-0.5 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 font-semibold ml-auto"
+                      >✕ Limpiar todo</button>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* ── BLOQUE A: CAUSAS ──────────────────────────────────── */}
+              <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
+                <AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> A. Causas del Incidente
+              </h3>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+                <ChartCard id="chart-causal-forma" title="Forma de Ocurrencia" icon={Activity} iconColor="text-blue-500">
+                  {renderHorizBar(
+                    generateFieldDistribution(causalInc, 'forma_ocurrencia', 12).concat(
+                      generateFieldDistribution(causalInc, 'art_forma_ocurrencia', 12)
+                        .filter(d => !generateFieldDistribution(causalInc, 'forma_ocurrencia', 12).some(x => x.name === d.name))
+                    ).sort((a, b) => b.count - a.count).slice(0, 12),
+                    '#3b82f6'
+                  )}
+                </ChartCard>
+
+                <ChartCard id="chart-causal-condicion" title="Condición Peligrosa" icon={AlertTriangle} iconColor="text-red-500">
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'condicion_peligrosa', 12), '#ef4444')}
+                </ChartCard>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+                <ChartCard id="chart-causal-acto" title="Acto Inseguro" icon={AlertTriangle} iconColor="text-amber-500">
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'acto_inseguro', 12), '#f59e0b')}
+                </ChartCard>
+
+                <ChartCard id="chart-causal-factor-humano" title="Factor Humano Contribuyente (F1 + F2 combinados)" icon={Users} iconColor="text-purple-500">
+                  {renderHorizBar(generateCombinedFactorDistribution(causalInc, 12), '#8b5cf6')}
+                </ChartCard>
+              </div>
+
+              {/* ── BLOQUE B: LESIÓN ──────────────────────────────────── */}
+              <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
+                <HeartPulse className="w-3.5 h-3.5 mr-1.5" /> B. Naturaleza y Ubicación de la Lesión
+              </h3>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+                <ChartCard id="chart-causal-naturaleza" title="Naturaleza de Lesión / Daño" icon={HeartPulse} iconColor="text-rose-500" scrollable>
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'naturaleza_lesion', 15), '#ec4899')}
+                </ChartCard>
+
+                <ChartCard id="chart-causal-parte-cuerpo" title="Parte del Cuerpo Afectada" icon={Users} iconColor="text-teal-500" scrollable>
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'parte_cuerpo', 15), '#14b8a6')}
+                </ChartCard>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+                <ChartCard id="chart-causal-ubicacion-lesion" title="Ubicación Lesión (texto libre)" icon={Activity} iconColor="text-cyan-500" scrollable>
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'ubicacion_lesion', 15), '#06b6d4')}
+                </ChartCard>
+
+                <ChartCard id="chart-causal-diagnostico" title="ART: Diagnóstico (Top 12)" icon={Microscope} iconColor="text-indigo-500" scrollable>
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'art_diagnostico', 12), '#6366f1')}
+                </ChartCard>
+              </div>
+
+              {/* ── BLOQUE C: PERFIL DEL INVOLUCRADO ─────────────────── */}
+              <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
+                <Users className="w-3.5 h-3.5 mr-1.5" /> C. Perfil del Involucrado
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <ChartCard id="chart-causal-entrenamiento" title="Nivel de Entrenamiento" icon={ShieldCheck} iconColor="text-green-500">
+                  {renderDonut(generateFieldDistribution(causalInc, 'nivel_entrenamiento', 8), 240)}
+                </ChartCard>
+
+                <ChartCard id="chart-causal-funcion" title="Función / Rol" icon={Users} iconColor="text-blue-500" scrollable>
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'funcion', 12), '#3b82f6', 180)}
+                </ChartCard>
+
+                <ChartCard id="chart-causal-diagrama" title="Diagrama de Trabajo / Turno" icon={Calendar} iconColor="text-orange-500">
+                  {renderDonut(generateFieldDistribution(causalInc, 'diagrama_trabajo', 8), 240)}
+                </ChartCard>
+              </div>
+
+              {/* ── BLOQUE D: CLASIFICACIÓN ART ───────────────────────── */}
+              <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
+                <FileCheck className="w-3.5 h-3.5 mr-1.5" /> D. Clasificación ART
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <ChartCard id="chart-art-estado" title="ART: Estado" icon={CheckCircle2} iconColor="text-green-500">
+                  {renderDonut(generateFieldDistribution(causalInc, 'art_estado', 6), 220)}
+                </ChartCard>
+
+                <ChartCard id="chart-art-gravedad" title="ART: Gravedad" icon={AlertTriangle} iconColor="text-red-500">
+                  {renderDonut(generateFieldDistribution(causalInc, 'art_gravedad', 6), 220)}
+                </ChartCard>
+
+                <ChartCard id="chart-art-instalaciones" title="Instalaciones Propias / Cliente" icon={ShieldCheck} iconColor="text-slate-500">
+                  {renderDonut(generateFieldDistribution(causalInc, 'instalacion_tipo', 6), 220)}
+                </ChartCard>
+
+                <ChartCard id="chart-art-investigacion" title="Requiere Investigación Final" icon={Microscope} iconColor="text-amber-500">
+                  {renderDonut(
+                    (() => {
+                      const si = causalInc.filter(i => i.requiere_investigacion === true).length;
+                      const no = causalInc.filter(i => i.requiere_investigacion === false).length;
+                      const nd = causalInc.filter(i => i.requiere_investigacion === undefined).length;
+                      return [
+                        ...(si > 0 ? [{ name: 'SI', count: si }] : []),
+                        ...(no > 0 ? [{ name: 'NO', count: no }] : []),
+                        ...(nd > 0 ? [{ name: 'Sin dato', count: nd }] : []),
+                      ];
+                    })(),
+                    220
+                  )}
+                </ChartCard>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+                <ChartCard id="chart-art-tipo-siniestro" title="ART: Tipo Siniestro" icon={Scale} iconColor="text-purple-500">
+                  {renderHorizBar(generateFieldDistribution(causalInc, 'art_tipo_siniestro', 10), '#8b5cf6')}
+                </ChartCard>
+
+                <ChartCard id="chart-art-motivo-alta" title="ART: Motivo de Alta" icon={TrendingDown} iconColor="text-emerald-500">
+                  {renderDonut(generateFieldDistribution(causalInc, 'art_motivo_alta', 8), 240)}
+                </ChartCard>
+              </div>
+
+              {/* ── BLOQUE E: TIEMPOS ART ─────────────────────────────── */}
+              <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
+                <Clock className="w-3.5 h-3.5 mr-1.5" /> E. Tiempos de Gestión ART
+              </h3>
+              <div className="grid grid-cols-1 gap-4">
+                <ChartCard id="chart-art-dias-denuncia" title="Días entre Siniestro y Fecha de Denuncia ART (SLG-24h detalle)" icon={Clock} iconColor="text-blue-500">
+                  {(() => {
+                    const distData = generateDaysToReportDistribution(causalInc);
+                    const hasVal = distData.some(d => d.count > 0);
+                    if (!hasVal) return <NoData />;
+                    const segColors: Record<string, string> = {
+                      '≤1 día': '#10b981', '2 días': '#f59e0b', '3-7 días': '#f97316', '>7 días': '#ef4444', 'Sin fecha': '#d1d5db'
+                    };
+                    return (
+                      <ResponsiveContainer width="100%" height={160}>
+                        <BarChart data={distData} margin={{ left: 8, right: 20, top: 4, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="bucket" fontSize={11} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} tick={{ fill: '#374151' }} />
+                          <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#9ca3af' }} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                            formatter={(v: any) => [v, 'Incidentes']}
+                          />
+                          <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={40} label={{ position: 'top', fontSize: 11, fill: '#374151', fontWeight: 600 }}>
+                            {distData.map((d, idx) => (
+                              <Cell key={idx} fill={segColors[d.bucket] ?? '#3b82f6'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    );
+                  })()}
+                </ChartCard>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
        <div id="chart-vial-module" className="bg-slate-50 border border-slate-200 rounded-xl p-6">
           <div className="flex items-center mb-6">
               <Truck className="w-6 h-6 mr-3 text-purple-600" />
