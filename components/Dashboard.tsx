@@ -1072,9 +1072,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           const y1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
                           const y2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
                           // Filtro de sitios múltiple: si hay selección aplica includes, si está vacío = todos
+                          // EXENTO del filtro raíz: usa allRawInc para mostrar todos los años/sitios
                           let base = compTypeFilter.sites.length > 0
-                            ? comparisonIncidents.filter(i => compTypeFilter.sites.includes(i.site))
-                            : comparisonIncidents;
+                            ? allRawInc.filter(i => compTypeFilter.sites.includes(i.site))
+                            : allRawInc.slice();
                           // Aplicar filtro Com. Cliente
                           if (compTypeComCliente !== 'All') {
                             const wantTrue = compTypeComCliente === 'SI';
@@ -1215,7 +1216,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                   <div className="h-80">
                       {(() => {
-                          const { fi: wfInc, fh: wfHrs } = applyMultiFilter(comparisonIncidents, comparisonExposureHours, waterfallFilter);
+                          // EXENTO del filtro raíz: usa allRawInc/allRawHrs para mostrar todos los sitios
+                          const { fi: wfInc, fh: wfHrs } = applyMultiFilter(allRawInc, allRawHrs, waterfallFilter);
                           const waterfallData = generateWaterfallData(wfInc, wfHrs, settings);
                           return waterfallData.length > 0 ? (
                               <ResponsiveContainer width="100%" height="100%">
@@ -2103,8 +2105,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   innerRadius="45%"
                   outerRadius="70%"
                   paddingAngle={3}
-                  label={({ name, count }) =>
-                    `${name.length > 14 ? name.substring(0, 12) + '…' : name} (${((count / total) * 100).toFixed(0)}%)`
+                  label={({ name, count }: any) =>
+                    `${String(name).length > 14 ? String(name).substring(0, 12) + '…' : name} (${((count / total) * 100).toFixed(0)}%)`
                   }
                   labelLine={false}
                   fontSize={9}
