@@ -329,9 +329,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return true;
   }), [allRawHrs, _gSites, _gYears, _gMonths]);
 
-  // Valores únicos para los selectores de cada gráfico
+  // Valores únicos para los selectores de gráficos que respetan el filtro raíz
   const uniqueYears = useMemo(() => Array.from(new Set(comparisonIncidents.map(i => i.year))).sort(), [comparisonIncidents]);
   const uniqueSites = useMemo(() => Array.from(new Set(comparisonIncidents.map(i => i.site))).sort(), [comparisonIncidents]);
+  // Valores únicos para los 3 gráficos EXENTOS del filtro raíz (usan allRawInc completo)
+  const uniqueYearsAll = useMemo(() => Array.from(new Set(allRawInc.map(i => i.year))).sort(), [allRawInc]);
+  const uniqueSitesAll = useMemo(() => Array.from(new Set(allRawInc.map(i => i.site))).sort(), [allRawInc]);
 
   // Helper: filtra incidentes y horas por { year, site }
   const applyChartFilter = (
@@ -1026,7 +1029,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         onChange={e => setCompTypeFilter(prev => ({ ...prev, year: e.target.value }))}
                       >
                         <option value="All">Año: Todos</option>
-                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
                       {/* Año 2 */}
                       <select
@@ -1036,11 +1039,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         onChange={e => setCompTypeFilter(prev => ({ ...prev, year2: e.target.value }))}
                       >
                         <option value="All">Año 2: Todos</option>
-                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
                       {/* Sitio: multi-select */}
                       <ChartMultiSiteFilter
-                        sites={uniqueSites}
+                        sites={uniqueSitesAll}
                         selected={compTypeFilter.sites}
                         onChange={vals => setCompTypeFilter(prev => ({ ...prev, sites: vals }))}
                       />
@@ -1204,9 +1207,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                         value={waterfallFilter.year} onChange={e => setWaterfallFilter(prev => ({ ...prev, year: e.target.value }))}>
                         <option value="All">Año: Todos</option>
-                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
-                      <ChartMultiSiteFilter sites={uniqueSites} selected={waterfallFilter.sites}
+                      <ChartMultiSiteFilter sites={uniqueSitesAll} selected={waterfallFilter.sites}
                         onChange={vals => setWaterfallFilter(prev => ({ ...prev, sites: vals }))} />
                       {(waterfallFilter.year !== 'All' || waterfallFilter.sites.length > 0) && (
                         <button onClick={() => setWaterfallFilter({ year: 'All', sites: [] })}
@@ -1435,14 +1438,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <select title="Año 1" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                         value={monthlyFilter.year} onChange={e => setMonthlyFilter(prev => ({ ...prev, year: e.target.value }))}>
                         <option value="All">Año: Todos</option>
-                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
                       <select title="Año 2" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                         value={monthlyFilter.year2 ?? 'All'} onChange={e => setMonthlyFilter(prev => ({ ...prev, year2: e.target.value }))}>
                         <option value="All">Año 2: Todos</option>
-                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
-                      <ChartMultiSiteFilter sites={uniqueSites} selected={monthlyFilter.sites}
+                      <ChartMultiSiteFilter sites={uniqueSitesAll} selected={monthlyFilter.sites}
                         onChange={vals => setMonthlyFilter(prev => ({ ...prev, sites: vals }))} />
                       <select title="Com. Cliente" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                         value={monthlyComCliente} onChange={e => setMonthlyComCliente(e.target.value as 'All' | 'SI' | 'NO')}>
