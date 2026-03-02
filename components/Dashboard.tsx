@@ -922,9 +922,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                    <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                      value={trendFilter.year} onChange={e => setTrendFilter(prev => ({ ...prev, year: e.target.value }))}>
                      <option value="All">Año: Todos</option>
-                     {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                     {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                    </select>
-                   <ChartMultiSiteFilter sites={uniqueSites} selected={trendFilter.sites}
+                   <ChartMultiSiteFilter sites={uniqueSitesAll} selected={trendFilter.sites}
                      onChange={vals => setTrendFilter(prev => ({ ...prev, sites: vals }))} />
                    {(trendFilter.year !== 'All' || trendFilter.sites.length > 0) && (
                      <button onClick={() => setTrendFilter({ year: 'All', sites: [] })}
@@ -974,9 +974,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                    <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                      value={paretoFilter.year} onChange={e => setParetoFilter(prev => ({ ...prev, year: e.target.value }))}>
                      <option value="All">Año: Todos</option>
-                     {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                     {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                    </select>
-                   <ChartMultiSiteFilter sites={uniqueSites} selected={paretoFilter.sites}
+                   <ChartMultiSiteFilter sites={uniqueSitesAll} selected={paretoFilter.sites}
                      onChange={vals => setParetoFilter(prev => ({ ...prev, sites: vals }))} />
                    {(paretoFilter.year !== 'All' || paretoFilter.sites.length > 0) && (
                      <button onClick={() => setParetoFilter({ year: 'All', sites: [] })}
@@ -1279,9 +1279,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                         value={scatterFilter.year} onChange={e => setScatterFilter(prev => ({ ...prev, year: e.target.value }))}>
                         <option value="All">Año: Todos</option>
-                        {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                       </select>
-                      <ChartMultiSiteFilter sites={uniqueSites} selected={scatterFilter.sites}
+                      <ChartMultiSiteFilter sites={uniqueSitesAll} selected={scatterFilter.sites}
                         onChange={vals => setScatterFilter(prev => ({ ...prev, sites: vals }))} />
                       {(scatterFilter.year !== 'All' || scatterFilter.sites.length > 0) && (
                         <button onClick={() => setScatterFilter({ year: 'All', sites: [] })}
@@ -1573,9 +1573,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <select title="Filtrar por año" className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 bg-gray-50 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-300"
                           value={clienteFilter.year} onChange={e => setClienteFilter(prev => ({ ...prev, year: e.target.value }))}>
                           <option value="All">Año: Todos</option>
-                          {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                          {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                         </select>
-                        <ChartMultiSiteFilter sites={uniqueSites} selected={clienteFilter.sites}
+                        <ChartMultiSiteFilter sites={uniqueSitesAll} selected={clienteFilter.sites}
                           onChange={vals => setClienteFilter(prev => ({ ...prev, sites: vals }))} />
                         {(clienteFilter.year !== 'All' || clienteFilter.sites.length > 0) && (
                           <button onClick={() => setClienteFilter({ year: 'All', sites: [] })}
@@ -1684,11 +1684,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       onChange={e => setHeatmapFilter(prev => ({ ...prev, year: e.target.value }))}
                   >
                       <option value="All">Año: Todos</option>
-                      {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                      {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                   </select>
                   {/* Filtro Sitio: multi-select */}
                   <ChartMultiSiteFilter
-                      sites={uniqueSites}
+                      sites={uniqueSitesAll}
                       selected={heatmapFilter.sites}
                       onChange={vals => setHeatmapFilter(prev => ({ ...prev, sites: vals }))}
                   />
@@ -2187,10 +2187,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     onChange={e => setCausalFilter(prev => ({ ...prev, year: e.target.value }))}
                   >
                     <option value="All">Año: Todos</option>
-                    {uniqueYears.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                    {uniqueYearsAll.map(y => <option key={y} value={String(y)}>{y}</option>)}
                   </select>
                   <ChartMultiSiteFilter
-                    sites={uniqueSites}
+                    sites={uniqueSitesAll}
                     selected={causalFilter.sites}
                     onChange={vals => setCausalFilter(prev => ({ ...prev, sites: vals }))}
                   />
