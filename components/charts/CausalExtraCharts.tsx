@@ -282,7 +282,7 @@ export function FactorHumanoParetoChart({ incidents }: { incidents: Incident[] }
 
 // ─── Chart E — Condición Peligrosa × Acto Inseguro 2×2 ────────────────────
 
-type Quad = { label: string; desc: string; color: string; bg: string; border: string; count: number; pct: string };
+type Quad = { label: string; desc: string; textCls: string; bg: string; border: string; count: number; pct: string };
 
 export function CondicionActoMatrix({ incidents }: { incidents: Incident[] }) {
   const total = incidents.length;
@@ -299,10 +299,10 @@ export function CondicionActoMatrix({ incidents }: { incidents: Incident[] }) {
     });
     const p = (n: number) => total > 0 ? `${Math.round((n / total) * 100)}%` : '0%';
     return [
-      { label: 'CP ✓  AI ✓',  desc: 'Cond. Peligrosa + Acto Inseguro',  color: '#fff', bg: 'bg-red-500',    border: 'border-red-600',    count: siSi, pct: p(siSi) },
-      { label: 'CP ✗  AI ✓',  desc: 'Sólo Acto Inseguro (factor humano)', color: '#fff', bg: 'bg-orange-400', border: 'border-orange-500', count: noSi, pct: p(noSi) },
-      { label: 'CP ✓  AI ✗',  desc: 'Sólo Condición Peligrosa (infraestr.)', color: '#fff', bg: 'bg-yellow-400', border: 'border-yellow-500', count: siNo, pct: p(siNo) },
-      { label: 'CP ✗  AI ✗',  desc: 'Sin causa identificada',              color: '#374151', bg: 'bg-emerald-100', border: 'border-emerald-400', count: noNo, pct: p(noNo) },
+      { label: 'CP ✓  AI ✓',  desc: 'Cond. Peligrosa + Acto Inseguro',       textCls: 'text-white',     bg: 'bg-red-500',     border: 'border-red-600',     count: siSi, pct: p(siSi) },
+      { label: 'CP ✗  AI ✓',  desc: 'Sólo Acto Inseguro (factor humano)',     textCls: 'text-white',     bg: 'bg-orange-400',  border: 'border-orange-500',  count: noSi, pct: p(noSi) },
+      { label: 'CP ✓  AI ✗',  desc: 'Sólo Condición Peligrosa (infraestr.)', textCls: 'text-white',     bg: 'bg-yellow-400',  border: 'border-yellow-500',  count: siNo, pct: p(siNo) },
+      { label: 'CP ✗  AI ✗',  desc: 'Sin causa identificada',                 textCls: 'text-gray-700',  bg: 'bg-emerald-100', border: 'border-emerald-400', count: noNo, pct: p(noNo) },
     ];
   }, [incidents, total]);
 
@@ -319,10 +319,10 @@ export function CondicionActoMatrix({ incidents }: { incidents: Incident[] }) {
             key={q.label}
             className={`${q.bg} ${q.border} border-2 rounded-xl p-4 flex flex-col items-center justify-center gap-1 shadow-sm`}
           >
-            <span className="text-3xl font-black" style={{ color: q.color }}>{q.count}</span>
-            <span className="text-sm font-bold" style={{ color: q.color }}>{q.pct}</span>
-            <span className="text-[10px] font-bold mt-1 text-center" style={{ color: q.color }}>{q.label}</span>
-            <span className="text-[9px] text-center opacity-80" style={{ color: q.color }}>{q.desc}</span>
+            <span className={`text-3xl font-black ${q.textCls}`}>{q.count}</span>
+            <span className={`text-sm font-bold ${q.textCls}`}>{q.pct}</span>
+            <span className={`text-[10px] font-bold mt-1 text-center ${q.textCls}`}>{q.label}</span>
+            <span className={`text-[9px] text-center opacity-80 ${q.textCls}`}>{q.desc}</span>
           </div>
         ))}
       </div>
