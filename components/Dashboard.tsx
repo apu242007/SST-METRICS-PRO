@@ -1164,9 +1164,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {(() => {
                           const cy1 = compTypeFilter.year !== 'All' ? Number(compTypeFilter.year) : 2025;
                           const cy2 = compTypeFilter.year2 && compTypeFilter.year2 !== 'All' ? Number(compTypeFilter.year2) : 2026;
+                          // Usar allRawInc igual que el gráfico: exento del filtro raíz de año
                           let cbase = compTypeFilter.sites.length > 0
-                            ? comparisonIncidents.filter(i => compTypeFilter.sites.includes(i.site))
-                            : comparisonIncidents;
+                            ? allRawInc.filter(i => compTypeFilter.sites.includes(i.site))
+                            : allRawInc.slice();
                           if (compTypeComCliente !== 'All') {
                             const wantTrue = compTypeComCliente === 'SI';
                             cbase = cbase.filter(i => i.com_cliente === wantTrue);
