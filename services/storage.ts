@@ -107,9 +107,18 @@ export const loadState = (): AppState => {
 export const saveState = (state: AppState): void => {
   try {
     const serializedState = JSON.stringify(state);
+    // Advertir si el tamaño supera el 90% del límite típico de localStorage (5MB)
+    const sizeKB = (serializedState.length * 2) / 1024;
+    if (sizeKB > 4500) {
+      console.warn(`[Storage] Tamaño crítico: ${sizeKB.toFixed(0)}KB / ~5120KB máx.`);
+    }
     localStorage.setItem(STORAGE_KEY, serializedState);
   } catch (err) {
     console.error("Could not save state", err);
+    alert(
+      '⚠️ Error al guardar datos: el almacenamiento local está lleno.\n' +
+      'Exporte sus datos antes de continuar para evitar pérdida de información.'
+    );
   }
 };
 

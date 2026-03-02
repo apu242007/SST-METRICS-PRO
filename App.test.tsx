@@ -1,3 +1,4 @@
+// TODO: Configurar Vitest (npm i -D vitest @vitest/ui jsdom) y eliminar los 'declare const' de este archivo
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';

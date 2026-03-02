@@ -1,3 +1,4 @@
+// TODO [REFACTOR]: Extraer charts en componentes individuales en components/charts/ (ver auditoría técnica 2026-03-02)
 
 import React, { useMemo, useState } from 'react';
 import { 

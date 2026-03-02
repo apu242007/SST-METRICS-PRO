@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Incident } from "../types";
 
+// TODO [SEGURIDAD]: Mover llamada a Gemini al backend /api/analyze-incident para no exponer API key en bundle
 const apiKey = process.env.API_KEY || '';
 
 export const analyzeIncident = async (incident: Incident): Promise<{
@@ -31,7 +32,7 @@ export const analyzeIncident = async (incident: Incident): Promise<{
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
         responseMimeType: "application/json",

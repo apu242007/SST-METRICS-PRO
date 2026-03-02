@@ -121,7 +121,8 @@ const App: React.FC = () => {
   const [exposureHours, setExposureHours] = useState<ExposureHour[]>([]);
   const [exposureKm, setExposureKm] = useState<ExposureKm[]>([]);
   const [globalKm, setGlobalKm] = useState<GlobalKmRecord[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({ base_if: 1000000, base_trir: 200000, days_cap: 180 });
+  // Lazy initializer: evita 1 render con valores incorrectos antes de la hidratación de localStorage
+  const [settings, setSettings] = useState<AppSettings>(() => loadState().settings);
   const [rules, setRules] = useState<MappingRule[]>([]);
   const [sgiDocuments, setSgiDocuments] = useState<SGIDocument[]>([]);
   
@@ -201,6 +202,7 @@ const App: React.FC = () => {
     setIsLoaded(true);
   }, []);
 
+  // TODO [PERF]: Centralizar saveState con debounce 500ms en un useEffect único
   useEffect(() => {
     if (isLoaded && !isSandboxMode) {
       saveState({ 

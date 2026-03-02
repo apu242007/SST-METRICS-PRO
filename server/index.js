@@ -12,12 +12,16 @@ require('dotenv').config();
 const app = express();
 const PORT = 3001;
 
-app.use(cors());
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || 'http://localhost:5173' }));
 app.use(express.json());
 
 // --- CONFIGURATION ---
-const DEFAULT_PATH = "C:\\Users\\jcastro\\Desktop\\NO BORRAR-KPIS INCIDENTES\\basedatosincidentes.xlsx";
-const FILE_PATH = process.env.INCIDENTS_XLSX_PATH || DEFAULT_PATH;
+if (!process.env.INCIDENTS_XLSX_PATH) {
+    console.error("\x1b[31m[ERROR]\x1b[0m Variable de entorno INCIDENTS_XLSX_PATH no configurada.");
+    console.error("  Crea un archivo .env con: INCIDENTS_XLSX_PATH=./data/basedatosincidentes.xlsx");
+    process.exit(1);
+}
+const FILE_PATH = process.env.INCIDENTS_XLSX_PATH;
 const WATCH_ENABLED = process.env.SYNC_WATCH_ENABLED !== 'false';
 
 console.clear();

@@ -23,18 +23,24 @@ export const normalize = (str: string) => {
 // Handles "2.026" (thousands separator), "26" (2-digit), "2026.0" (float string)
 export const sanitizeYear = (val: any): number | null => {
     if (val === undefined || val === null) return null;
-    
-    // Convert to string and clean common separators
-    const str = String(val).replace(/[\.,]/g, '').trim();
-    
-    // Parse
-    let num = parseInt(str);
-    
+
+    const raw = String(val).trim();
+
+    // Detectar separador de miles europeo: dígito(s) + punto + exactamente 3 dígitos al final
+    // Ej: "2.026" → "2026", pero NO "2026.5" (decimal)
+    const europeanThousands = /^\d{1,3}(\.\d{3})+$/.test(raw);
+    const str = europeanThousands
+        ? raw.replace(/\./g, '')           // "2.026" → "2026"
+        : raw.replace(',', '.');            // normalizar coma decimal → punto
+
+    // Truncar decimales ("2026.5" → 2026, "2026.0" → 2026)
+    const num = Math.floor(parseFloat(str));
+
     if (isNaN(num)) return null;
 
     // Handle 2-digit years (e.g., 26 -> 2026)
     if (num >= 0 && num < 100) return num + 2000;
-    
+
     // Valid range check (1990 - 2100)
     if (num >= 1990 && num <= 2100) return num;
 

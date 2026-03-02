@@ -6,13 +6,51 @@
     <title>SST Metrics Pro</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <script type="module" crossorigin src="/SST-METRICS-PRO/assets/index-DrN1Mrhg.js"></script>
+
+    <!-- ── Reglas de impresión: ocultar elementos UI que no deben aparecer al imprimir ── -->
+    <style>
+      @media print {
+        /* Ocultar header sticky de la app */
+        header {
+          display: none !important;
+        }
+
+        /* Ocultar barra de filtros */
+        .filter-bar,
+        [class*="border-t backdrop-blur"] {
+          display: none !important;
+        }
+
+        /* Ocultar panel flotante de Laboratorio (LabControls) */
+        [class*="fixed bottom-6"] {
+          display: none !important;
+        }
+
+        /* Ocultar todos los elementos fixed/sticky que no sean contenido */
+        *[class*="fixed"],
+        *[class*="sticky"] {
+          position: static !important;
+        }
+
+        /* Asegurar que el contenido principal se imprima completo */
+        main {
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        /* Quitar sombras y bordes que se ven mal en papel */
+        * {
+          box-shadow: none !important;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="/SST-METRICS-PRO/assets/index-ACTxZpuj.js"></script>
     <link rel="modulepreload" crossorigin href="/SST-METRICS-PRO/assets/vendor-react-B6iBtN7V.js">
     <link rel="modulepreload" crossorigin href="/SST-METRICS-PRO/assets/vendor-excel-CKN5doRT.js">
-    <link rel="modulepreload" crossorigin href="/SST-METRICS-PRO/assets/vendor-ui-DUA4FfCt.js">
-    <link rel="modulepreload" crossorigin href="/SST-METRICS-PRO/assets/vendor-recharts-Bm7bSefu.js">
+    <link rel="modulepreload" crossorigin href="/SST-METRICS-PRO/assets/vendor-ui-fAHEB3VS.js">
+    <link rel="modulepreload" crossorigin href="/SST-METRICS-PRO/assets/vendor-recharts-DsowUnMX.js">
     <link rel="modulepreload" crossorigin href="/SST-METRICS-PRO/assets/vendor-pdf-OG_VXpKR.js">
-    <link rel="stylesheet" crossorigin href="/SST-METRICS-PRO/assets/index-QHfmRGUV.css">
+    <link rel="stylesheet" crossorigin href="/SST-METRICS-PRO/assets/index-CVhKXjE3.css">
   </head>
   <body>
     <div id="root"></div>
