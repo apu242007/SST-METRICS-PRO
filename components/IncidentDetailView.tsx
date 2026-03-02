@@ -145,7 +145,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                     </button>
                 </div>
             </div>
-            <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition">
+            <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800 transition">
                 <X className="w-6 h-6" />
             </button>
         </div>
@@ -230,6 +230,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                         <div className="w-48">
                             <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Tipo de Asociación</label>
                             <select 
+                                title="Tipo de Asociación"
                                 className="w-full border-gray-300 rounded text-sm p-2"
                                 value={linkType}
                                 onChange={e => setLinkType(e.target.value as any)}
@@ -252,6 +253,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                         </div>
 
                         <button 
+                            aria-label="Agregar documento vinculado"
                             onClick={handleAddLink}
                             disabled={!selectedDocForLink}
                             className="mt-6 bg-blue-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -317,7 +319,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                     <FileJson className="w-4 h-4 mr-2" /> Fuente Original (Excel)
                 </div>
                 <div className="p-4">
-                    <div className="space-y-3">
+                    <dl className="space-y-3">
                         {Object.entries(rawData).map(([key, val]) => (
                             <div key={key} className="break-words">
                                 <dt className="text-[10px] font-bold text-gray-400 uppercase">{key}</dt>
@@ -326,7 +328,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                                 </dd>
                             </div>
                         ))}
-                    </div>
+                    </dl>
                 </div>
             </div>
 
@@ -416,7 +418,8 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                     <div>
                         <label className="block text-xs font-bold text-gray-700 mb-1">Fecha del Evento</label>
                         <input 
-                            type="date" 
+                            type="date"
+                            title="Fecha del Evento"
                             className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                             value={formData.fecha_evento}
                             onChange={e => handleChange('fecha_evento', e.target.value)}
@@ -462,6 +465,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                             <label className="block text-xs font-bold text-gray-700 mb-1">Días Fuera</label>
                             <input 
                                 type="number" min="0"
+                                title="Días Fuera"
                                 className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                 value={formData.days_away}
                                 onChange={e => handleChange('days_away', parseInt(e.target.value) || 0)}
@@ -471,6 +475,7 @@ export const IncidentDetailView: React.FC<IncidentDetailViewProps> = ({ incident
                             <label className="block text-xs font-bold text-gray-700 mb-1">Días Restringidos</label>
                             <input 
                                 type="number" min="0"
+                                title="Días Restringidos"
                                 className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                 value={formData.days_restricted}
                                 onChange={e => handleChange('days_restricted', parseInt(e.target.value) || 0)}
