@@ -420,18 +420,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
   }, [comparisonIncidents, comparisonExposureHours, paretoFilter, paretoView]);
 
   // ── Comparación Mensual de Eventos — depende SÓLO de monthlyFilter ─────────
+  // EXENTO del filtro raíz de año: usa allRawInc para que ambos años siempre tengan datos
   const monthlyChartData = useMemo(() => {
     const my1 = monthlyFilter.year  !== 'All' ? Number(monthlyFilter.year)  : 2025;
     const my2 = monthlyFilter.year2 && monthlyFilter.year2 !== 'All' ? Number(monthlyFilter.year2) : 2026;
-    let mbase = monthlyFilter.sites.length > 0
-      ? comparisonIncidents.filter(i => monthlyFilter.sites.includes(i.site))
-      : comparisonIncidents.slice();
+    // Aplica solo el filtro de sitio global (_gSites) y el filtro local de sitios del gráfico
+    let mbase = allRawInc.filter(i => {
+      if (_gSites.length > 0 && !_gSites.includes(i.site)) return false;
+      if (monthlyFilter.sites.length > 0 && !monthlyFilter.sites.includes(i.site)) return false;
+      return true;
+    });
     if (monthlyComCliente !== 'All') {
       const wantTrue = monthlyComCliente === 'SI';
       mbase = mbase.filter(i => i.com_cliente === wantTrue);
     }
     return { data: generateMonthlyComparison(mbase, my1, my2), my1, my2 };
-  }, [comparisonIncidents, monthlyFilter, monthlyComCliente]);
+  }, [allRawInc, _gSites, monthlyFilter, monthlyComCliente]);
 
   // ── Total Incidentes por Cliente — depende SÓLO de clienteFilter ────────────
   const clienteChartData = useMemo(() => {
