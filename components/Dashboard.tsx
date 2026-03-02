@@ -2025,15 +2025,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           (causalFilter.parteCuerpo === 'All'       || i.parte_cuerpo === causalFilter.parteCuerpo)
         );
 
-        // Check if any causal field has data
-        const hasCausalData = causalInc.some(i =>
-          i.forma_ocurrencia || i.condicion_peligrosa || i.acto_inseguro ||
-          i.factor_humano || i.naturaleza_lesion || i.parte_cuerpo ||
-          i.nivel_entrenamiento || i.funcion || i.art_gravedad || i.art_estado ||
-          i.art_diagnostico || i.art_tipo_siniestro
-        );
-
-        if (!hasCausalData) return null;
+        // Hide section only when there are zero incidents in the filtered set.
+        // Do NOT hide when incidents exist but causal fields are empty — individual
+        // charts handle that case with their own <NoData /> components.
+        if (causalBaseInc.length === 0) return null;
 
         // Normalise causal fields for accurate aggregation (Sí/No, Instalaciones, Factor Humano)
         const nc = normalizeCausalIncidents(causalInc);
