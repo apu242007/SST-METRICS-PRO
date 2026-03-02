@@ -22,6 +22,11 @@ import { getMissingExposureImpact, getMissingExposureKeys } from '../utils/impor
 import { TARGET_SCENARIOS, KPI_DEFINITIONS } from '../constants';
 import { AlertTriangle, Activity, TrendingDown, Truck, Users, Clock, Target, Trophy, Info, BarChart2, Leaf, Siren, Scale, TrendingUp, CalendarCheck, ShieldCheck, Microscope, Flame, FileCheck, HeartPulse, Calculator, X, CheckCircle2, ChevronDown, ChevronUp, Table as TableIcon, PieChart as PieIcon, Layers, Calendar } from 'lucide-react';
 import { HeatmapMatrix } from './HeatmapMatrix';
+import { normalizeCausalIncidents } from '../utils/causalNormalizers';
+import {
+  CausalKPIRow, CondicionActoMatrix, GravedadMensualChart,
+  FactorHumanoParetoChart, InvestigacionTable, ARTGestionChart,
+} from './charts/CausalExtraCharts';
 
 interface DashboardFilters {
   site: string | string[];
@@ -2030,6 +2035,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         if (!hasCausalData) return null;
 
+        // Normalise causal fields for accurate aggregation (Sí/No, Instalaciones, Factor Humano)
+        const nc = normalizeCausalIncidents(causalInc);
+
         // ─── Reusable inner renderers ────────────────────────────────────
         const NoData = () => (
           <div className="h-full flex items-center justify-center text-gray-300 text-xs italic">
@@ -2337,6 +2345,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 })()}
               </div>
 
+              {/* ── KPIs Causal ───────────────────────────────────────── */}
+              <CausalKPIRow incidents={nc} />
+
               {/* ── BLOQUE A: CAUSAS ──────────────────────────────────── */}
               <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
                 <AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> A. Causas del Incidente
@@ -2353,17 +2364,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </ChartCard>
 
                 <ChartCard id="chart-causal-condicion" title="Condición Peligrosa" icon={AlertTriangle} iconColor="text-red-500">
-                  {renderHorizBar(generateFieldDistribution(causalInc, 'condicion_peligrosa', 12), '#ef4444')}
+                  {renderHorizBar(generateFieldDistribution(nc, 'condicion_peligrosa', 12), '#ef4444')}
                 </ChartCard>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
                 <ChartCard id="chart-causal-acto" title="Acto Inseguro" icon={AlertTriangle} iconColor="text-amber-500">
-                  {renderHorizBar(generateFieldDistribution(causalInc, 'acto_inseguro', 12), '#f59e0b')}
+                  {renderHorizBar(generateFieldDistribution(nc, 'acto_inseguro', 12), '#f59e0b')}
                 </ChartCard>
 
-                <ChartCard id="chart-causal-factor-humano" title="Factor Humano Contribuyente (F1 + F2 combinados)" icon={Users} iconColor="text-purple-500">
-                  {renderHorizBar(generateCombinedFactorDistribution(causalInc, 12), '#8b5cf6')}
+                <ChartCard id="chart-causal-factor-humano" title="C. Factor Humano — Pareto (categorías normalizadas)" icon={Users} iconColor="text-purple-500">
+                  <FactorHumanoParetoChart incidents={nc} />
+                </ChartCard>
+              </div>
+
+              {/* ── BLOQUE A (extra) — Condición×Acto 2×2 · Gravedad/Mes ── */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+                <ChartCard id="chart-condicion-acto-matrix" title="E. Condición Peligrosa × Acto Inseguro (2×2)" icon={AlertTriangle} iconColor="text-rose-500">
+                  <CondicionActoMatrix incidents={nc} />
+                </ChartCard>
+                <ChartCard id="chart-gravedad-mensual" title="F. Gravedad por Mes (barras apiladas)" icon={BarChart2} iconColor="text-indigo-500">
+                  <GravedadMensualChart incidents={nc} />
                 </ChartCard>
               </div>
 
@@ -2423,7 +2444,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </ChartCard>
 
                 <ChartCard id="chart-art-instalaciones" title="Instalaciones Propias / Cliente" icon={ShieldCheck} iconColor="text-slate-500">
-                  {renderDonut(generateFieldDistribution(causalInc, 'instalacion_tipo', 6), 220)}
+                  {renderDonut(generateFieldDistribution(nc, 'instalacion_tipo', 6), 220)}
                 </ChartCard>
 
                 <ChartCard id="chart-art-investigacion" title="Requiere Investigación Final" icon={Microscope} iconColor="text-amber-500">
@@ -2441,6 +2462,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     220
                   )}
                 </ChartCard>
+              </div>
+
+              {/* ── BLOQUE I: Requiere Investigación — Tabla de detalle ── */}
+              <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
+                <Microscope className="w-3.5 h-3.5 mr-1.5" /> I. Incidentes que Requieren Investigación Final
+              </h3>
+              <div className="mb-6">
+                <InvestigacionTable incidents={causalInc} />
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
@@ -2485,6 +2514,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       </ResponsiveContainer>
                     );
                   })()}
+                </ChartCard>
+              </div>
+
+              {/* ── BLOQUE J: Gestión ART — Distribución de días perdidos ── */}
+              <h3 className="text-xs font-bold text-rose-700 uppercase tracking-wide mb-3 flex items-center">
+                <Clock className="w-3.5 h-3.5 mr-1.5" /> J. Distribución de Días Perdidos por Gravedad ART
+              </h3>
+              <div className="mb-2">
+                <ChartCard id="chart-art-gestion" title="Días perdidos: distribución por gravedad (proxy: días_away)" icon={Clock} iconColor="text-blue-500">
+                  <ARTGestionChart incidents={nc} />
                 </ChartCard>
               </div>
             </div>
